@@ -1,0 +1,514 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Limon platform schema (foundation phase)
+//
+// Isolation rules (see docs/architecture/database.md):
+//  1. Every tenant-owned table has tenant_id (uuid, NOT NULL, FK → tenants).
+//  2. Cross-entity references inside a tenant use COMPOSITE foreign keys
+//     (tenant_id, x_id) → (tenant_id, id) so a row can never point at another
+//     tenant's row, even through an application bug.
+//  3. Postgres Row-Level Security is enabled on every tenant-owned table
+//     (migration 0002_rls). The runtime DB role cannot bypass it.
+//  4. Tenant FKs are RESTRICT: tenant rows are never hard-deleted by cascade.
+//     Tenant data deletion is an explicit, ordered job (DeleteTenantData).
+//  5. Financial & audit records never cascade.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  PLATFORM_ADMIN
+  NUTRITIONIST
+  PATIENT
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELING
+  SUSPENDED
+  DELETION_PENDING
+  DELETED
+}
+
+enum TenantAppStatus {
+  DRAFT
+  BUILDING
+  SUBMITTED
+  PUBLISHED
+  DISABLED
+  REMOVED
+}
+
+enum AppPlatform {
+  IOS
+  ANDROID
+}
+
+enum DatabaseMode {
+  SHARED
+  DEDICATED
+}
+
+enum PlatformSubscriptionStatus {
+  NONE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+/// Where a patient's payment is processed. Store billing is mandatory for digital
+/// access sold inside the apps (Apple 3.1.1 / Google Play Billing); STRIPE is kept
+/// for out-of-app sales (e.g. in-person or web checkout). See ADR-008.
+enum PaymentProvider {
+  APPLE_APP_STORE
+  GOOGLE_PLAY
+  STRIPE
+}
+
+enum PatientSubscriptionStatus {
+  PENDING
+  TRIALING
+  ACTIVE
+  GRACE_PERIOD
+  PAST_DUE
+  CANCELED
+  EXPIRED
+  REFUNDED
+}
+
+/// Consents captured under LFPDPPP. Health data is sensitive personal data and
+/// requires express consent, recorded with the exact document version shown.
+enum ConsentKind {
+  PRIVACY_NOTICE
+  SENSITIVE_DATA
+  TERMS_OF_SERVICE
+}
+
+enum StoreAccountType {
+  INDIVIDUAL
+  ORGANIZATION
+}
+
+enum StoreAccountStatus {
+  MAILBOX_CREATED
+  ENROLLMENT_INVITED
+  ENROLLED
+  ACCESS_GRANTED
+  SUSPENDED
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+// ── Platform / tenancy ───────────────────────────────────────────────────────
+
+model Tenant {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  name               String
+  slug               String                     @unique // mutable, display/routing only — NEVER a security identifier
+  status             TenantStatus               @default(TRIAL)
+  subscriptionStatus PlatformSubscriptionStatus @default(NONE) @map("subscription_status")
+  // Data placement (tenant registry). Only SHARED/MAIN is implemented.
+  databaseMode       DatabaseMode               @default(SHARED) @map("database_mode")
+  databaseIdentifier String                     @default("MAIN") @map("database_identifier")
+  /// Platform-provisioned mailbox on the platform domain (e.g. maria@apps.<domain>).
+  /// Used to enrol and operate this tenant's Apple/Google developer accounts (ADR-009).
+  operationsEmail    String?                    @unique @map("operations_email")
+  statusChangedAt    DateTime                   @default(now()) @map("status_changed_at")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+  deletedAt          DateTime?                  @map("deleted_at")
+
+  branding              TenantBranding?
+  apps                  TenantApp[]
+  users                 User[]
+  nutritionists         Nutritionist[]
+  patients              Patient[]
+  recipes               Recipe[]
+  foods                 Food[]
+  mealPlans             MealPlan[]
+  protocols             Protocol[]
+  conversations         Conversation[]
+  messages              Message[]
+  platformSubscriptions PlatformSubscription[]
+  patientSubscriptions  PatientSubscription[]
+  payments              Payment[]
+  auditLogs             AuditLog[]
+  lifecycleEvents       TenantLifecycleEvent[]
+  storeAccounts         TenantStoreAccount[]
+  consents              PatientConsent[]
+
+  @@map("tenants")
+}
+
+/// Runtime branding — served by the API, changeable without a store release.
+model TenantBranding {
+  tenantId       String   @id @map("tenant_id") @db.Uuid
+  appName        String   @map("app_name")
+  logoKey        String?  @map("logo_key") // S3 key, not a URL
+  primaryColor   String   @default("#2E7D32") @map("primary_color")
+  secondaryColor String?  @map("secondary_color")
+  supportEmail   String?  @map("support_email")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@map("tenant_brandings")
+}
+
+/// A store application (one row per platform). Lifecycle independent of Tenant.status.
+model TenantApp {
+  id          String          @id @default(uuid()) @db.Uuid
+  tenantId    String          @map("tenant_id") @db.Uuid
+  platform    AppPlatform
+  /// Public, non-secret identifier baked into the build. Identifies context, NOT authorization.
+  appKey      String          @unique @map("app_key")
+  appName     String          @map("app_name")
+  bundleId    String?         @unique @map("bundle_id") // iOS
+  packageName String?         @unique @map("package_name") // Android
+  appStoreId  String?         @map("app_store_id")
+  playStoreId String?         @map("play_store_id")
+  status      TenantAppStatus @default(DRAFT)
+  version     String?
+  buildNumber Int?            @map("build_number")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, platform])
+  @@index([tenantId])
+  @@map("tenant_apps")
+}
+
+/// The developer account each tenant app is published from. One per store per tenant.
+/// The account is legally the nutritionist's; the platform holds an operations mailbox
+/// and delegated App Store Connect / Play Console access to run builds and submissions.
+model TenantStoreAccount {
+  id                String             @id @default(uuid()) @db.Uuid
+  tenantId          String             @map("tenant_id") @db.Uuid
+  platform          AppPlatform
+  accountType       StoreAccountType   @default(INDIVIDUAL) @map("account_type")
+  /// Mailbox used for the developer account (platform-provisioned, tenant-owned account).
+  accountEmail      String             @map("account_email")
+  /// Apple Team ID / Google Play developer ID once enrolment completes.
+  externalAccountId String?            @map("external_account_id")
+  status            StoreAccountStatus @default(MAILBOX_CREATED)
+  /// Credentials live in Secrets Manager; only the reference is stored here.
+  apiCredentialRef  String?            @map("api_credential_ref")
+  enrolledAt        DateTime?          @map("enrolled_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, platform])
+  @@index([tenantId])
+  @@map("tenant_store_accounts")
+}
+
+/// Append-only record of tenant status transitions (who/when/why).
+model TenantLifecycleEvent {
+  id         String       @id @default(uuid()) @db.Uuid
+  tenantId   String       @map("tenant_id") @db.Uuid
+  fromStatus TenantStatus @map("from_status")
+  toStatus   TenantStatus @map("to_status")
+  reason     String
+  actorId    String?      @map("actor_id") @db.Uuid
+  effectiveAt DateTime    @default(now()) @map("effective_at")
+  scheduledDeletionAt DateTime? @map("scheduled_deletion_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, effectiveAt])
+  @@map("tenant_lifecycle_events")
+}
+
+// ── Identity ─────────────────────────────────────────────────────────────────
+
+/// Application user. Cognito proves identity; this row decides tenant + role.
+/// PLATFORM_ADMIN users have tenant_id = NULL.
+model User {
+  id            String     @id @default(uuid()) @db.Uuid
+  cognitoUserId String     @unique @map("cognito_user_id") // Cognito `sub`
+  tenantId      String?    @map("tenant_id") @db.Uuid
+  email         String
+  role          UserRole
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  deletedAt     DateTime?  @map("deleted_at")
+
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  nutritionist Nutritionist?
+  patient      Patient?
+
+  /// Identity is tenant-scoped: the same email may be a patient of two nutritionists (ADR-006).
+  @@unique([tenantId, email])
+  @@unique([tenantId, id])
+  @@map("users")
+}
+
+model Nutritionist {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  isOwner   Boolean  @default(false) @map("is_owner")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, userId])
+  @@map("nutritionists")
+}
+
+model Patient {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  userId      String?   @unique @map("user_id") @db.Uuid // null until the patient activates their app account
+  firstName   String    @map("first_name")
+  lastName    String    @map("last_name")
+  email       String?
+  dateOfBirth DateTime? @map("date_of_birth") @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user          User?                 @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Restrict)
+  mealPlans     MealPlan[]
+  conversations Conversation[]
+  subscriptions PatientSubscription[]
+  consents      PatientConsent[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, userId])
+  @@unique([tenantId, email])
+  @@index([tenantId, createdAt])
+  @@map("patients")
+}
+
+// ── Nutrition domain (placeholders — no business logic yet) ──────────────────
+
+model Recipe {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  title       String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@map("recipes")
+}
+
+/// Tenant-private foods. A global reference food DB (tenant_id NULL) is deferred.
+model Food {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@map("foods")
+}
+
+model MealPlan {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  patientId String    @map("patient_id") @db.Uuid
+  title     String
+  startsOn  DateTime? @map("starts_on") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Operational data owned by the patient: deleting a patient removes their plans.
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, patientId])
+  @@map("meal_plans")
+}
+
+model Protocol {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@map("protocols")
+}
+
+model Conversation {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  patientId String   @map("patient_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient  Patient   @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, patientId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  senderUserId   String?  @map("sender_user_id") @db.Uuid // null = AI assistant
+  body           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  conversation Conversation @relation(fields: [tenantId, conversationId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, conversationId, createdAt])
+  @@map("messages")
+}
+
+// ── Billing (two distinct relationships — never mixed) ───────────────────────
+
+/// Nutritionist → Platform (Stripe Billing).
+model PlatformSubscription {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  tenantId             String                     @map("tenant_id") @db.Uuid
+  stripeCustomerId     String                     @map("stripe_customer_id")
+  stripeSubscriptionId String?                    @unique @map("stripe_subscription_id")
+  status               PlatformSubscriptionStatus
+  currentPeriodEnd     DateTime?                  @map("current_period_end")
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  updatedAt            DateTime                   @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@map("platform_subscriptions")
+}
+
+/// Patient → Nutritionist. The patient pays for access to their nutritionist's programme.
+/// Provider-agnostic: Apple/Google store billing for in-app purchases, Stripe for
+/// out-of-app sales. Entitlement (does this patient have access?) is derived from this row.
+model PatientSubscription {
+  id                     String                    @id @default(uuid()) @db.Uuid
+  tenantId               String                    @map("tenant_id") @db.Uuid
+  patientId              String                    @map("patient_id") @db.Uuid
+  provider               PaymentProvider
+  /// Apple originalTransactionId / Google purchaseToken / Stripe subscription id.
+  providerSubscriptionId String                    @map("provider_subscription_id")
+  /// Store product identifier or Stripe price id.
+  productId              String                    @map("product_id")
+  status                 PatientSubscriptionStatus @default(PENDING)
+  currentPeriodEnd       DateTime?                 @map("current_period_end")
+  cancelAtPeriodEnd      Boolean                   @default(false) @map("cancel_at_period_end")
+  /// Stripe Connect account (STRIPE provider only).
+  stripeAccountId        String?                   @map("stripe_account_id")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Financial: patient deletion must NOT silently remove billing history.
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([provider, providerSubscriptionId])
+  @@index([tenantId, patientId, status])
+  @@map("patient_subscriptions")
+}
+
+/// Express consent record (LFPDPPP). Retained as a legal record; never cascade-deleted.
+model PatientConsent {
+  id              String      @id @default(uuid()) @db.Uuid
+  tenantId        String      @map("tenant_id") @db.Uuid
+  patientId       String      @map("patient_id") @db.Uuid
+  kind            ConsentKind
+  /// Version of the exact document the patient accepted (e.g. "aviso-privacidad-2026-09").
+  documentVersion String      @map("document_version")
+  acceptedAt      DateTime    @default(now()) @map("accepted_at")
+  revokedAt       DateTime?   @map("revoked_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Restrict)
+
+  @@index([tenantId, patientId, kind])
+  @@map("patient_consents")
+}
+
+model Payment {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  kind         String // PLATFORM | PATIENT
+  amountMinor  Int      @map("amount_minor")
+  currency     String   @db.Char(3)
+  status       String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  transactions PaymentTransaction[]
+
+  @@unique([tenantId, id])
+  @@map("payments")
+}
+
+model PaymentTransaction {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  paymentId       String   @map("payment_id") @db.Uuid
+  stripeObjectId  String   @unique @map("stripe_object_id")
+  type            String
+  amountMinor     Int      @map("amount_minor")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  payment Payment @relation(fields: [tenantId, paymentId], references: [tenantId, id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@map("payment_transactions")
+}
+
+// ── Audit ────────────────────────────────────────────────────────────────────
+
+/// Append-only (UPDATE/DELETE revoked for the app role in 0002_rls).
+/// metadata must not contain patient health data — IDs and field names only.
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String?  @map("tenant_id") @db.Uuid // null for platform-level events
+  userId       String?  @map("user_id") @db.Uuid // no FK: survives user deletion
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  requestId    String?  @map("request_id")
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}

@@ -1,0 +1,23 @@
+{
+  "tenantId": "11111111-1111-4111-8111-111111111111",
+  "slug": "maria-nutrition",
+  "appKeys": {
+    "ios": "maria-nutrition-ios",
+    "android": "maria-nutrition-android"
+  },
+  "appName": "Maria Nutrition",
+  "scheme": "limon-maria-nutrition",
+  "ios": {
+    "bundleIdentifier": "com.limon.marianutrition"
+  },
+  "android": {
+    "package": "com.limon.marianutrition"
+  },
+  "assets": {
+    "icon": "../../assets/icon-placeholder.png",
+    "splash": "../../assets/icon-placeholder.png"
+  },
+  "splashBackgroundColor": "#2E7D32",
+  "version": "1.0.0",
+  "buildNumber": 1
+}

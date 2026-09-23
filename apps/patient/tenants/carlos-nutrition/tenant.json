@@ -1,0 +1,23 @@
+{
+  "tenantId": "22222222-2222-4222-8222-222222222222",
+  "slug": "carlos-nutrition",
+  "appKeys": {
+    "ios": "carlos-nutrition-ios",
+    "android": "carlos-nutrition-android"
+  },
+  "appName": "Carlos Nutrition",
+  "scheme": "limon-carlos-nutrition",
+  "ios": {
+    "bundleIdentifier": "com.limon.carlosnutrition"
+  },
+  "android": {
+    "package": "com.limon.carlosnutrition"
+  },
+  "assets": {
+    "icon": "../../assets/icon-placeholder.png",
+    "splash": "../../assets/icon-placeholder.png"
+  },
+  "splashBackgroundColor": "#1565C0",
+  "version": "1.0.0",
+  "buildNumber": 1
+}

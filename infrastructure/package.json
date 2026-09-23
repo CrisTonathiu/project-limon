@@ -1,0 +1,23 @@
+{
+  "name": "@limon/infrastructure",
+  "version": "0.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "synth": "cdk synth -c env=development",
+    "synth:staging": "cdk synth -c env=staging",
+    "diff": "cdk diff -c env=development",
+    "deploy:dev": "cdk deploy --all -c env=development"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.170.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

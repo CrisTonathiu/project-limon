@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Install · Lint · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm turbo run lint
+      - name: Typecheck
+        run: pnpm turbo run typecheck
+      - name: Unit tests
+        run: pnpm turbo run test
+      - name: Build
+        run: pnpm turbo run build --filter=!@limon/patient
+      - name: CDK synth (development)
+        working-directory: infrastructure
+        run: npx cdk synth -c env=development --quiet
+
+  tenant-isolation:
+    name: Tenant isolation (integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: limon_owner
+          POSTGRES_PASSWORD: limon_owner
+          POSTGRES_DB: limon
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U limon_owner" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: development
+      DATABASE_URL: postgresql://limon_app:limon_app@localhost:5432/limon
+      DATABASE_MIGRATION_URL: postgresql://limon_owner:limon_owner@localhost:5432/limon
+      AUTH_PROVIDER: dev
+      DEV_AUTH_SECRET: ci-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create runtime DB role
+        run: PGPASSWORD=limon_owner psql -h localhost -U limon_owner -d limon -f packages/database/docker/init.sql
+      - run: pnpm turbo run build --filter=@limon/api...
+      - name: Migrate
+        working-directory: packages/database
+        run: DATABASE_URL=$DATABASE_MIGRATION_URL npx prisma migrate deploy
+      - name: Seed
+        working-directory: packages/database
+        run: npx tsx prisma/seed.ts
+      - name: Database-level isolation (RLS)
+        working-directory: packages/database
+        run: npx vitest run test/integration
+      - name: API-level isolation
+        working-directory: apps/api
+        run: npx vitest run test/integration

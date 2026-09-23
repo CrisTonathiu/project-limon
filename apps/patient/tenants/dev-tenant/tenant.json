@@ -1,0 +1,23 @@
+{
+  "tenantId": "11111111-1111-4111-8111-111111111111",
+  "slug": "dev-tenant",
+  "appKeys": {
+    "ios": "maria-nutrition-ios",
+    "android": "maria-nutrition-android"
+  },
+  "appName": "Limon Dev",
+  "scheme": "limon-dev-tenant",
+  "ios": {
+    "bundleIdentifier": "com.limon.devtenant"
+  },
+  "android": {
+    "package": "com.limon.devtenant"
+  },
+  "assets": {
+    "icon": "../../assets/icon-placeholder.png",
+    "splash": "../../assets/icon-placeholder.png"
+  },
+  "splashBackgroundColor": "#FFFFFF",
+  "version": "1.0.0",
+  "buildNumber": 1
+}

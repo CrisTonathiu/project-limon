@@ -1,0 +1,13 @@
+node_modules
+dist
+.next
+.turbo
+.expo
+coverage
+cdk.out
+*.log
+.env
+.env.*
+!.env.example
+ios/
+android/

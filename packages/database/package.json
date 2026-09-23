@@ -1,0 +1,33 @@
+{
+  "name": "@limon/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "lint": "DATABASE_URL=postgresql://x:x@localhost:5432/x prisma validate",
+    "test": "vitest run test/unit",
+    "test:integration": "dotenv -e ../../.env -- vitest run test/integration",
+    "migrate:dev": "dotenv -e ../../.env -- sh -c 'DATABASE_URL=$DATABASE_MIGRATION_URL prisma migrate dev'",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
+  },
+  "prisma": { "schema": "prisma/schema.prisma" },
+  "dependencies": {
+    "@limon/tenant": "workspace:*",
+    "@limon/types": "workspace:*",
+    "@prisma/client": "^5.22.0"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^7.4.2",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  }
+}

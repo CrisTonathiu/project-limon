@@ -1,0 +1,5 @@
+{
+  "app": "npx tsx app.ts",
+  "watch": { "include": ["**"], "exclude": ["cdk.out", "node_modules"] },
+  "context": { "@aws-cdk/core:checkSecretUsage": true }
+}

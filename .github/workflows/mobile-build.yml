@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Mobile Build Pipeline — ARCHITECTURAL BOUNDARY (not active)
+#
+# Future: triggered by the App Provisioning Service (repository_dispatch) or manually,
+# builds ONE tenant's white-label app from the shared source:
+#   APP_TENANT=<slug> eas build --platform <ios|android> --profile production
+# then reports status back to the API (TenantApp.status BUILDING → SUBMITTED → PUBLISHED).
+#
+# Prerequisites before enabling (see docs/architecture/mobile-white-label.md):
+#   - Decide Apple/Google developer account model (platform-owned vs tenant-owned)
+#   - EXPO_TOKEN + per-tenant signing credentials in EAS / Secrets Manager
+#   - Callback endpoint authenticated with a machine credential
+# ─────────────────────────────────────────────────────────────────────────────
+name: Mobile Build (placeholder)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant:
+        description: 'Tenant slug (folder in apps/patient/tenants/)'
+        required: true
+      platform:
+        description: 'ios | android | all'
+        required: true
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  validate-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Resolve tenant build config
+        working-directory: apps/patient
+        env:
+          APP_TENANT: ${{ inputs.tenant }}
+        run: npx expo config --type public
+
+  build:
+    needs: validate-config
+    if: false # enable once signing/accounts are decided
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "eas build --non-interactive --platform ${{ inputs.platform }} --profile production"

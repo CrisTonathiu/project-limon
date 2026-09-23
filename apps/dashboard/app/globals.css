@@ -1,0 +1,17 @@
+:root { --primary: #2e7d32; --bg: #fff; --surface: #f6f7f6; --text: #1b1f1c; --muted: #5f6b63; --border: #dde3df; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, sans-serif; color: var(--text); background: var(--bg); }
+a { color: inherit; }
+.shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.nav { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 12px; display: flex; flex-direction: column; gap: 2px; }
+.nav a { padding: 8px 10px; border-radius: 6px; text-decoration: none; font-size: 14px; }
+.nav a:hover { background: #e8ece9; }
+.nav .brand { font-weight: 700; padding: 0 10px 16px; }
+main { padding: 32px; max-width: 960px; }
+.card { border: 1px solid var(--border); border-radius: 10px; padding: 20px; max-width: 420px; }
+label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+input { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+button { margin-top: 16px; background: var(--primary); color: #fff; border: 0; border-radius: 6px; padding: 10px 14px; font-size: 14px; cursor: pointer; }
+.error { color: #c62828; font-size: 13px; margin-top: 10px; }
+.muted { color: var(--muted); }
+.badge { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); }
