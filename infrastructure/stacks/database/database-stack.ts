@@ -17,7 +17,8 @@ export class DatabaseStack extends Stack {
   constructor(scope: Construct, id: string, cfg: EnvConfig, deps: { vpc: ec2.IVpc; dbSg: ec2.ISecurityGroup }, props?: StackProps) {
     super(scope, id, props);
     this.cluster = new rds.DatabaseCluster(this, 'Aurora', {
-      engine: rds.DatabaseClusterEngine.auroraPostgres({ version: rds.AuroraPostgresEngineVersion.VER_16_4 }),
+      // 16.4 was removed from AWS's available engine versions after this was originally written.
+      engine: rds.DatabaseClusterEngine.auroraPostgres({ version: rds.AuroraPostgresEngineVersion.VER_16_13 }),
       credentials: rds.Credentials.fromGeneratedSecret('limon_owner', { secretName: `${cfg.prefix}/db/owner` }),
       defaultDatabaseName: 'limon',
       vpc: deps.vpc,

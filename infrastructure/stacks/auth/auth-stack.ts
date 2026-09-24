@@ -1,4 +1,4 @@
-import { Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
+import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import type { Construct } from 'constructs';
 import type { EnvConfig } from '../../config/environments';
@@ -56,5 +56,9 @@ export class AuthStack extends Stack {
       preventUserExistenceErrors: true,
       enableTokenRevocation: true,
     });
+
+    // Consumed by the patient app build config (EXPO_PUBLIC_COGNITO_*) and CI.
+    new CfnOutput(this, 'UserPoolId', { value: this.userPool.userPoolId });
+    new CfnOutput(this, 'PatientClientId', { value: this.patientClient.userPoolClientId });
   }
 }

@@ -2,6 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View } from 'react-native';
 import { AiChatScreen } from '../screens/ai/AiChatScreen';
+import { ConfirmSignUpScreen } from '../screens/auth/ConfirmSignUpScreen';
 import { SignInScreen } from '../screens/auth/SignInScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
 import { HomeScreen } from '../screens/home/HomeScreen';
@@ -23,6 +24,7 @@ export function RootNavigator() {
   const { unavailable } = useTenantTheme();
 
   if (unavailable) return <UnavailableScreen />;
+  if (session.status === 'awaitingConfirmation') return <ConfirmSignUpScreen email={session.email} />;
   if (session.status === 'loading') {
     return (
       <View style={{ flex: 1, justifyContent: 'center' }}>

@@ -2,7 +2,7 @@
  * Local development seed: two tenants so isolation is visible from day one.
  * Runs as the owner role (DATABASE_MIGRATION_URL), which is not subject to RLS.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/client/index.js';
 
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_MIGRATION_URL! } } });
 

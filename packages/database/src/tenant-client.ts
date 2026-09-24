@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '../generated/client/index.js';
 import type { TenantPlacement } from '@limon/tenant';
 import type { DatabaseRouter } from './client.js';
 

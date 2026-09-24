@@ -1,5 +1,7 @@
-import { Duration, Stack, type StackProps } from 'aws-cdk-lib';
+import * as path from 'node:path';
+import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
 import type * as ec2 from 'aws-cdk-lib/aws-ec2';
+import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -66,10 +68,21 @@ export class ComputeStack extends Stack {
       return td;
     };
     const logGroup = (name: string) =>
-      new logs.LogGroup(this, `${name}Logs`, { logGroupName: `/${cfg.prefix}/${name}`, retention: cfg.logRetentionDays as unknown as logs.RetentionDays });
+      new logs.LogGroup(this, `${name}Logs`, {
+        logGroupName: `/${cfg.prefix}/${name}`,
+        retention: cfg.logRetentionDays as unknown as logs.RetentionDays,
+        // RETAIN (the default) orphans the group on stack rollback/deletion, blocking recreation
+        // until it's deleted manually — but DESTROY loses crash logs the moment a rollback
+        // starts, which is worse while actively debugging deploys. Keeping RETAIN everywhere;
+        // `aws logs delete-log-group --log-group-name /<prefix>/<name>` before a retry if needed.
+        removalPolicy: RemovalPolicy.RETAIN,
+      });
 
-    // Placeholder image until CI pushes api/dashboard images to ECR (see .github/workflows).
-    const image = (_name: 'api' | 'dashboard') => ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/node:22-alpine');
+    // CDK builds each Dockerfile locally and pushes it to the bootstrap-created asset ECR
+    // repo as part of `cdk deploy` — no separate CI/ECR pipeline needed for this stage.
+    const repoRoot = path.join(__dirname, '../../..');
+    const image = (name: 'api' | 'dashboard') =>
+      ecs.ContainerImage.fromAsset(repoRoot, { file: `apps/${name}/Dockerfile`, platform: Platform.LINUX_ARM64 });
 
     // API
     const apiTd = taskDef('Api', cfg.api.cpu, cfg.api.memoryMiB);
@@ -119,6 +132,21 @@ export class ComputeStack extends Stack {
       vpcSubnets: { subnets: d.vpc.privateSubnets }, assignPublicIp: false, circuitBreaker: { rollback: true }, minHealthyPercent: 100,
     });
 
+    // One-off DB bootstrap: creates the limon_app role, runs migrations, seeds tenants.
+    // Not a service — no desiredCount, no ALB target. Invoke manually after each deploy via
+    // `aws ecs run-task` (see docs/architecture/aws.md), using AppSecurityGroupId/PrivateSubnetIds below.
+    const migrateTd = new ecs.FargateTaskDefinition(this, 'MigrateTask', { cpu: 512, memoryLimitMiB: 1024, runtimePlatform: { cpuArchitecture: ecs.CpuArchitecture.ARM64 } });
+    migrateTd.addContainer('migrate', {
+      image: ecs.ContainerImage.fromAsset(repoRoot, { file: 'packages/database/Dockerfile', platform: Platform.LINUX_ARM64 }),
+      environment: { AWS_REGION: cfg.region },
+      secrets: {
+        DB_HOST: ecs.Secret.fromSecretsManager(d.cluster.secret!, 'host'),
+        DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(d.cluster.secret!, 'password'),
+        DB_APP_PASSWORD: ecs.Secret.fromSecretsManager(d.appUserSecret, 'password'),
+      },
+      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'migrate', logGroup: logGroup('migrate') }),
+    });
+
     // ALB
     this.alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', { vpc: d.vpc, internetFacing: true, securityGroup: d.albSg, dropInvalidHeaderFields: true });
     // HTTP listener for the skeleton only; production requires HTTPS listener + ACM cert + redirect.
@@ -148,6 +176,14 @@ export class ComputeStack extends Stack {
       ],
     });
     new wafv2.CfnWebACLAssociation(this, 'WafAssoc', { resourceArn: this.alb.loadBalancerArn, webAclArn: waf.attrArn });
+
+    // Consumed by the patient app build config (EXPO_PUBLIC_API_BASE_URL) and by the
+    // `aws ecs run-task` command that runs the one-off DB bootstrap above.
+    new CfnOutput(this, 'AlbDnsName', { value: this.alb.loadBalancerDnsName });
+    new CfnOutput(this, 'ClusterName', { value: cluster.clusterName });
+    new CfnOutput(this, 'MigrateTaskDefinitionArn', { value: migrateTd.taskDefinitionArn });
+    new CfnOutput(this, 'AppSecurityGroupId', { value: d.appSg.securityGroupId });
+    new CfnOutput(this, 'PrivateSubnetIds', { value: d.vpc.privateSubnets.map((s) => s.subnetId).join(',') });
   }
 }
 

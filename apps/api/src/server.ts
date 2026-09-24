@@ -1,3 +1,4 @@
+import './lib/bootstrap-database-url.js';
 import { buildApp } from './app.js';
 import { env } from './config/index.js';
 import { createContainer } from './infrastructure/container.js';
