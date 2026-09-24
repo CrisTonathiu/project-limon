@@ -47,3 +47,20 @@ export function loadServerEnv(source: Record<string, string | undefined> = proce
 }
 
 export const isProduction = (env: Pick<ServerEnv, 'APP_ENV'>) => env.APP_ENV === 'production';
+
+/**
+ * ECS injects DB_HOST + a role password as separate Secrets Manager secrets (see
+ * compute-stack.ts); nothing assembles the single DATABASE_URL the app/prisma expect.
+ * Called before `loadServerEnv()` so it can fill `process.env.DATABASE_URL` in place.
+ */
+function assembleUrl(source: Record<string, string | undefined>, role: 'limon_app' | 'limon_owner', passwordVar: string): string | undefined {
+  const host = source.DB_HOST;
+  const password = source[passwordVar];
+  if (!host || !password) return undefined;
+  return `postgresql://${role}:${encodeURIComponent(password)}@${host}:5432/limon`;
+}
+
+export const assembleDatabaseUrl = (source: Record<string, string | undefined> = process.env) => assembleUrl(source, 'limon_app', 'DB_APP_PASSWORD');
+
+export const assembleMigrationDatabaseUrl = (source: Record<string, string | undefined> = process.env) =>
+  assembleUrl(source, 'limon_owner', 'DB_OWNER_PASSWORD');

@@ -15,22 +15,25 @@
   },
   "dependencies": {
     "@limon/api-client": "workspace:*",
+    "@limon/tenant": "workspace:*",
     "@limon/types": "workspace:*",
     "@limon/ui": "workspace:*",
+    "@limon/validation": "workspace:*",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/native": "^7.4.1",
     "@react-navigation/native-stack": "^7.19.1",
     "@types/react": "~19.2.18",
+    "amazon-cognito-identity-js": "^6.3.12",
     "expo": "~57.0.23",
     "expo-constants": "~57.0.18",
+    "expo-crypto": "~57.0.3",
     "expo-secure-store": "~57.0.4",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "~4.26.2",
-    "@limon/validation": "workspace:*",
-    "@limon/tenant": "workspace:*"
+    "react-native-screens": "~4.26.2"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

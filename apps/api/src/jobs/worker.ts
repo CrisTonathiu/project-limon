@@ -3,6 +3,7 @@
  * Every job is tenant-aware: the worker re-resolves tenant placement and re-checks
  * tenant status before processing, since the tenant may have changed since enqueue.
  */
+import '../lib/bootstrap-database-url.js';
 import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { JobEnvelope, JobType } from '@limon/tenant';
 import { env } from '../config/index.js';

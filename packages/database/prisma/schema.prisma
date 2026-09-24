@@ -15,6 +15,15 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Generating into node_modules/.prisma (the default) doesn't survive `pnpm deploy --prod`
+  // in the API/worker Docker images, since it's a side-effect location pnpm's dependency
+  // pruning doesn't know about. A path inside the package itself is a normal file and does.
+  output = "../generated/client"
+  // Prisma's own OpenSSL-version auto-detection fails silently inside the Alpine build stage
+  // ("defaulting to openssl-1.1.x"), which is wrong for node:22-alpine (OpenSSL 3.x) and makes
+  // the engine binary fail to load at runtime. Pin the correct target instead of guessing.
+  // "native" keeps local generation (e.g. on macOS) working as before.
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 datasource db {

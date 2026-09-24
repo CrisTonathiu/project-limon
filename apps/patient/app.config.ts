@@ -39,6 +39,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     tenantId: tenant.tenantId,
     appKeys: tenant.appKeys,
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:4000',
+    authProvider: process.env.EXPO_PUBLIC_AUTH_PROVIDER ?? 'dev',
+    cognitoUserPoolId: process.env.EXPO_PUBLIC_COGNITO_USER_POOL_ID,
+    cognitoPatientClientId: process.env.EXPO_PUBLIC_COGNITO_PATIENT_CLIENT_ID,
     ...(tenant.easProjectId ? { eas: { projectId: tenant.easProjectId } } : {}),
   },
 });

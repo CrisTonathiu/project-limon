@@ -28,14 +28,16 @@ export class NetworkStack extends Stack {
     this.vpc.addGatewayEndpoint('S3Endpoint', { service: ec2.GatewayVpcEndpointAwsService.S3 });
 
     this.albSg = new ec2.SecurityGroup(this, 'AlbSg', { vpc: this.vpc, description: 'ALB', allowAllOutbound: true });
-    // TODO(stage-1 hardening): restrict to CloudFront origin-facing managed prefix list.
-    this.albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443));
+    // Dev-only: HTTP, no ACM cert/domain yet (see compute-stack.ts). Switch to 443 once
+    // ACM/CloudFront lands, and restrict to CloudFront's origin-facing managed prefix list.
+    this.albSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80));
 
     this.appSg = new ec2.SecurityGroup(this, 'AppSg', { vpc: this.vpc, description: 'ECS tasks', allowAllOutbound: true });
-    this.appSg.addIngressRule(this.albSg, ec2.Port.tcp(4000), 'ALB → API');
-    this.appSg.addIngressRule(this.albSg, ec2.Port.tcp(3000), 'ALB → dashboard');
+    // AWS rejects non-ASCII characters (e.g. an arrow) in security group rule descriptions.
+    this.appSg.addIngressRule(this.albSg, ec2.Port.tcp(4000), 'ALB to API');
+    this.appSg.addIngressRule(this.albSg, ec2.Port.tcp(3000), 'ALB to dashboard');
 
     this.dbSg = new ec2.SecurityGroup(this, 'DbSg', { vpc: this.vpc, description: 'Aurora', allowAllOutbound: false });
-    this.dbSg.addIngressRule(this.appSg, ec2.Port.tcp(5432), 'ECS → Aurora only');
+    this.dbSg.addIngressRule(this.appSg, ec2.Port.tcp(5432), 'ECS to Aurora only');
   }
 }
