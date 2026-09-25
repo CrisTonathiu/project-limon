@@ -6,7 +6,6 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
-import type * as rds from 'aws-cdk-lib/aws-rds';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
 import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import type * as sqs from 'aws-cdk-lib/aws-sqs';
@@ -18,7 +17,7 @@ type Deps = {
   vpc: ec2.IVpc;
   albSg: ec2.ISecurityGroup;
   appSg: ec2.ISecurityGroup;
-  cluster: rds.DatabaseCluster;
+  dbOwnerSecret: secretsmanager.ISecret;
   appUserSecret: secretsmanager.ISecret;
   tenantBucket: s3.IBucket;
   jobsQueue: sqs.IQueue;
@@ -55,7 +54,7 @@ export class ComputeStack extends Stack {
     // DATABASE_URL is assembled at container start from these secret fields (entrypoint script, TODO).
     const dbSecrets = {
       DB_APP_PASSWORD: ecs.Secret.fromSecretsManager(d.appUserSecret, 'password'),
-      DB_HOST: ecs.Secret.fromSecretsManager(d.cluster.secret!, 'host'),
+      DB_HOST: ecs.Secret.fromSecretsManager(d.dbOwnerSecret, 'host'),
     };
 
     const taskDef = (name: string, cpu: number, memoryLimitMiB: number) => {
@@ -140,8 +139,8 @@ export class ComputeStack extends Stack {
       image: ecs.ContainerImage.fromAsset(repoRoot, { file: 'packages/database/Dockerfile', platform: Platform.LINUX_ARM64 }),
       environment: { AWS_REGION: cfg.region },
       secrets: {
-        DB_HOST: ecs.Secret.fromSecretsManager(d.cluster.secret!, 'host'),
-        DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(d.cluster.secret!, 'password'),
+        DB_HOST: ecs.Secret.fromSecretsManager(d.dbOwnerSecret, 'host'),
+        DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(d.dbOwnerSecret, 'password'),
         DB_APP_PASSWORD: ecs.Secret.fromSecretsManager(d.appUserSecret, 'password'),
       },
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'migrate', logGroup: logGroup('migrate') }),

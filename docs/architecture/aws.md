@@ -14,7 +14,7 @@ Logs/metrics/alarms ─▶ CloudWatch
 | Stack | Resources |
 |---|---|
 | network | VPC (3 AZ), public/app/data subnets, S3 gateway endpoint, SGs (ALB → app → DB only) |
-| database | Aurora PG 16 Serverless v2, encrypted, IAM auth, owner secret + app-user secret |
+| database | PG 16: Aurora Serverless v2 (staging/production), single RDS `db.t4g.micro` instance (development); encrypted, IAM auth, owner secret + app-user secret |
 | storage | private tenant-assets bucket (BPA, SSE, TLS-only, versioned outside dev) |
 | auth | Cognito user pool, dashboard + patient-apps clients |
 | queues | jobs queue + tenant-deletion queue, each with DLQ, SSE |

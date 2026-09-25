@@ -24,7 +24,7 @@ const auth = new AuthStack(app, id('auth'), cfg, { env });
 const queues = new QueuesStack(app, id('queues'), cfg, { env });
 const compute = new ComputeStack(app, id('compute'), cfg, {
   vpc: network.vpc, albSg: network.albSg, appSg: network.appSg,
-  cluster: database.cluster, appUserSecret: database.appUserSecret,
+  dbOwnerSecret: database.ownerSecret, appUserSecret: database.appUserSecret,
   tenantBucket: storage.tenantBucket,
   jobsQueue: queues.jobsQueue, tenantDeletionQueue: queues.tenantDeletionQueue,
   userPoolId: auth.userPool.userPoolId, dashboardClientId: auth.dashboardClient.userPoolClientId, patientClientId: auth.patientClient.userPoolClientId,

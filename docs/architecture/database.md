@@ -1,6 +1,6 @@
 # Database
 
-Aurora PostgreSQL (16), shared cluster, Prisma ORM. Local: `docker compose` Postgres 16.
+Aurora PostgreSQL (16), shared cluster, Prisma ORM. The development environment uses a single RDS PostgreSQL 16 `db.t4g.micro` instance instead, to save cost. Local: `docker compose` Postgres 16.
 
 ## Roles
 | Role | Used by | RLS |
