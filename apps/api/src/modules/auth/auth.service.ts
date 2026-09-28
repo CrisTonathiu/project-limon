@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { VerifiedPrincipal } from '@limon/auth';
-import { resolveIdentity, resolveTenantApp, withTenant, writeAudit } from '@limon/database';
+import { resolveApp, resolveIdentity, resolveInviteCode, withTenant, writeAudit } from '@limon/database';
 import type { TenantContext } from '@limon/tenant';
-import type { MeResponse, RegisterNutritionistResponse, RegisterPatientResponse } from '@limon/types';
+import type { MeResponse, RegisterNutritionistResponse, RegisterPatientResponse, TenantStatus } from '@limon/types';
 import type { RegisterNutritionistInput, RegisterPatientInput } from '@limon/validation';
 import { createEntitlementService } from '../subscriptions/entitlement.service.js';
 import type { Container } from '../../infrastructure/container.js';
@@ -34,9 +34,10 @@ export function createAuthService(c: Container) {
     },
 
     /**
-     * Patient self-signup from a tenant's app. The tenant comes from the app key,
-     * never from the request body, so a patient can only ever be created in the
-     * tenant whose app they downloaded.
+     * Patient self-signup. The tenant is never taken from the request body:
+     * - from a tenant's own app, it is that app's tenant (the app key);
+     * - from the shared platform app, it is the tenant of the invite code, re-checked here.
+     * So a patient can only join a tenant whose app they downloaded or whose code they were given.
      */
     async registerPatient(
       principal: VerifiedPrincipal,
@@ -45,17 +46,34 @@ export function createAuthService(c: Container) {
       requestId: string,
     ): Promise<RegisterPatientResponse> {
       if (!appKey) throw Errors.appNotRecognized();
-      const app = await resolveTenantApp(c.db, appKey);
+      const app = await resolveApp(c.db, appKey);
       if (!app || app.appStatus === 'REMOVED' || app.appStatus === 'DISABLED') throw Errors.appNotRecognized();
+
+      let target: { tenantId: string; tenantStatus: TenantStatus };
+      if (app.kind === 'SHARED') {
+        if (!input.inviteCode) throw Errors.inviteCodeInvalid();
+        const invite = await resolveInviteCode(c.db, input.inviteCode);
+        if (!invite) throw Errors.inviteCodeInvalid();
+        target = invite;
+      } else {
+        if (input.inviteCode) {
+          const invite = await resolveInviteCode(c.db, input.inviteCode);
+          if (!invite) throw Errors.inviteCodeInvalid();
+          if (invite.tenantId !== app.tenantId) throw Errors.tenantMismatch();
+        }
+        target = app;
+      }
+      const { tenantId } = target;
+
       // Only a live practice accepts new patients (a CANCELING/SUSPENDED tenant must not take payments).
-      if (app.tenantStatus !== 'ACTIVE' && app.tenantStatus !== 'TRIAL') throw Errors.tenantSuspended();
+      if (target.tenantStatus !== 'ACTIVE' && target.tenantStatus !== 'TRIAL') throw Errors.tenantSuspended();
       if (await resolveIdentity(c.db, principal.subject)) throw Errors.conflict('This account is already registered.');
       if (principal.email && principal.email.toLowerCase() !== input.email.toLowerCase()) throw Errors.forbidden();
 
-      const placement = await c.registry.getPlacement(app.tenantId);
+      const placement = await c.registry.getPlacement(tenantId);
       return withTenant(c.db, placement, async (tx) => {
         const { user, patient } = await authRepository.createPatientAccount(tx, {
-          tenantId: app.tenantId,
+          tenantId,
           cognitoUserId: principal.subject,
           email: input.email.toLowerCase(),
           firstName: input.firstName,
@@ -69,16 +87,21 @@ export function createAuthService(c: Container) {
         });
         await writeAudit(
           tx,
-          { tenantId: app.tenantId, userId: user.id, requestId },
+          { tenantId, userId: user.id, requestId },
           {
             action: 'PatientRegistered',
             resourceType: 'Patient',
             resourceId: patient.id,
             // Versions only — the consent documents themselves are the legal record.
-            metadata: { privacyNoticeVersion: input.privacyNoticeVersion, termsVersion: input.termsVersion },
+            metadata: {
+              privacyNoticeVersion: input.privacyNoticeVersion,
+              termsVersion: input.termsVersion,
+              app: app.kind,
+              viaInviteCode: Boolean(input.inviteCode),
+            },
           },
         );
-        return { userId: user.id, patientId: patient.id, tenantId: app.tenantId };
+        return { userId: user.id, patientId: patient.id, tenantId };
       });
     },
 

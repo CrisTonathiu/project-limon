@@ -1,11 +1,11 @@
 import { ENTITLED_PERMISSIONS, hasPermission, WRITE_PERMISSIONS, type Permission, type VerifiedPrincipal } from '@limon/auth';
-import type { ResolvedIdentity, ResolvedTenantApp } from '@limon/database';
+import type { ResolvedApp, ResolvedIdentity } from '@limon/database';
 import { accessFor, createTenantContext, type TenantContext } from '@limon/tenant';
 import { Errors } from '../lib/errors.js';
 
 export type ResolveDeps = {
   resolveIdentity: (cognitoSub: string) => Promise<ResolvedIdentity | null>;
-  resolveTenantApp: (appKey: string) => Promise<ResolvedTenantApp | null>;
+  resolveApp: (appKey: string) => Promise<ResolvedApp | null>;
   /** Does this patient have paid access right now? Checked server-side, never from the client. */
   hasActiveEntitlement: (tenantId: string, userId: string) => Promise<boolean>;
 };
@@ -14,7 +14,7 @@ export type ResolveDeps = {
  * The access-control pipeline (docs/architecture/authorization.md).
  * Pure function of (verified principal, app key header, required permission) → TenantContext.
  *
- *   authenticate → resolve user → resolve tenant → [verify app ↔ tenant]
+ *   authenticate → resolve user → resolve tenant → [verify app ↔ tenant, unless shared app]
  *   → validate tenant status → authorize permission → context for tenant-scoped queries
  *
  * Nothing here reads tenantId/userId/role from the request body, query or claims.
@@ -30,12 +30,18 @@ export async function resolveTenantContext(
   // 3. Resolve tenant (from the DATABASE, not the client)
   if (!identity.tenantId || !identity.tenantStatus) throw Errors.tenantNotFound();
 
-  // 4. App identity: patients must come through a registered tenant app, and it must be THEIR tenant's app
+  // 4. App identity: patients must come through a registered app.
+  //    A tenant's own app must be THEIR tenant's app. The shared platform app belongs to
+  //    no tenant, so there is nothing to match: the tenant is the one resolved in step 3.
   if (identity.role === 'PATIENT' && !input.appKey) throw Errors.appNotRecognized();
   if (input.appKey) {
-    const app = await deps.resolveTenantApp(input.appKey);
+    const app = await deps.resolveApp(input.appKey);
     if (!app) throw Errors.appNotRecognized();
-    if (app.tenantId !== identity.tenantId) throw Errors.tenantMismatch();
+    if (app.kind === 'SHARED') {
+      if (app.appStatus === 'DISABLED' || app.appStatus === 'REMOVED') throw Errors.appNotRecognized();
+    } else if (app.tenantId !== identity.tenantId) {
+      throw Errors.tenantMismatch();
+    }
   }
 
   // 5. Tenant lifecycle

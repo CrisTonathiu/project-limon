@@ -7,11 +7,24 @@ import { PrismaClient } from '../generated/client/index.js';
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_MIGRATION_URL! } } });
 
 const tenants = [
-  { id: '11111111-1111-4111-8111-111111111111', slug: 'maria-nutrition', name: 'Maria Nutrition', color: '#2E7D32' },
-  { id: '22222222-2222-4222-8222-222222222222', slug: 'carlos-nutrition', name: 'Carlos Nutrition', color: '#1565C0' },
+  { id: '11111111-1111-4111-8111-111111111111', slug: 'maria-nutrition', name: 'Maria Nutrition', color: '#2E7D32', inviteCode: 'MARIA-DEV1' },
+  { id: '22222222-2222-4222-8222-222222222222', slug: 'carlos-nutrition', name: 'Carlos Nutrition', color: '#1565C0', inviteCode: 'CARLOS-DEV1' },
 ];
 
 async function main() {
+  // The shared platform app (APP_TENANT=limon): patients of every tenant join it with an invite code.
+  for (const platform of ['IOS', 'ANDROID'] as const) {
+    const appKey = `limon-${platform.toLowerCase()}`;
+    await prisma.platformApp.upsert({
+      where: { appKey },
+      update: {},
+      create: {
+        platform, appKey, appName: 'Limon', status: 'PUBLISHED',
+        ...(platform === 'IOS' ? { bundleId: 'com.limon.app' } : { packageName: 'com.limon.app' }),
+      },
+    });
+  }
+
   for (const t of tenants) {
     await prisma.tenant.upsert({
       where: { id: t.id },
@@ -47,8 +60,15 @@ async function main() {
       update: {},
       create: { tenantId: t.id, userId: patientUser.id, firstName: 'Demo', lastName: 'Patient', email: patientUser.email },
     });
+    // Fixed, guessable codes are for local development only; real codes come from generateInviteCode().
+    await prisma.tenantInviteCode.upsert({
+      where: { code: t.inviteCode },
+      update: {},
+      create: { tenantId: t.id, code: t.inviteCode },
+    });
   }
-  console.log('Seeded tenants:', tenants.map((t) => t.slug).join(', '));
+  console.log('Seeded tenants:', tenants.map((t) => `${t.slug} (invite ${t.inviteCode})`).join(', '));
+  console.log('Seeded shared app keys: limon-ios, limon-android');
 }
 
 main().finally(() => prisma.$disconnect());

@@ -14,6 +14,13 @@ const slug = z
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'hex color like #22AA66');
 const personName = z.string().trim().min(1).max(100);
 
+/** Normalized to upper case, matching how codes are stored (see @limon/tenant generateInviteCode). */
+export const InviteCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9]{4,16}(?:-[A-Z0-9]{4,16})?$/, 'invite code like ABCD-EFGH');
+
 export const RegisterNutritionistSchema = z
   .object({
     email: z.string().email().max(254),
@@ -51,6 +58,8 @@ export const RegisterPatientSchema = z
     firstName: personName,
     lastName: personName,
     dateOfBirth: z.string().date().optional(),
+    /** Required from the shared app, where it decides the tenant. From a tenant's own app it is optional and must belong to that tenant. */
+    inviteCode: InviteCodeSchema.optional(),
     privacyNoticeVersion: z.string().min(1).max(64),
     termsVersion: z.string().min(1).max(64),
     acceptPrivacyNotice: z.literal(true),

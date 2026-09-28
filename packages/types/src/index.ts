@@ -54,7 +54,10 @@ export type PlatformSubscriptionStatus =
 
 /** Runtime (server-delivered) branding. Can change without a store release. */
 export type TenantAppConfig = {
-  tenantId: string;
+  /** Null for the shared platform app until the patient enters an invite code. */
+  tenantId: string | null;
+  /** True for the shared app: the patient must enter an invite code to pick their nutritionist. */
+  requiresInviteCode: boolean;
   appName: string;
   logoUrl: string | null;
   primaryColor: string;
@@ -75,6 +78,7 @@ export const ErrorCode = {
   TENANT_MISMATCH: 'TENANT_MISMATCH',
   SUBSCRIPTION_REQUIRED: 'SUBSCRIPTION_REQUIRED',
   APP_NOT_RECOGNIZED: 'APP_NOT_RECOGNIZED',
+  INVITE_CODE_INVALID: 'INVITE_CODE_INVALID',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
