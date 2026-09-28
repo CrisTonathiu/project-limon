@@ -9,6 +9,16 @@
 | 3 | Market | **Mexico only** for now | see "Mexico compliance" below |
 | 4 | Patient onboarding | **Self-signup in the tenant's app, then pay for access** | `POST /auth/register/patient`, entitlement gating |
 
+## Resolved for the MVP (2026-09-28) — see [MVP roadmap](../roadmap/mvp-roadmap.md)
+
+| # | Decision | Answer |
+|---|---|---|
+| 5 | Patient payment provider | **Stripe** (Connect), paid outside the app; the app sells nothing (App Store 3.1.1 risk, see roadmap) |
+| 11 | Localization | **Spanish (es-MX) only** |
+| — | App distribution | **One shared app** for the MVP; patients join via invite code. Per-tenant builds (ADR-009) deferred |
+| — | Tenant billing | Base rate + add-ons; pricing model options in the roadmap |
+| — | Recipes | Global default library copied into each tenant; nutrients from FatSecret MX, equivalents from SMAE |
+
 ## Mexico compliance — ⚠ these DO apply
 
 "No regulations apply" isn't accurate for Mexico, and the gaps are cheap to close now but expensive later:
