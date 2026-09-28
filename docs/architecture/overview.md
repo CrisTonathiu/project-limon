@@ -45,7 +45,7 @@ Why each package exists: every package is imported by at least two deployables (
 1. Client sends `Authorization: Bearer <Cognito access token>` (+ `X-App-Key` from patient apps).
 2. API verifies the token → Cognito `sub`.
 3. API resolves user → tenant → role **from its own database**.
-4. Patient apps: a tenant's app key must belong to the user's tenant (the shared platform app skips this match).
+4. Patient apps: app key must belong to the user's tenant.
 5. Tenant status → access level (full / read-only / none).
 6. Role → permission check.
 7. Patients additionally need an active subscription for paid content.

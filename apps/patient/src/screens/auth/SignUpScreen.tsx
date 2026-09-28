@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button } from '../../components/Button';
+import { t } from '../../i18n/es-MX';
 import type { AuthStackParamList } from '../../navigation/types';
 import { useSession } from '../../state/session-context';
 import { useTenantTheme } from '../../theme/theme-context';
@@ -9,10 +10,20 @@ import { useTenantTheme } from '../../theme/theme-context';
 /**
  * Patient self-signup. Consent is explicit and unticked by default: health data is
  * sensitive personal data under Mexico's LFPDPPP and needs express consent.
+ *
+ * Invite-only nutritionists: arrives from InviteCodeScreen with an already-checked code.
+ * Open nutritionists: the code is optional ("¿Tienes un código…?").
  */
-export function SignUpScreen({ navigation }: NativeStackScreenProps<AuthStackParamList, 'SignUp'>) {
+export function SignUpScreen({ navigation, route }: NativeStackScreenProps<AuthStackParamList, 'SignUp'>) {
   const session = useSession();
   const { config, theme } = useTenantTheme();
+  const inviteCode = route.params?.inviteCode;
+  const needsCode = Boolean(config?.requiresInviteCode) && !inviteCode;
+
+  // Reached without a code in an invite-only app: the code comes first.
+  useEffect(() => {
+    if (needsCode) navigation.replace('InviteCode');
+  }, [needsCode, navigation]);
   const [form, setForm] = useState({ email: '', password: '', firstName: '', lastName: '' });
   const [privacy, setPrivacy] = useState(false);
   const [sensitive, setSensitive] = useState(false);
@@ -46,26 +57,29 @@ export function SignUpScreen({ navigation }: NativeStackScreenProps<AuthStackPar
   return (
     <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, backgroundColor: theme.colors.background }}>
       <Text style={{ fontSize: theme.typography.fontSize.xl, fontWeight: '700', color: theme.colors.text }}>
-        Create your account
+        {t.auth.signUpTitle}
       </Text>
       <Text style={{ color: theme.colors.textMuted }}>{config?.appName ?? ''}</Text>
+      {inviteCode ? (
+        <Text style={{ color: theme.colors.textMuted, marginTop: theme.spacing.xs }}>{t.invite.codeApplied(inviteCode)}</Text>
+      ) : null}
 
-      <TextInput style={input} placeholder="First name" value={form.firstName} onChangeText={set('firstName')} />
-      <TextInput style={input} placeholder="Last name" value={form.lastName} onChangeText={set('lastName')} />
-      <TextInput style={input} placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={form.email} onChangeText={set('email')} />
-      <TextInput style={input} placeholder="Password" secureTextEntry value={form.password} onChangeText={set('password')} />
+      <TextInput style={input} placeholder={t.auth.firstName} value={form.firstName} onChangeText={set('firstName')} />
+      <TextInput style={input} placeholder={t.auth.lastName} value={form.lastName} onChangeText={set('lastName')} />
+      <TextInput style={input} placeholder={t.auth.email} autoCapitalize="none" keyboardType="email-address" value={form.email} onChangeText={set('email')} />
+      <TextInput style={input} placeholder={t.auth.password} secureTextEntry value={form.password} onChangeText={set('password')} />
 
-      <Check value={privacy} onToggle={() => setPrivacy(!privacy)} label="I have read the privacy notice (aviso de privacidad)." />
+      <Check value={privacy} onToggle={() => setPrivacy(!privacy)} label={t.auth.consentPrivacy} />
       <Check
         value={sensitive}
         onToggle={() => setSensitive(!sensitive)}
-        label="I expressly consent to my health and nutrition data being processed so my nutritionist can care for me."
+        label={t.auth.consentSensitive}
       />
-      <Check value={terms} onToggle={() => setTerms(!terms)} label="I accept the terms of service." />
+      <Check value={terms} onToggle={() => setTerms(!terms)} label={t.auth.consentTerms} />
 
       <View style={{ marginTop: theme.spacing.md }}>
         <Button
-          label={busy ? 'Creating…' : 'Create account'}
+          label={busy ? t.auth.signingUp : t.auth.signUp}
           disabled={!ready || busy}
           onPress={async () => {
             setBusy(true);
@@ -73,6 +87,7 @@ export function SignUpScreen({ navigation }: NativeStackScreenProps<AuthStackPar
               .signUp({
                 email: form.email, password: form.password, firstName: form.firstName, lastName: form.lastName,
                 acceptPrivacyNotice: true, acceptSensitiveDataProcessing: true, acceptTerms: true,
+                ...(inviteCode ? { inviteCode } : {}),
               })
               .finally(() => setBusy(false));
           }}
@@ -82,8 +97,13 @@ export function SignUpScreen({ navigation }: NativeStackScreenProps<AuthStackPar
         <Text style={{ color: theme.colors.danger, marginTop: theme.spacing.sm }}>{session.error}</Text>
       ) : null}
       <Pressable onPress={() => navigation.navigate('SignIn')} style={{ marginTop: theme.spacing.lg }}>
-        <Text style={{ color: theme.colors.primary }}>Already have an account? Sign in</Text>
+        <Text style={{ color: theme.colors.primary }}>{t.auth.toSignIn}</Text>
       </Pressable>
+      {!inviteCode && !config?.requiresInviteCode ? (
+        <Pressable onPress={() => navigation.navigate('InviteCode')} style={{ marginTop: theme.spacing.md }}>
+          <Text style={{ color: theme.colors.textMuted }}>{t.invite.haveCode}</Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }

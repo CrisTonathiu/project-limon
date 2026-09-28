@@ -1,6 +1,6 @@
 import { withTenant, writeAudit } from '@limon/database';
 import type { TenantContext } from '@limon/tenant';
-import type { TenantAppConfig } from '@limon/types';
+import { FeatureKey, type TenantAppConfig } from '@limon/types';
 import type { UpdateTenantBrandingInput } from '@limon/validation';
 import type { Container } from '../../infrastructure/container.js';
 import { tenantsRepository } from './tenants.repository.js';
@@ -15,7 +15,8 @@ export function createTenantsService(c: Container) {
       return withTenant(c.db, await c.registry.getPlacement(ctx.tenantId), async (tx) => {
         const b = await tenantsRepository.updateBranding(tx, ctx.tenantId, input);
         await writeAudit(tx, ctx, { action: 'BrandingUpdated', resourceType: 'TenantBranding', resourceId: ctx.tenantId, metadata: { fields: Object.keys(input) } });
-        return { tenantId: b.tenantId, requiresInviteCode: false, appName: b.appName, logoUrl: null, primaryColor: b.primaryColor, secondaryColor: b.secondaryColor, supportEmail: b.supportEmail };
+        const inviteOnly = await tenantsRepository.isFeatureEnabled(tx, ctx.tenantId, FeatureKey.INVITE_ONLY);
+        return { tenantId: b.tenantId, requiresInviteCode: inviteOnly, appName: b.appName, logoUrl: null, primaryColor: b.primaryColor, secondaryColor: b.secondaryColor, supportEmail: b.supportEmail };
       });
     },
   };

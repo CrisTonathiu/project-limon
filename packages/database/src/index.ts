@@ -2,13 +2,10 @@ export { DatabaseRouter } from './client.js';
 export { withTenant, type TenantTx } from './tenant-client.js';
 export { SharedTenantRegistry } from './registry.js';
 export {
-  resolveApp,
+  isInviteCodeValid,
   resolveIdentity,
-  resolveInviteCode,
-  type ResolvedApp,
+  resolveTenantApp,
   type ResolvedIdentity,
-  type ResolvedInviteCode,
-  type ResolvedSharedApp,
   type ResolvedTenantApp,
 } from './identity.js';
 export { writeAudit, type AuditAction, type AuditMetadata } from './audit.js';

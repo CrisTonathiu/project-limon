@@ -19,7 +19,7 @@ export async function authRoutes(app: FastifyInstance, c: Container) {
     },
   );
 
-  // Patient self-signup: tenant is taken from X-App-Key, or from the invite code for the shared app — never from the body.
+  // Patient self-signup: tenant is taken from X-App-Key, never from the body.
   app.post(
     '/auth/register/patient',
     { preHandler: requireAuthentication(c), config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },

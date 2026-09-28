@@ -162,6 +162,7 @@ model Tenant {
   storeAccounts         TenantStoreAccount[]
   consents              PatientConsent[]
   inviteCodes           TenantInviteCode[]
+  features              TenantFeature[]
 
   @@map("tenants")
 }
@@ -206,41 +207,46 @@ model TenantApp {
   @@map("tenant_apps")
 }
 
-/// A store app published by the PLATFORM, not tied to any tenant (the shared MVP app).
-/// Patients of any tenant use it; their tenant comes from an invite code at signup and
-/// from their user record afterwards — never from the app key. Not tenant-scoped: read
-/// only through app_resolve_app() (see 0005_shared_app).
-model PlatformApp {
-  id          String          @id @default(uuid()) @db.Uuid
-  platform    AppPlatform
-  /// Public, non-secret identifier baked into the build. Identifies context, NOT authorization.
-  appKey      String          @unique @map("app_key")
-  appName     String          @map("app_name")
-  bundleId    String?         @unique @map("bundle_id") // iOS
-  packageName String?         @unique @map("package_name") // Android
-  status      TenantAppStatus @default(DRAFT)
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-
-  @@map("platform_apps")
-}
-
-/// Code a patient types in the shared app to join a tenant. Decides tenant membership
-/// at signup, so codes must be unguessable and are looked up only one at a time
-/// through app_resolve_invite_code() — never listed.
-model TenantInviteCode {
-  id        String    @id @default(uuid()) @db.Uuid
-  tenantId  String    @map("tenant_id") @db.Uuid
-  /// Stored normalized (upper case).
-  code      String    @unique
-  active    Boolean   @default(true)
-  expiresAt DateTime? @map("expires_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+/// Per-tenant feature flags (modules and add-ons), switched on by the platform team.
+/// `featureKey` values are defined in @limon/types FeatureKey; stored as text so new
+/// add-ons don't need a migration. A missing row means the feature is off.
+model TenantFeature {
+  tenantId   String   @map("tenant_id") @db.Uuid
+  featureKey String   @map("feature_key")
+  enabled    Boolean  @default(false)
+  /// Optional per-tenant settings for the feature.
+  config     Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  @@index([tenantId])
+  @@id([tenantId, featureKey])
+  @@map("tenant_features")
+}
+
+/// Single-use code that lets ONE pre-registered patient create their account in their
+/// nutritionist's app. Required when the tenant's `invite_only` feature is on.
+/// Checked before sign-up through app_invite_code_is_valid() (exact match only, never
+/// listed) and redeemed inside the tenant's transaction at registration.
+model TenantInviteCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  /// The pre-registered patient this code activates.
+  patientId  String    @map("patient_id") @db.Uuid
+  /// Stored normalized (upper case).
+  code       String    @unique
+  active     Boolean   @default(true)
+  expiresAt  DateTime? @map("expires_at")
+  redeemedAt DateTime? @map("redeemed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Operational: deleting a patient removes their pending invites.
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, patientId])
   @@map("tenant_invite_codes")
 }
 
@@ -348,6 +354,7 @@ model Patient {
   conversations Conversation[]
   subscriptions PatientSubscription[]
   consents      PatientConsent[]
+  inviteCodes   TenantInviteCode[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, userId])

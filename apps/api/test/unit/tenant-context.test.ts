@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ResolvedApp, ResolvedIdentity } from '@limon/database';
+import type { ResolvedIdentity, ResolvedTenantApp } from '@limon/database';
 import { resolveTenantContext, type ResolveDeps } from '../../src/middleware/tenant-context.js';
 
 const A = '11111111-1111-4111-8111-111111111111';
@@ -7,14 +7,14 @@ const B = '22222222-2222-4222-8222-222222222222';
 
 function deps(
   identity: Partial<ResolvedIdentity> | null,
-  apps: Record<string, Partial<ResolvedApp>> = {},
+  apps: Record<string, Partial<ResolvedTenantApp>> = {},
   entitled = true,
 ): ResolveDeps {
   return {
     hasActiveEntitlement: async () => entitled,
     resolveIdentity: async () =>
       identity && { userId: 'u1', tenantId: A, role: 'NUTRITIONIST', userStatus: 'ACTIVE', tenantStatus: 'ACTIVE', email: 'x@y.z', ...identity },
-    resolveApp: async (k) => (apps[k] ? ({ kind: 'TENANT', tenantStatus: 'ACTIVE', appStatus: 'PUBLISHED', ...apps[k] } as ResolvedApp) : null),
+    resolveTenantApp: async (k) => (apps[k] ? ({ tenantStatus: 'ACTIVE', appStatus: 'PUBLISHED', ...apps[k] } as ResolvedTenantApp) : null),
   };
 }
 const principal = { subject: 'sub', email: null, clientId: null };
@@ -33,28 +33,6 @@ describe('resolveTenantContext', () => {
   it('rejects a patient using ANOTHER tenant’s app (Maria patient in Carlos app)', async () => {
     const d = deps({ role: 'PATIENT' }, { 'carlos-ios': { tenantId: B } });
     await expect(resolveTenantContext(d, { ...base, appKey: 'carlos-ios', permission: 'self:patient:read' })).rejects.toMatchObject({ code: 'TENANT_MISMATCH' });
-  });
-
-  it('lets patients of ANY tenant use the shared app; the tenant comes from the database', async () => {
-    const shared = { 'limon-ios': { kind: 'SHARED' as const } };
-    const maria = await resolveTenantContext(deps({ role: 'PATIENT' }, shared), { ...base, appKey: 'limon-ios', permission: 'self:patient:read' });
-    const carlos = await resolveTenantContext(deps({ role: 'PATIENT', tenantId: B }, shared), { ...base, appKey: 'limon-ios', permission: 'self:patient:read' });
-    expect(maria.tenantId).toBe(A);
-    expect(carlos.tenantId).toBe(B);
-  });
-
-  it('rejects a disabled or removed shared app', async () => {
-    for (const appStatus of ['DISABLED', 'REMOVED'] as const) {
-      const d = deps({ role: 'PATIENT' }, { 'limon-ios': { kind: 'SHARED', appStatus } });
-      await expect(resolveTenantContext(d, { ...base, appKey: 'limon-ios', permission: 'self:patient:read' })).rejects.toMatchObject({ code: 'APP_NOT_RECOGNIZED' });
-    }
-  });
-
-  it('still applies tenant lifecycle and entitlement through the shared app', async () => {
-    const suspended = deps({ role: 'PATIENT', tenantStatus: 'SUSPENDED' }, { 'limon-ios': { kind: 'SHARED' } });
-    await expect(resolveTenantContext(suspended, { ...base, appKey: 'limon-ios', permission: 'self:patient:read' })).rejects.toMatchObject({ code: 'TENANT_SUSPENDED' });
-    const unpaid = deps({ role: 'PATIENT' }, { 'limon-ios': { kind: 'SHARED' } }, false);
-    await expect(resolveTenantContext(unpaid, { ...base, appKey: 'limon-ios', permission: 'self:meal-plans:read' })).rejects.toMatchObject({ code: 'SUBSCRIPTION_REQUIRED' });
   });
 
   it('requires patients to present an app key', async () => {

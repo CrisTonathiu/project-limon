@@ -1,6 +1,7 @@
 import { Text } from 'react-native';
 import { Button } from '../../components/Button';
 import { Screen } from '../../components/Screen';
+import { t } from '../../i18n/es-MX';
 import { useSession } from '../../state/session-context';
 import { useTenantTheme } from '../../theme/theme-context';
 
@@ -19,16 +20,16 @@ export function SubscriptionScreen() {
   const entitlement = session.status === 'signedIn' ? session.me.entitlement : undefined;
 
   return (
-    <Screen title="Subscribe">
+    <Screen title={t.subscription.title}>
       <Text style={{ color: theme.colors.text }}>
-        Subscribe to unlock your meal plans, recipes and chat with {config?.appName ?? 'your nutritionist'}.
+        {t.subscription.body(config?.appName ?? t.common.yourNutritionist)}
       </Text>
       {entitlement?.status ? (
-        <Text style={{ color: theme.colors.textMuted }}>Current status: {entitlement.status}</Text>
+        <Text style={{ color: theme.colors.textMuted }}>{t.subscription.currentStatus(t.subscription.status[entitlement.status])}</Text>
       ) : null}
-      <Button label="Subscribe (not available yet)" disabled onPress={() => undefined} />
-      <Button label="Restore purchases" onPress={() => void session.refresh()} />
-      <Button label="Sign out" onPress={() => void session.signOut()} />
+      <Button label={t.subscription.subscribe} disabled onPress={() => undefined} />
+      <Button label={t.subscription.restore} onPress={() => void session.refresh()} />
+      <Button label={t.common.signOut} onPress={() => void session.signOut()} />
     </Screen>
   );
 }

@@ -16,6 +16,7 @@
     "migrate:dev": "dotenv -e ../../.env -- sh -c 'DATABASE_URL=$DATABASE_MIGRATION_URL prisma migrate dev'",
     "migrate:deploy": "prisma migrate deploy",
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "admin": "dotenv -e ../../.env -- tsx prisma/admin.ts",
     "bootstrap-role": "tsx prisma/bootstrap-role.ts"
   },
   "prisma": { "schema": "prisma/schema.prisma" },

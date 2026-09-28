@@ -7,14 +7,11 @@
  * GET /api/v1/apps/bootstrap and can change without a release.
  */
 export type TenantBuildConfig = {
-  /**
-   * Immutable tenant UUID (public). Written at provisioning; used to namespace Cognito usernames (ADR-006).
-   * Absent for the shared platform app (`limon`): there the tenant comes from the patient's invite code.
-   */
+  /** Immutable tenant UUID (public). Written at provisioning; used to namespace Cognito usernames (ADR-006). */
   tenantId?: string;
   /** Folder name; selects this config via APP_TENANT=<slug>. */
   slug: string;
-  /** Public TenantApp.appKey (or PlatformApp.appKey for the shared app) sent as X-App-Key. Identifies context — NOT authorization. */
+  /** Public TenantApp.appKey sent as X-App-Key. Identifies context — NOT authorization. */
   appKeys: { ios: string; android: string };
   /** Store display name (home screen label). */
   appName: string;

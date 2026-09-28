@@ -1,4 +1,9 @@
-export type AuthStackParamList = { SignIn: undefined; SignUp: undefined };
+export type AuthStackParamList = {
+  SignIn: undefined;
+  InviteCode: undefined;
+  /** `inviteCode` is set once InviteCodeScreen has checked it with the API. */
+  SignUp: { inviteCode?: string } | undefined;
+};
 export type AppStackParamList = {
   Home: undefined;
   Meals: undefined;

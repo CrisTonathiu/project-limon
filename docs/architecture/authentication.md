@@ -27,7 +27,7 @@ Alternative considered: a user pool per tenant (clean separation, but Cognito pe
 **Patient self-signup (implemented):** the patient downloads their nutritionist's app from the store → signs up in Cognito with the namespaced username → `POST /api/v1/auth/register/patient` with `X-App-Key`.
 
 - The tenant comes from the **app key**, never from the body, so a patient can only be created in the tenant whose app they installed.
-- From the **shared platform app** (MVP), the tenant comes from the `inviteCode` in the body instead, re-resolved server-side. See [mobile-white-label.md](mobile-white-label.md#shared-platform-app-mvp).
+- If the tenant is **invite only**, the body must carry the patient's single-use `inviteCode`, which is redeemed in the same transaction. See [mobile-white-label.md](mobile-white-label.md#admission-modes-who-can-sign-up).
 - Only `TRIAL`/`ACTIVE` tenants accept new patients (a cancelling or suspended practice must not take payments).
 - If the nutritionist pre-created a patient with the same email, that record is **claimed** rather than duplicated, so existing history carries over.
 - Consent is captured in the same transaction (see below).

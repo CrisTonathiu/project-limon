@@ -1,4 +1,5 @@
 import type { TenantTx } from '@limon/database';
+import type { FeatureKey } from '@limon/types';
 import type { UpdateTenantBrandingInput } from '@limon/validation';
 
 export const tenantsRepository = {
@@ -7,4 +8,9 @@ export const tenantsRepository = {
 
   updateBranding: (tx: TenantTx, tenantId: string, input: UpdateTenantBrandingInput) =>
     tx.tenantBranding.update({ where: { tenantId }, data: input }),
+
+  /** A missing flag row means the feature is off. */
+  isFeatureEnabled: async (tx: TenantTx, tenantId: string, featureKey: FeatureKey) =>
+    (await tx.tenantFeature.findUnique({ where: { tenantId_featureKey: { tenantId, featureKey } }, select: { enabled: true } }))
+      ?.enabled ?? false,
 };

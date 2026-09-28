@@ -9,7 +9,6 @@ Request
   │ 2 Resolve user      users by cognito_user_id (DB)         → FORBIDDEN if unknown/disabled
   │ 3 Resolve tenant    user.tenant_id (DB)                   → TENANT_NOT_FOUND
   │ 4 App identity      X-App-Key → tenant_apps.tenant_id     → APP_NOT_RECOGNIZED / TENANT_MISMATCH
-  │                     (shared platform app: no match check) → APP_NOT_RECOGNIZED if disabled
   │                     (required for PATIENT role)
   │ 5 Tenant status     accessFor(status, audience)           → TENANT_SUSPENDED
   │ 6 Permission        hasPermission(role, permission)       → FORBIDDEN

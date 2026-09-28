@@ -13,7 +13,8 @@ a goal tracker. Our team turns each module on or off per nutritionist with featu
 
 | Module | Feature flag | What ships |
 |---|---|---|
-| Authentication | always on | Sign up / sign in (Cognito, already built), join a nutritionist with an invite code, consent capture (already built) |
+| Authentication | always on | Sign up / sign in (Cognito, already built), consent capture (already built) |
+| Admission | `invite_only` | Open sign-up, or invite only with a single-use code per patient |
 | Patient registration | always on | Onboarding questionnaire (sex, birth date, height, weight, activity level, meals per day, allergies / dislikes), profile editing |
 | Recipes | `recipes` | Default recipe library copied into each tenant; tenant copies can be edited; nutrition values from FatSecret MX |
 | Weekly meal plan | `meal_plan` | Plans generated automatically each week from the tenant's recipes; favourite meals; regenerate a day |
@@ -31,7 +32,7 @@ Nutritionist web dashboard · per-tenant store builds · AI assistant · calenda
 
 | Decision | Answer | Consequence |
 |---|---|---|
-| App distribution | **One shared app** published from the platform's developer accounts | A patient picks their nutritionist with an **invite code** at signup. Branding is applied at runtime from `TenantBranding`. Per-tenant builds (ADR-009) wait until after the MVP. |
+| App distribution | **One branded app per nutritionist**, published from the nutritionist's own developer accounts (ADR-009) | Apple 4.2.6 requires template apps to be submitted by the content owner. Each pilot must enroll with Apple and Google in week 1; builds and submissions are manual for the pilots. |
 | Patient payments | **Stripe** (Connect, so the money goes to the nutritionist) | See [App Store risk](#1-stripe-vs-app-store-rules-high) — the app itself must not sell anything. |
 | Tenant billing | Base rate + add-ons | Pricing model still open — see [Tenant pricing options](#tenant-pricing-options). Invoice manually through Stripe Billing during the pilot. |
 | Recipe ownership | Global default library → **copied** into each tenant at provisioning | Nutritionists edit their own copies; updates to the library never overwrite tenant edits. |
@@ -64,13 +65,13 @@ Close the blockers first so nothing stalls later.
 
 - [ ] **Licensing:** confirm the FatSecret Platform API tier that allows the MX region, Spanish results and **storing** nutrient values in our recipes. Confirm the rights to use SMAE equivalent tables.
 - [ ] **Stripe:** open the Stripe Mexico account, enable Connect (Express), and decide the patient payment flow (see Risk 1).
-- [ ] **Store accounts:** Apple Developer + Google Play accounts for the shared app. Google requires closed testing on new personal accounts, so start this now.
-- [ ] **Single-app tenancy:** replace the per-build `X-App-Key` with an invite code → tenant lookup at signup. Keep the app-key path for future per-tenant builds.
+- [ ] **Store accounts:** each pilot nutritionist enrolls in Apple Developer + Google Play (ADR-009). Apple organization accounts need a D-U-N-S number; Google requires a 14-day closed test on new personal accounts, so start this now.
+- [x] **Admission modes:** `invite_only` flag (open or invite only), per-patient single-use invite codes, admin command to issue them.
 - [ ] **Feature flags:** add a `tenant_features` table (`tenant_id`, `feature_key`, `enabled`, `config` JSON). Return the enabled flags in `/apps/bootstrap` / `/me`, add an API guard (`requireFeature('meal_plan')`) that returns `FEATURE_DISABLED`, and hide the matching app tabs. Toggle flags with an internal admin script.
 - [ ] **i18n:** set up es-MX strings (`i18next` / `expo-localization`); no hard-coded UI strings from here on.
 - [ ] **Delivery:** staging deploy (CDK), EAS development build on a device, error tracking (Sentry) in the API and the app.
 
-**Done when:** a patient can sign up in the staging app with an invite code, sees their nutritionist's branding, and only the enabled tabs.
+**Done when:** a patient can sign up in their nutritionist's staging app (with an invite code when that nutritionist is invite only), sees the nutritionist's branding, and only the enabled tabs.
 
 ### Week 2 · Oct 5 – 9 — Patient registration and profile
 
@@ -163,7 +164,7 @@ If the schedule slips, drop these in order and ship them in v1.1:
 4. Regenerate a single day
 5. Stretch: an in-app nutritionist recipe editor (never in the critical path)
 
-Never cut: invite-code tenancy, feature flags, guardrails, payments/entitlement, the Spanish copy and the privacy notice.
+Never cut: admission modes, feature flags, guardrails, payments/entitlement, the Spanish copy and the privacy notice.
 
 ## Risks
 
@@ -172,7 +173,7 @@ Apple 3.1.1 and Google Play Billing require store billing for digital content so
 
 - The app must contain **no** purchase button, prices, or links to pay. It only shows "your access is inactive, contact your nutritionist".
 - Patients pay **outside the app**: the nutritionist sends a Stripe Checkout link (WhatsApp, email, website, in person). This is allowed under Apple 3.1.3(b) *multiplatform services*.
-- Recommended order: pay link → the webhook creates a pending entitlement tied to the email → the patient signs up in the app with that email and invite code → access is granted.
+- Recommended order: pay link → the webhook creates a pending entitlement tied to the email → the patient signs up in their nutritionist's app with that email → access is granted.
 
 App Review may still question it. Test it with an early TestFlight external build in week 7, not week 9.
 
