@@ -33,6 +33,7 @@ Nutritionist web dashboard · per-tenant store builds · AI assistant · calenda
 | Decision | Answer | Consequence |
 |---|---|---|
 | App distribution | **One branded app per nutritionist**, published from the nutritionist's own developer accounts (ADR-009) | Apple 4.2.6 requires template apps to be submitted by the content owner. Each pilot must enroll with Apple and Google in week 1; builds and submissions are manual for the pilots. |
+| Store accounts for nutritionists without a business | **Individual** (Apple) / **personal** (Google) accounts | No registered business or D-U-N-S number needed. The seller shows as the nutritionist's legal name, and Google adds a 14-day closed test before the app can go public. See [Nutritionist onboarding](#nutritionist-onboarding-store-accounts). |
 | Patient payments | **Stripe** (Connect, so the money goes to the nutritionist) | See [App Store risk](#1-stripe-vs-app-store-rules-high) — the app itself must not sell anything. |
 | Tenant billing | Base rate + add-ons | Pricing model still open — see [Tenant pricing options](#tenant-pricing-options). Invoice manually through Stripe Billing during the pilot. |
 | Recipe ownership | Global default library → **copied** into each tenant at provisioning | Nutritionists edit their own copies; updates to the library never overwrite tenant edits. |
@@ -65,7 +66,7 @@ Close the blockers first so nothing stalls later.
 
 - [ ] **Licensing:** confirm the FatSecret Platform API tier that allows the MX region, Spanish results and **storing** nutrient values in our recipes. Confirm the rights to use SMAE equivalent tables.
 - [ ] **Stripe:** open the Stripe Mexico account, enable Connect (Express), and decide the patient payment flow (see Risk 1).
-- [ ] **Store accounts:** each pilot nutritionist enrolls in Apple Developer + Google Play (ADR-009). Apple organization accounts need a D-U-N-S number; Google requires a 14-day closed test on new personal accounts, so start this now.
+- [ ] **Store accounts:** each pilot nutritionist starts enrolling in Apple Developer + Google Play (ADR-009), as an **individual / personal** account unless they have a registered business. Follow [Nutritionist onboarding](#nutritionist-onboarding-store-accounts); Apple identity checks can take days, so start this now.
 - [x] **Admission modes:** `invite_only` flag (open or invite only), per-patient single-use invite codes, admin command to issue them.
 - [ ] **Feature flags:** add a `tenant_features` table (`tenant_id`, `feature_key`, `enabled`, `config` JSON). Return the enabled flags in `/apps/bootstrap` / `/me`, add an API guard (`requireFeature('meal_plan')`) that returns `FEATURE_DISABLED`, and hide the matching app tabs. Toggle flags with an internal admin script.
 - [ ] **i18n:** set up es-MX strings (`i18next` / `expo-localization`); no hard-coded UI strings from here on.
@@ -123,6 +124,7 @@ Close the blockers first so nothing stalls later.
 - [ ] **Goal:** the patient creates a goal (type, target weight, target date). The API validates it against the guardrails.
 - [ ] Logs: weight, body measurements (waist, hip, chest, arm, thigh), body fat %. Show charts over time and progress toward the goal.
 - [ ] **Home screen:** today's meals, water progress, latest weight, and a goal progress card, each shown only if its flag is enabled.
+- [ ] **Start Google's closed test (by Fri Nov 6 at the latest):** upload the current Android build to each pilot's Play closed-testing track and get **at least 12 testers** opted in (their first patients). Google only grants production access after 14 continuous days, so this is the last week that still allows a week-9 launch.
 
 **Done when:** all four trackers work offline-tolerant (optimistic UI, retry) and respect their feature flags.
 
@@ -142,17 +144,45 @@ Close the blockers first so nothing stalls later.
 - [ ] End-to-end happy path: signup → onboarding → plan → swap → list → trackers → pay. Test with RLS cross-tenant isolation checks.
 - [ ] Security pass on new endpoints (authorization, feature guards, rate limits), then production deploy and backups check.
 - [ ] Empty states, loading and error states, accessibility basics.
-- [ ] TestFlight + Play closed testing with the pilot nutritionists.
+- [ ] TestFlight with the pilot nutritionists; keep the Play closed test running (testers must stay opted in) and apply for production access once 14 days have passed.
 
 ### Week 9 · Nov 23 – 27 — Launch buffer
 
 - [ ] Submit to the App Store and Google Play; respond to review feedback.
-- [ ] Onboard 1–2 pilot nutritionists: tenant, branding, flags, recipe tweaks, Stripe Connect, invite codes.
+- [ ] Finish onboarding 1–2 pilot nutritionists (store accounts started in week 1): tenant, branding, flags, recipe tweaks, Stripe Connect, invite codes.
 - [ ] Fix pilot bugs; hold scope.
 
 ### Parallel track — default recipe content (weeks 1–5)
 
 The generator is only as good as the catalog. Target **≥ 80 default recipes** by the end of week 4: at least 20 per main meal type plus 20 snacks, spread across calorie ranges, with common allergens covered by alternatives. This is content work (ideally by a partner nutritionist), not engineering. If it slips, meal plans become repetitive.
+
+## Nutritionist onboarding (store accounts)
+
+Every nutritionist publishes their own app (Apple 4.2.6, ADR-009). Many don't have a registered business, so the default is an **individual** account on each store. No company, D-U-N-S number or organization paperwork is needed.
+
+| | Apple Developer (Individual) | Google Play (personal) |
+|---|---|---|
+| Needs | Government ID; an Apple ID with two-factor authentication on the nutritionist's phone | Government ID |
+| Cost | US$99 per year | US$25 once |
+| Shown in the store | App name is theirs to choose ("Nutrición María"); the **seller is their legal name** | Their developer name |
+| Catch | Only the account holder can manage signing certificates. Extra users get App Store Connect access only (up to 10) | New personal accounts must run a **closed test with ≥ 12 testers for 14 continuous days** before publishing |
+
+Because patients pay through Stripe outside the app, the apps are free: no Apple paid-apps agreement and no Google payments profile, so no tax or banking forms with the stores.
+
+**Steps per nutritionist (≈ 3 weeks, mostly Google's closed test):**
+
+1. We create their operations mailbox (`<name>@apps.<domain>`, ADR-009).
+2. They enroll in the Apple Developer Program as **Individual** with that mailbox, their ID and their phone for two-factor.
+3. They create a Google Play **personal** developer account.
+4. We get build access. On Apple, an **App Store Connect API key** created during onboarding lets EAS build, sign and submit without needing their two-factor code each time. On Google, we are added as an admin user.
+5. Their first **12 patients join the Android closed test**. The 14-day clock starts when the 12th tester opts in.
+6. They open a **Stripe Connect Express** account as an individual, with their bank account (CLABE) and likely their RFC. Most practicing nutritionists already have an RFC because they issue receipts.
+
+**Open question (confirm with the first pilot):** whether an Individual Apple account can create the App Store Connect API key EAS needs for signing. If it can't, every signing session needs a two-factor code from the nutritionist. Workable for the pilots, but it doesn't scale.
+
+**Later:**
+- A nutritionist who forms a company can move their app to an organization account; both stores support app transfers, so patients keep the same app.
+- Nutritionists who won't enroll at all could be offered a cheaper plan: one app under our account where patients pick their nutritionist (the "picker" model Apple 4.2.6 allows). That's a product decision for after the pilot.
 
 ## Cut line
 
@@ -189,6 +219,9 @@ Eight weeks leaves no slack for illness or store rejections. Hold the cut line, 
 ### 5. Recipe content (medium)
 See the parallel track above.
 
+### 6. Store onboarding for each nutritionist (high)
+Launch depends on steps the nutritionist has to do: identity checks, two-factor on their phone, and 12 real testers for 14 days on Google. A pilot who starts late misses week 9. Mitigations: start enrollment in week 1, have their first patients ready as testers, start the closed test by Nov 6, and confirm the Apple API-key question with the first pilot. See [Nutritionist onboarding](#nutritionist-onboarding-store-accounts).
+
 ## Tenant pricing options
 
 For the MVP features, **cloud cost per patient is almost zero.** The cost is the **fixed** baseline of running the platform. Rough list-price estimates for one production environment in `us-east-1` (verify with the AWS Pricing Calculator):
@@ -223,13 +256,13 @@ So the patient count affects **fairness, support load and margin** more than clo
 |---|---|---|
 | v1.1 | Dec 2026 | Anything past the cut line, pilot feedback, ARCO request flow in-app, analytics |
 | Nutritionist dashboard | Jan – Feb 2027 | Recipe editor, patient list and progress, meal plan review/override, invite codes, Stripe Connect self-onboarding, feature/add-on self-upgrade |
-| White-label builds | Feb – Mar 2027 | Per-tenant builds (ADR-009), EAS pipeline, OTA updates per tenant, CFDI invoicing (e.g. Facturapi) |
+| Build automation | Feb – Mar 2027 | Automated per-tenant build and submit pipeline (the MVP pilots are built by hand), OTA updates per tenant, guided store-account onboarding, CFDI invoicing (e.g. Facturapi) |
 | AI add-on (`ai_assistant`) | Q2 2027 | Preference-aware plan generation trained on `meal_feedback`; patient assistant (recipe Q&A, swaps); nutritionist plan drafting; usage-metered billing |
 | Booking add-on (`booking`) | Q2 2027 | Calendar, availability, video-call links, reminders |
 
 ## Definition of MVP done
 
-- The app is live on the App Store and Google Play in Spanish.
+- Each pilot nutritionist's own app is live on the App Store and Google Play, in Spanish.
 - At least 1 pilot nutritionist is onboarded, with at least 10 patients paying through Stripe.
 - Each module can be turned on and off per tenant without a release.
 - No cross-tenant data access (RLS tests pass) and the guardrails are enforced server-side.
