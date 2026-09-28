@@ -17,7 +17,7 @@ Fail-closed: if `app.tenant_id` is not set, policies match **no rows**.
 Tested by `packages/database/test/integration/tenant-isolation.test.ts` (DB level) and `apps/api/test/integration/tenant-isolation.api.test.ts` (HTTP level); both run in CI.
 
 ## Pre-tenant operations
-Some lookups happen before a tenant is known (token `sub` → user; app key → tenant). They use two narrow `SECURITY DEFINER` functions (`app_resolve_identity`, `app_resolve_tenant_app`) that return a minimal fixed column set — not a general RLS bypass.
+Some lookups happen before a tenant is known (token `sub` → user; app key → tenant). They use two narrow `SECURITY DEFINER` functions (`app_resolve_identity`, `app_resolve_app`, `app_resolve_invite_code`) that return a minimal fixed column set — not a general RLS bypass.
 
 ## Connection pooling note
 `app.tenant_id` is **transaction-local** (`is_local = true`), so it cannot leak across pooled connections (Prisma pool, RDS Proxy, PgBouncer in transaction mode).

@@ -161,6 +161,7 @@ model Tenant {
   lifecycleEvents       TenantLifecycleEvent[]
   storeAccounts         TenantStoreAccount[]
   consents              PatientConsent[]
+  inviteCodes           TenantInviteCode[]
 
   @@map("tenants")
 }
@@ -203,6 +204,44 @@ model TenantApp {
   @@unique([tenantId, platform])
   @@index([tenantId])
   @@map("tenant_apps")
+}
+
+/// A store app published by the PLATFORM, not tied to any tenant (the shared MVP app).
+/// Patients of any tenant use it; their tenant comes from an invite code at signup and
+/// from their user record afterwards — never from the app key. Not tenant-scoped: read
+/// only through app_resolve_app() (see 0005_shared_app).
+model PlatformApp {
+  id          String          @id @default(uuid()) @db.Uuid
+  platform    AppPlatform
+  /// Public, non-secret identifier baked into the build. Identifies context, NOT authorization.
+  appKey      String          @unique @map("app_key")
+  appName     String          @map("app_name")
+  bundleId    String?         @unique @map("bundle_id") // iOS
+  packageName String?         @unique @map("package_name") // Android
+  status      TenantAppStatus @default(DRAFT)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@map("platform_apps")
+}
+
+/// Code a patient types in the shared app to join a tenant. Decides tenant membership
+/// at signup, so codes must be unguessable and are looked up only one at a time
+/// through app_resolve_invite_code() — never listed.
+model TenantInviteCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  /// Stored normalized (upper case).
+  code      String    @unique
+  active    Boolean   @default(true)
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@map("tenant_invite_codes")
 }
 
 /// The developer account each tenant app is published from. One per store per tenant.

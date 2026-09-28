@@ -22,6 +22,21 @@ Each build embeds a public **app key** (`TenantApp.appKey`, one per platform). T
 
 Why an opaque app key instead of sending the bundle ID? Bundle IDs are trivially spoofable too, and the key decouples API identity from store identifiers (which can change, e.g. transfers between developer accounts).
 
+## Shared platform app (MVP)
+For the MVP there is **one** store app, "Limon" (`APP_TENANT=limon`), used by patients of every tenant. Its key is a `PlatformApp.appKey` (`limon-ios`, `limon-android`), not tied to any tenant.
+
+| | Tenant's own app | Shared app |
+|---|---|---|
+| `GET /apps/bootstrap` | That tenant's branding | Platform branding, `tenantId: null`, `requiresInviteCode: true` |
+| Choosing the tenant at signup | The app key | The **invite code** (`GET /invites/:code` for branding, re-checked in `POST /auth/register/patient`) |
+| Authenticated requests | App's tenant must equal the user's tenant | No match check; the tenant is the user's, from the database |
+
+Tenant isolation is unchanged: the tenant always comes from the server (invite code, then the user row) and RLS scopes every query. What moves is the trust boundary at signup, now the invite code, so codes are random (`generateInviteCode()`), can be deactivated or expire, are looked up one at a time through `app_resolve_invite_code()` and never listed, and the lookup is rate-limited.
+
+The client also needs the tenant for the Cognito username (ADR-006): the app keeps the `tenantId` returned by the invite lookup. After a reinstall the patient enters their code again.
+
+Both kinds of app work side by side, so tenants can move to their own branded app later without migrating patients.
+
 ## Tenant suspended but app still published
 `Tenant.status` and `TenantApp.status` are independent. When a tenant is `SUSPENDED`, the app stays in the store, bootstrap returns `TENANT_SUSPENDED`, and the app shows the "Service unavailable" screen. No store action is needed to cut access.
 

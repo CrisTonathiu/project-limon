@@ -1,5 +1,5 @@
 import type { Permission, VerifiedPrincipal } from '@limon/auth';
-import { resolveIdentity, resolveTenantApp } from '@limon/database';
+import { resolveApp, resolveIdentity } from '@limon/database';
 import { createEntitlementService } from '../modules/subscriptions/entitlement.service.js';
 import type { TenantContext } from '@limon/tenant';
 import type { FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
@@ -41,7 +41,7 @@ export function requireTenant(c: Container, permission: Permission): preHandlerA
     const ctx = await resolveTenantContext(
       {
         resolveIdentity: (s) => resolveIdentity(c.db, s),
-        resolveTenantApp: (k) => resolveTenantApp(c.db, k),
+        resolveApp: (k) => resolveApp(c.db, k),
         hasActiveEntitlement: (tenantId, userId) => entitlements.isActiveForUser(tenantId, userId),
       },
       { principal, appKey, permission, requestId: req.id },

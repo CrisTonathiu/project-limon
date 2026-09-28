@@ -15,7 +15,7 @@ export function createTenantsService(c: Container) {
       return withTenant(c.db, await c.registry.getPlacement(ctx.tenantId), async (tx) => {
         const b = await tenantsRepository.updateBranding(tx, ctx.tenantId, input);
         await writeAudit(tx, ctx, { action: 'BrandingUpdated', resourceType: 'TenantBranding', resourceId: ctx.tenantId, metadata: { fields: Object.keys(input) } });
-        return { tenantId: b.tenantId, appName: b.appName, logoUrl: null, primaryColor: b.primaryColor, secondaryColor: b.secondaryColor, supportEmail: b.supportEmail };
+        return { tenantId: b.tenantId, requiresInviteCode: false, appName: b.appName, logoUrl: null, primaryColor: b.primaryColor, secondaryColor: b.secondaryColor, supportEmail: b.supportEmail };
       });
     },
   };
