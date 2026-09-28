@@ -12,6 +12,8 @@ pnpm + Turborepo monorepo · TypeScript everywhere
 - `packages/*` — types, validation (Zod), config, database (Prisma + RLS), tenant, auth, api-client, ui tokens
 - `infrastructure` — AWS CDK: VPC, Aurora PostgreSQL, ECS Fargate, ALB+WAF, Cognito, S3, SQS, CloudWatch
 
+MVP plan: [docs/roadmap/mvp-roadmap.md](docs/roadmap/mvp-roadmap.md).
+
 Start with [docs/architecture/overview.md](docs/architecture/overview.md) and [docs/architecture/open-decisions.md](docs/architecture/open-decisions.md).
 
 ## Prerequisites
