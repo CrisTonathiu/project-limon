@@ -66,6 +66,10 @@ export function createApiClient(opts: ApiClientOptions) {
       /** Public: runtime branding for the app key configured on this client. */
       bootstrap: () => request<TenantAppConfig>('GET', '/apps/bootstrap', undefined, false),
     },
+    invites: {
+      /** Public: resolves if the code is a valid, unused invite of this app's tenant; throws INVITE_CODE_INVALID otherwise. */
+      check: (code: string) => request<void>('GET', `/invites/${encodeURIComponent(code)}`, undefined, false),
+    },
     tenants: {
       current: () => request<MeResponse['tenant']>('GET', '/tenants/current'),
       updateBranding: (input: UpdateTenantBrandingInput) => request<TenantAppConfig>('PATCH', '/tenants/current/branding', input),

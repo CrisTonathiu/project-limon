@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { patientAuthProvider } from '../features/auth/auth-provider';
 import { api } from '../services/api';
 import { tokenStore } from '../services/token-store';
+import { t } from '../i18n/es-MX';
 
 type SessionState =
   | { status: 'loading' }
@@ -32,18 +33,36 @@ function messageFor(err: unknown): string {
   if (err instanceof ApiError) {
     switch (err.code) {
       case 'TENANT_MISMATCH':
-        return 'This account belongs to a different practice.';
+        return t.auth.errors.otherPractice;
       case 'TENANT_SUSPENDED':
-        return 'This service is currently unavailable.';
+        return t.auth.errors.unavailable;
       case 'CONFLICT':
-        return 'This account already exists. Try signing in.';
+        return t.auth.errors.accountExists;
+      case 'INVITE_CODE_INVALID':
+        return t.auth.errors.inviteExpired;
       case 'VALIDATION_ERROR':
-        return err.message;
+        return t.auth.errors.invalidData;
       default:
-        return 'Something went wrong. Please try again.';
+        return t.common.genericError;
     }
   }
-  return 'Something went wrong. Please try again.';
+  // Cognito errors (amazon-cognito-identity-js) carry an exception name in `code`.
+  switch ((err as { code?: string } | null)?.code) {
+    case 'NotAuthorizedException':
+    case 'UserNotFoundException':
+      return t.auth.errors.wrongCredentials;
+    case 'UserNotConfirmedException':
+      return t.auth.errors.notConfirmed;
+    case 'InvalidPasswordException':
+      return t.auth.errors.weakPassword;
+    case 'UsernameExistsException':
+      return t.auth.errors.accountExists;
+    case 'LimitExceededException':
+    case 'TooManyRequestsException':
+      return t.auth.errors.tooManyAttempts;
+    default:
+      return t.common.genericError;
+  }
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {

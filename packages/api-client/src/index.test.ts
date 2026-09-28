@@ -30,4 +30,22 @@ describe('api-client', () => {
     await expect(client.auth.me()).rejects.toMatchObject({ code: 'TENANT_SUSPENDED', status: 403, requestId: 'r1' });
     await expect(client.auth.me()).rejects.toBeInstanceOf(ApiError);
   });
+
+  it('checks invite codes without a token, escaping the code', async () => {
+    let url = '';
+    let seen: RequestInit | undefined;
+    const client = createApiClient({
+      baseUrl: 'http://api',
+      appKey: 'maria-ios',
+      getAccessToken: async () => 'tok',
+      fetchImpl: (async (u: string, init: RequestInit) => {
+        url = u;
+        seen = init;
+        return new Response(null, { status: 204 });
+      }) as typeof fetch,
+    });
+    await client.invites.check('AB/CD EF');
+    expect(url).toBe('http://api/api/v1/invites/AB%2FCD%20EF');
+    expect((seen!.headers as Record<string, string>)['Authorization']).toBeUndefined();
+  });
 });

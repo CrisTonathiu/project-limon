@@ -7,24 +7,12 @@ import { PrismaClient } from '../generated/client/index.js';
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_MIGRATION_URL! } } });
 
 const tenants = [
-  { id: '11111111-1111-4111-8111-111111111111', slug: 'maria-nutrition', name: 'Maria Nutrition', color: '#2E7D32', inviteCode: 'MARIA-DEV1' },
-  { id: '22222222-2222-4222-8222-222222222222', slug: 'carlos-nutrition', name: 'Carlos Nutrition', color: '#1565C0', inviteCode: 'CARLOS-DEV1' },
+  // Maria is OPEN (anyone with her app can sign up); Carlos is INVITE ONLY.
+  { id: '11111111-1111-4111-8111-111111111111', slug: 'maria-nutrition', name: 'Maria Nutrition', color: '#2E7D32', inviteOnly: false, inviteCode: 'MARIA-DEV1' },
+  { id: '22222222-2222-4222-8222-222222222222', slug: 'carlos-nutrition', name: 'Carlos Nutrition', color: '#1565C0', inviteOnly: true, inviteCode: 'CARLOS-DEV1' },
 ];
 
 async function main() {
-  // The shared platform app (APP_TENANT=limon): patients of every tenant join it with an invite code.
-  for (const platform of ['IOS', 'ANDROID'] as const) {
-    const appKey = `limon-${platform.toLowerCase()}`;
-    await prisma.platformApp.upsert({
-      where: { appKey },
-      update: {},
-      create: {
-        platform, appKey, appName: 'Limon', status: 'PUBLISHED',
-        ...(platform === 'IOS' ? { bundleId: 'com.limon.app' } : { packageName: 'com.limon.app' }),
-      },
-    });
-  }
-
   for (const t of tenants) {
     await prisma.tenant.upsert({
       where: { id: t.id },
@@ -60,15 +48,28 @@ async function main() {
       update: {},
       create: { tenantId: t.id, userId: patientUser.id, firstName: 'Demo', lastName: 'Patient', email: patientUser.email },
     });
-    // Fixed, guessable codes are for local development only; real codes come from generateInviteCode().
+    await prisma.tenantFeature.upsert({
+      where: { tenantId_featureKey: { tenantId: t.id, featureKey: 'invite_only' } },
+      update: { enabled: t.inviteOnly },
+      create: { tenantId: t.id, featureKey: 'invite_only', enabled: t.inviteOnly },
+    });
+    // A patient the nutritionist pre-registered, with their single-use invite code.
+    // Fixed, guessable codes are for local development only; real ones come from `pnpm admin invite`.
+    // Re-seeding makes the code usable again unless the patient already signed up.
+    const invited = await prisma.patient.upsert({
+      where: { tenantId_email: { tenantId: t.id, email: `invitada@${t.slug}.test` } },
+      update: {},
+      create: { tenantId: t.id, firstName: 'Invitada', lastName: 'Demo', email: `invitada@${t.slug}.test` },
+    });
     await prisma.tenantInviteCode.upsert({
       where: { code: t.inviteCode },
-      update: {},
-      create: { tenantId: t.id, code: t.inviteCode },
+      update: invited.userId ? {} : { active: true, redeemedAt: null, expiresAt: null },
+      create: { tenantId: t.id, patientId: invited.id, code: t.inviteCode },
     });
   }
-  console.log('Seeded tenants:', tenants.map((t) => `${t.slug} (invite ${t.inviteCode})`).join(', '));
-  console.log('Seeded shared app keys: limon-ios, limon-android');
+  for (const t of tenants) {
+    console.log(`Seeded ${t.slug}: ${t.inviteOnly ? 'INVITE ONLY' : 'OPEN'}, invite code ${t.inviteCode}`);
+  }
 }
 
 main().finally(() => prisma.$disconnect());

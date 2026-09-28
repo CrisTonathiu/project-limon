@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/Button';
+import { t } from '../../i18n/es-MX';
 import { useSession } from '../../state/session-context';
 import { useTenantTheme } from '../../theme/theme-context';
 
@@ -18,14 +19,14 @@ export function ConfirmSignUpScreen({ email }: { email: string }) {
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', padding: theme.spacing.lg, backgroundColor: theme.colors.background }}>
-      <Text style={{ fontSize: theme.typography.fontSize.xl, fontWeight: '700', color: theme.colors.text }}>Check your email</Text>
+      <Text style={{ fontSize: theme.typography.fontSize.xl, fontWeight: '700', color: theme.colors.text }}>{t.auth.confirmTitle}</Text>
       <Text style={{ color: theme.colors.textMuted, marginTop: theme.spacing.sm }}>
-        We sent a verification code to {email}. Enter it below to finish creating your account.
+        {t.auth.confirmBody(email)}
       </Text>
-      <TextInput style={input} placeholder="Verification code" keyboardType="number-pad" value={code} onChangeText={setCode} />
+      <TextInput style={input} placeholder={t.auth.confirmCode} keyboardType="number-pad" value={code} onChangeText={setCode} />
       <View style={{ marginTop: theme.spacing.md }}>
         <Button
-          label={busy ? 'Confirming…' : 'Confirm'}
+          label={busy ? t.auth.confirmingCode : t.auth.confirm}
           disabled={busy || !code}
           onPress={async () => {
             setBusy(true);
@@ -33,7 +34,7 @@ export function ConfirmSignUpScreen({ email }: { email: string }) {
             try {
               await session.confirmSignUp(code);
             } catch {
-              setError('That code didn’t work. Check your email and try again.');
+              setError(t.auth.confirmCodeWrong);
             } finally {
               setBusy(false);
             }

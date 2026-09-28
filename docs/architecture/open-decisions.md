@@ -15,7 +15,8 @@
 |---|---|---|
 | 5 | Patient payment provider | **Stripe** (Connect), paid outside the app; the app sells nothing (App Store 3.1.1 risk, see roadmap) |
 | 11 | Localization | **Spanish (es-MX) only** |
-| — | App distribution | **One shared app** for the MVP; patients join via invite code. Per-tenant builds (ADR-009) deferred |
+| — | App distribution | **One branded app per nutritionist**, published from their own developer accounts (ADR-009), from the MVP on |
+| — | Patient admission | Per tenant via the `invite_only` flag: **Open** or **Invite only** (single-use code per patient). Approval by emailed link comes next |
 | — | Tenant billing | Base rate + add-ons; pricing model options in the roadmap |
 | — | Recipes | Global default library copied into each tenant; nutrients from FatSecret MX, equivalents from SMAE |
 

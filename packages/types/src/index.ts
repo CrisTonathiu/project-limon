@@ -54,9 +54,8 @@ export type PlatformSubscriptionStatus =
 
 /** Runtime (server-delivered) branding. Can change without a store release. */
 export type TenantAppConfig = {
-  /** Null for the shared platform app until the patient enters an invite code. */
-  tenantId: string | null;
-  /** True for the shared app: the patient must enter an invite code to pick their nutritionist. */
+  tenantId: string;
+  /** Admission mode: true when the tenant is invite-only, so sign-up needs the patient's invite code. */
   requiresInviteCode: boolean;
   appName: string;
   logoUrl: string | null;
@@ -64,6 +63,22 @@ export type TenantAppConfig = {
   secondaryColor?: string | null;
   supportEmail?: string | null;
 };
+
+/**
+ * Per-tenant feature flags (tenant_features.feature_key). A missing row means off.
+ * Modules and paid add-ons are switched on per nutritionist by the platform team.
+ */
+export const FeatureKey = {
+  /** Admission: off = open sign-up; on = sign-up needs a per-patient invite code. */
+  INVITE_ONLY: 'invite_only',
+  RECIPES: 'recipes',
+  MEAL_PLAN: 'meal_plan',
+  FOOD_SWAPS: 'food_swaps',
+  SHOPPING_LIST: 'shopping_list',
+  WATER_TRACKER: 'water_tracker',
+  GOAL_TRACKER: 'goal_tracker',
+} as const;
+export type FeatureKey = (typeof FeatureKey)[keyof typeof FeatureKey];
 
 /** Stable error codes. Clients switch on `code`, never on `message`. */
 export const ErrorCode = {

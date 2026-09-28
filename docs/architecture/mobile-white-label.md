@@ -22,20 +22,20 @@ Each build embeds a public **app key** (`TenantApp.appKey`, one per platform). T
 
 Why an opaque app key instead of sending the bundle ID? Bundle IDs are trivially spoofable too, and the key decouples API identity from store identifiers (which can change, e.g. transfers between developer accounts).
 
-## Shared platform app (MVP)
-For the MVP there is **one** store app, "Limon" (`APP_TENANT=limon`), used by patients of every tenant. Its key is a `PlatformApp.appKey` (`limon-ios`, `limon-android`), not tied to any tenant.
+## Admission modes (who can sign up)
+Each nutritionist chooses, and the platform team sets it with the `invite_only` feature flag (`tenant_features`):
 
-| | Tenant's own app | Shared app |
+| Mode | Flag | Sign-up |
 |---|---|---|
-| `GET /apps/bootstrap` | That tenant's branding | Platform branding, `tenantId: null`, `requiresInviteCode: true` |
-| Choosing the tenant at signup | The app key | The **invite code** (`GET /invites/:code` for branding, re-checked in `POST /auth/register/patient`) |
-| Authenticated requests | App's tenant must equal the user's tenant | No match check; the tenant is the user's, from the database |
+| **Open** | `invite_only` off (default) | Anyone with the nutritionist's app can create an account. An invite code is optional. |
+| **Invite only** | `invite_only` on | "Crear cuenta" asks for the patient's invite code first. |
 
-Tenant isolation is unchanged: the tenant always comes from the server (invite code, then the user row) and RLS scopes every query. What moves is the trust boundary at signup, now the invite code, so codes are random (`generateInviteCode()`), can be deactivated or expire, are looked up one at a time through `app_resolve_invite_code()` and never listed, and the lookup is rate-limited.
+- `GET /apps/bootstrap` returns the mode as `requiresInviteCode`.
+- Invite codes are **per patient and single use**. `pnpm --filter @limon/database admin invite <tenant> --first-name … --last-name …` pre-registers the patient and prints their code (random `XXXX-XXXX`, 30-day expiry by default).
+- The app checks the code with `GET /invites/:code` (yes/no only, scoped to the app's tenant, rate-limited) **before** creating the Cognito login, so a typo doesn't leave an orphaned login.
+- `POST /auth/register/patient` checks it again and redeems it in the same transaction: the new account is linked to the pre-registered patient, and a failed sign-up leaves the code unused.
 
-The client also needs the tenant for the Cognito username (ADR-006): the app keeps the `tenantId` returned by the invite lookup. After a reinstall the patient enters their code again.
-
-Both kinds of app work side by side, so tenants can move to their own branded app later without migrating patients.
+Approval mode (anyone signs up, the nutritionist approves by an emailed link) is agreed as the next admission mode, not built yet.
 
 ## Tenant suspended but app still published
 `Tenant.status` and `TenantApp.status` are independent. When a tenant is `SUSPENDED`, the app stays in the store, bootstrap returns `TENANT_SUSPENDED`, and the app shows the "Service unavailable" screen. No store action is needed to cut access.

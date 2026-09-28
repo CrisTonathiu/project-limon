@@ -34,6 +34,13 @@ Run things:
 pnpm --filter @limon/api dev          # http://localhost:4000
 pnpm --filter @limon/dashboard dev    # http://localhost:3000  (sign in as dev|nutritionist|maria-nutrition)
 APP_TENANT=dev-tenant pnpm --filter @limon/patient start
+APP_TENANT=carlos-nutrition pnpm --filter @limon/patient start   # invite-only tenant: sign up with code CARLOS-DEV1
+```
+
+Platform-team admin (until the dashboard exists):
+```bash
+pnpm --filter @limon/database admin features maria-nutrition --enable invite_only   # admission: invite only
+pnpm --filter @limon/database admin invite maria-nutrition --first-name Ana --last-name López
 ```
 
 Build a different tenant app's config:
