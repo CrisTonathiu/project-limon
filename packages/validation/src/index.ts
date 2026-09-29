@@ -14,6 +14,18 @@ const slug = z
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'hex color like #22AA66');
 const personName = z.string().trim().min(1).max(100);
 
+export const FoodSearchQuerySchema = z
+  .object({
+    q: z.string().trim().min(2).max(100),
+    page: z.coerce.number().int().min(0).max(1000).default(0),
+    pageSize: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+export type FoodSearchQuery = z.infer<typeof FoodSearchQuerySchema>;
+
+/** FatSecret food ids are positive integers (sent as strings). */
+export const FatSecretFoodIdParamSchema = z.object({ id: z.string().regex(/^\d{1,19}$/, 'FatSecret food id') }).strict();
+
 /** Normalized to upper case, matching how codes are stored (see @limon/tenant generateInviteCode). */
 export const InviteCodeSchema = z
   .string()

@@ -94,6 +94,8 @@ export const ErrorCode = {
   SUBSCRIPTION_REQUIRED: 'SUBSCRIPTION_REQUIRED',
   APP_NOT_RECOGNIZED: 'APP_NOT_RECOGNIZED',
   INVITE_CODE_INVALID: 'INVITE_CODE_INVALID',
+  /** The nutrition data provider (FatSecret) is not configured, unreachable or refused the request. */
+  NUTRITION_PROVIDER_UNAVAILABLE: 'NUTRITION_PROVIDER_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -158,3 +160,67 @@ export type PatientDto = {
   email: string | null;
   createdAt: string;
 };
+
+/**
+ * Nutrition data from FatSecret, normalized. Per FatSecret's terms these values may
+ * be cached for at most 24 h; only the ids (`fatsecretFoodId`, `fatsecretServingId`)
+ * may be stored. Units: calories kcal; carbohydrate, protein, fats, fiber and sugars g;
+ * cholesterol, sodium, potassium, calcium, iron and vitamin C mg; vitamins A and D mcg.
+ * A nutrient FatSecret doesn't report is null (unknown), never 0.
+ */
+export type Nutrients = {
+  calories: number | null;
+  carbohydrate: number | null;
+  protein: number | null;
+  fat: number | null;
+  saturatedFat: number | null;
+  polyunsaturatedFat: number | null;
+  monounsaturatedFat: number | null;
+  transFat: number | null;
+  cholesterol: number | null;
+  sodium: number | null;
+  potassium: number | null;
+  fiber: number | null;
+  sugar: number | null;
+  addedSugars: number | null;
+  vitaminA: number | null;
+  vitaminC: number | null;
+  vitaminD: number | null;
+  calcium: number | null;
+  iron: number | null;
+};
+
+export type FoodServing = {
+  fatsecretServingId: string;
+  /** e.g. "1 medium tortilla (6\" dia)", "100 g". */
+  description: string;
+  /** Weight or volume of this serving, e.g. 26 + "g"; null when FatSecret doesn't give one. */
+  metricAmount: number | null;
+  metricUnit: string | null;
+  numberOfUnits: number | null;
+  measurementDescription: string | null;
+  isDefault: boolean;
+  nutrients: Nutrients;
+};
+
+export type FoodDetail = {
+  fatsecretFoodId: string;
+  name: string;
+  /** "Generic" foods (e.g. "Corn Tortilla") or "Brand" products. */
+  type: string;
+  brand: string | null;
+  servings: FoodServing[];
+};
+
+export type FoodSearchItem = {
+  fatsecretFoodId: string;
+  name: string;
+  type: string;
+  brand: string | null;
+  /** FatSecret's one-line summary, e.g. "Per 100g - Calories: 218kcal | Fat: 2.85g | Carbs: 44.64g | Protein: 5.70g". */
+  description: string;
+  /** Parsed from `description` when possible. */
+  summary: { per: string; calories: number | null; fat: number | null; carbohydrate: number | null; protein: number | null } | null;
+};
+
+export type FoodSearchResponse = { items: FoodSearchItem[]; page: number; pageSize: number; total: number };

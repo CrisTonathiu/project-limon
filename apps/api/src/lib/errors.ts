@@ -22,5 +22,7 @@ export const Errors = {
   tenantMismatch: () => new AppError('TENANT_MISMATCH', 403, 'This account cannot be used with this app.'),
   subscriptionRequired: () => new AppError('SUBSCRIPTION_REQUIRED', 402, 'An active subscription is required.'),
   appNotRecognized: () => new AppError('APP_NOT_RECOGNIZED', 400, 'This app is not recognized.'),
+  nutritionProviderUnavailable: () =>
+    new AppError('NUTRITION_PROVIDER_UNAVAILABLE', 503, 'Nutrition data is temporarily unavailable. Please try again later.'),
   inviteCodeInvalid: () => new AppError('INVITE_CODE_INVALID', 404, 'This invite code is not valid.'),
 };

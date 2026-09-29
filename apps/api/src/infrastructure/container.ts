@@ -2,6 +2,7 @@ import { CognitoTokenVerifier, DevTokenVerifier, type TokenVerifier } from '@lim
 import type { ServerEnv } from '@limon/config';
 import { DatabaseRouter, SharedTenantRegistry } from '@limon/database';
 import type { TenantRegistry } from '@limon/tenant';
+import { FatSecretClient } from './fatsecret.js';
 import { createJobPublisher, type JobPublisher } from './queue.js';
 import { createStorage, type TenantStorage } from './storage.js';
 
@@ -17,6 +18,8 @@ export type Container = {
   devVerifier: DevTokenVerifier | null;
   jobs: JobPublisher;
   storage: TenantStorage;
+  /** Null when FatSecret credentials aren't configured. */
+  fatsecret: FatSecretClient | null;
 };
 
 export function createContainer(env: ServerEnv, overrides: Partial<Container> = {}): Container {
@@ -35,6 +38,16 @@ export function createContainer(env: ServerEnv, overrides: Partial<Container> = 
     devVerifier,
     jobs: createJobPublisher(env),
     storage: createStorage(env),
+    fatsecret:
+      env.FATSECRET_CLIENT_ID && env.FATSECRET_CLIENT_SECRET
+        ? new FatSecretClient({
+            clientId: env.FATSECRET_CLIENT_ID,
+            clientSecret: env.FATSECRET_CLIENT_SECRET,
+            scopes: env.FATSECRET_SCOPES,
+            region: env.FATSECRET_REGION,
+            language: env.FATSECRET_LANGUAGE,
+          })
+        : null,
     ...overrides,
   };
 }
