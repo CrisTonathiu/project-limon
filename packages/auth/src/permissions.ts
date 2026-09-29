@@ -14,6 +14,8 @@ export const Permission = {
   SELF_PATIENT_READ: 'self:patient:read',
   RECIPES_READ: 'recipes:read',
   RECIPES_WRITE: 'recipes:write',
+  /** Search the nutrition provider (FatSecret) — used to curate recipes. Not for patients: calls cost quota. */
+  FOODS_SEARCH: 'foods:search',
   MEAL_PLANS_WRITE: 'meal-plans:write',
   SELF_MEAL_PLANS_READ: 'self:meal-plans:read',
   AI_CHAT: 'ai:chat',
@@ -28,7 +30,7 @@ const policy: Record<UserRole, ReadonlySet<Permission>> = {
   PLATFORM_ADMIN: new Set([P.PLATFORM_TENANTS_MANAGE]),
   NUTRITIONIST: new Set([
     P.TENANT_READ, P.TENANT_MANAGE, P.BRANDING_MANAGE, P.APPS_MANAGE,
-    P.PATIENTS_READ, P.PATIENTS_WRITE, P.RECIPES_READ, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE,
+    P.PATIENTS_READ, P.PATIENTS_WRITE, P.RECIPES_READ, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE, P.FOODS_SEARCH,
   ]),
   PATIENT: new Set([P.TENANT_READ, P.SELF_PATIENT_READ, P.SELF_SUBSCRIPTION_READ, P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.AI_CHAT]),
 };

@@ -37,7 +37,7 @@ Nutritionist web dashboard · per-tenant store builds · AI assistant · calenda
 | Patient payments | **Stripe** (Connect, so the money goes to the nutritionist) | See [App Store risk](#1-stripe-vs-app-store-rules-high) — the app itself must not sell anything. |
 | Tenant billing | Base rate + add-ons | Pricing model still open — see [Tenant pricing options](#tenant-pricing-options). Invoice manually through Stripe Billing during the pilot. |
 | Recipe ownership | Global default library → **copied** into each tenant at provisioning | Nutritionists edit their own copies; updates to the library never overwrite tenant edits. |
-| Nutrition data | FatSecret (Mexico region) for nutrients, SMAE for equivalents | Licensing must be confirmed in week 1 — see [Risks](#2-nutrition-data-licensing-high). |
+| Nutrition data | **FatSecret Premier (Mexico region, Spanish)** for nutrients; **SMAE 5th ed. (v2.0, 2024)** for equivalents | FatSecret values differ from other sources, so it stays the source. Mexico data needs the paid Premier plan, and FatSecret only lets us store **IDs**: nutrients are fetched live and cached ≤ 24 h. See [Nutrition data](#nutrition-data-fatsecret--smae) and [Risks](#2-nutrition-data-fatsecret-premier-high). |
 | Meal plan generation | Rule-based, no AI | Favourites are recorded now so a preference model can be trained later. |
 | Nutritionist tools | No dashboard in the MVP | Recipe editing goes through an internal admin API + CSV import that **our team** runs for the nutritionist. An in-app nutritionist screen is a stretch goal. |
 
@@ -64,7 +64,8 @@ Content     ░░░░░░░░░░░░░░░░░░░░░░�
 
 Close the blockers first so nothing stalls later.
 
-- [ ] **Licensing:** confirm the FatSecret Platform API tier that allows the MX region, Spanish results and **storing** nutrient values in our recipes. Confirm the rights to use SMAE equivalent tables.
+- [ ] **FatSecret:** create the free Basic account and API key, whitelist the dev machine's IP, try `foods.search` v3 / `food.get` v4 (US data, English — enough to build against). Ask sales for a **Premier quote for Mexico only** and whether a contract can allow storing nutrient values. Premier must be active **before week 3's recipe curation**.
+- [ ] **SMAE:** buy the *Sistema Mexicano de Alimentos Equivalentes*, 5th ed. v2.0 (2024; Pérez Lizaur et al., ISBN of the 5th ed. 9786072938403, about MX$350). Ask the publisher about using the equivalent tables (group and grams per equivalent) in a commercial app.
 - [ ] **Stripe:** open the Stripe Mexico account, enable Connect (Express), and decide the patient payment flow (see Risk 1).
 - [ ] **Store accounts:** each pilot nutritionist starts enrolling in Apple Developer + Google Play (ADR-009), as an **individual / personal** account unless they have a registered business. Follow [Nutritionist onboarding](#nutritionist-onboarding-store-accounts); Apple identity checks can take days, so start this now.
 - [x] **Admission modes:** `invite_only` flag (open or invite only), per-patient single-use invite codes, admin command to issue them.
@@ -85,17 +86,19 @@ Close the blockers first so nothing stalls later.
 
 ### Week 3 · Oct 12 – 16 — Recipe catalog
 
-- [ ] Data model:
-  - `Food`: FatSecret `food_id`, SMAE group, nutrients per 100 g, units → grams.
-  - `Recipe`: meal types (breakfast / lunch / dinner / snack), servings, time, image, tags.
-  - `RecipeIngredient`: food, quantity, unit.
-  - Cached per-serving nutrients on the recipe.
-- [ ] **Global library + copy-on-provision:** add `default_recipes` (not tenant-scoped, read-only). When a tenant is created, copy it into tenant-scoped `recipes` with `source_default_recipe_id` kept for traceability.
-- [ ] FatSecret import script: search → pick → store the food with nutrients and SMAE group (the SMAE group is assigned manually during curation).
-- [ ] Internal admin API + CSV import to create and edit tenant recipes. Nutrients are recalculated on every save.
-- [ ] App: recipe list (filter by meal type) and recipe detail (ingredients, steps, macros).
+Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s.
 
-**Done when:** a new tenant automatically gets the default library, and an edited tenant recipe differs from the default.
+- [ ] Data model — **only what we may store** (see [Nutrition data](#nutrition-data-fatsecret--smae)):
+  - `Food`: our own id, Spanish display name we write ourselves, FatSecret `food_id` + default `serving_id`, grams per serving, **SMAE group and grams per equivalent** (from the book), shopping category. **No nutrient values.**
+  - `Recipe`: meal types (breakfast / lunch / dinner / snack), servings, time, image, tags.
+  - `RecipeIngredient`: food, quantity, unit (converted to grams).
+- [ ] **Nutrition service** (`modules/foods`): OAuth 2.0 token (cached until expiry), `food.get` v4 with `region=MX&language=es`, results cached **per `food_id` for at most 24 h** (Postgres table with `fetched_at` plus a purge job, or in memory). The cache is shared by all tenants, so FatSecret calls scale with the number of distinct foods (~300), not with patients. Recipe macros are computed from it on demand, never stored.
+- [ ] **Global library + copy-on-provision:** add `default_recipes` (not tenant-scoped, read-only). When a tenant is created, copy it into tenant-scoped `recipes` with `source_default_recipe_id` kept for traceability.
+- [ ] Curation script: FatSecret search (MX) → pick the food and serving → save the IDs and grams; the SMAE group and grams per equivalent are entered by hand from the book.
+- [ ] Internal admin API + CSV import to create and edit tenant recipes.
+- [ ] App: recipe list (filter by meal type) and recipe detail (ingredients, steps, macros), with the FatSecret attribution if the contract requires it.
+
+**Done when:** a new tenant automatically gets the default library, an edited tenant recipe differs from the default, and recipe macros come from FatSecret MX through the 24 h cache with nothing else stored.
 
 ### Week 4 · Oct 19 – 23 — Weekly meal plan generator
 
@@ -104,7 +107,8 @@ Close the blockers first so nothing stalls later.
   - Hard filters: meal type, allergies, disliked foods.
   - Scoring: closeness to the slot's kcal and protein after portion scaling, variety (no repeat within 3 days), and a boost for favourites.
 - [ ] Portion scaling: scale servings so each meal lands within ±10% of its slot target.
-- [ ] A worker job builds next week's plan every Sunday (SQS worker already exists). "Regenerate this day" on demand.
+- [ ] A worker job builds next week's plan every Sunday (SQS worker already exists). It refreshes the nutrient cache for the catalog's foods first, then generates every plan from that cache. "Regenerate this day" on demand.
+- [ ] Plans store recipe ids and portion factors only; the day totals shown in the app are recomputed from the cache.
 - [ ] ♥ Favourite a meal → `meal_feedback` (patient, recipe, rating, week). This is the training data for future AI.
 - [ ] App: week view → day view → meal detail, with daily totals against the target.
 
@@ -155,6 +159,17 @@ Close the blockers first so nothing stalls later.
 ### Parallel track — default recipe content (weeks 1–5)
 
 The generator is only as good as the catalog. Target **≥ 80 default recipes** by the end of week 4: at least 20 per main meal type plus 20 snacks, spread across calorie ranges, with common allergens covered by alternatives. This is content work (ideally by a partner nutritionist), not engineering. If it slips, meal plans become repetitive.
+
+## Nutrition data (FatSecret + SMAE)
+
+| What | Source | Stored by us? |
+|---|---|---|
+| Calories, macros and micronutrients | FatSecret Premier, `region=MX`, `language=es` | **No.** Fetched with `food.get` v4 and cached ≤ 24 h |
+| Food and serving identifiers | FatSecret (`food_id`, `serving_id`) | Yes, indefinitely (allowed) |
+| Spanish display names, grams per serving, shopping category | Written by us during curation | Yes |
+| SMAE group and grams per equivalent (for swaps) | SMAE 5th ed. v2.0, entered by hand | Yes |
+
+Where to get SMAE: *Sistema Mexicano de Alimentos Equivalentes*, 5th edition (v2.0 updated in 2024 with 88 new foods and a dishes section), by Ana Bertha Pérez Lizaur et al. Sold at El Sótano, Gonvill, Librería León, Librería Científica, Nutritienda MX and Medi-ción (about MX$350–440).
 
 ## Nutritionist onboarding (store accounts)
 
@@ -207,8 +222,13 @@ Apple 3.1.1 and Google Play Billing require store billing for digital content so
 
 App Review may still question it. Test it with an early TestFlight external build in week 7, not week 9.
 
-### 2. Nutrition data licensing (high)
-FatSecret's free tier restricts caching and storing of nutrient data, and the MX region and Spanish results need a paid (Premier) tier. The SMAE tables are a published, copyrighted work. Resolve both in week 1. The fallback is to store only the FatSecret ids and fetch nutrients live, which is slower and costs more calls.
+### 2. Nutrition data: FatSecret Premier (high)
+- **Cost:** Mexico data and Spanish are **Premier only**, priced on request by country. The free Basic and Premier Free plans are US-only and English-only. Get the quote in week 1; it's a fixed monthly cost to add to the baseline below.
+- **Schedule:** curation in week 3 needs Mexican `food_id`s, so Premier must be active by Oct 12. Until then, build against Basic (US data) — the code is the same, only the IDs differ.
+- **Storage:** only IDs may be kept; nutrients, names and serving details can be cached 24 h at most, on every plan. The design above follows this. Ask sales whether a contract can allow storing nutrient values; if yes, the cache can become a table.
+- **Dependency:** plan generation and recipe macros need FatSecret to be reachable. Mitigations: the 24 h cache, refreshing it before the Sunday plan job, and showing plans without macros (instead of failing) if FatSecret is down.
+- **Access:** OAuth 2.0 keys only work from whitelisted IPs (up to 15 ranges). In AWS that's the NAT gateway's fixed outbound IP; add it before the staging deploy.
+- **SMAE:** a published, copyrighted book. We store only per-food facts (group, grams per equivalent), not the book's tables; still confirm with the publisher.
 
 ### 3. Auto-generated plans without professional review (medium)
 Patients set their own goals and plans are generated automatically, with no nutritionist in the loop in the MVP. Mitigations: the week 2 guardrails, a clear disclaimer, and a "your nutritionist can adjust this" message. The nutritionist override arrives with the dashboard.
@@ -233,9 +253,10 @@ For the MVP features, **cloud cost per patient is almost zero.** The cost is the
 | ALB + WAF | 30 |
 | ECS Fargate (API + worker, small tasks) | 20–40 |
 | CloudWatch, Secrets Manager, S3, SES | 15–30 |
-| **Baseline** | **≈ 150–200** |
+| FatSecret Premier (Mexico) | quote pending |
+| **Baseline** | **≈ 150–200 + FatSecret** |
 
-Per active patient: API requests, a few KB of rows, and Cognito (the first 10k MAU are free) — well under **US$0.05/month**. FatSecret calls happen when recipes are curated, not per patient. Stripe fees (~3.6% + MX$3 + IVA per charge) are real per-patient costs, but they are paid out of the nutritionist's revenue.
+Per active patient: API requests, a few KB of rows, and Cognito (the first 10k MAU are free) — well under **US$0.05/month**. FatSecret calls scale with the number of distinct foods in the shared 24 h cache, not with patients. Stripe fees (~3.6% + MX$3 + IVA per charge) are real per-patient costs, but they are paid out of the nutritionist's revenue.
 
 Per-patient cost only becomes significant with the **AI add-on** (tokens per message), which should be metered on its own later.
 

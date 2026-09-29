@@ -5,6 +5,9 @@ import { z } from 'zod';
  * Secrets are injected into the process env by ECS from Secrets Manager — the
  * application never reads Secrets Manager directly for boot config.
  */
+/** `FOO=` in a .env file means "not set", not "set to the empty string". */
+const optional = z.string().optional().transform((v) => (v ? v : undefined));
+
 const ServerEnvSchema = z
   .object({
     APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
@@ -21,6 +24,14 @@ const ServerEnvSchema = z
     AWS_REGION: z.string().default('us-east-1'),
     S3_TENANT_BUCKET: z.string().default('limon-dev-tenant-assets'),
     SQS_JOBS_QUEUE_URL: z.string().optional(),
+    // FatSecret Platform API (nutrition data). Unset → the foods endpoints answer NUTRITION_PROVIDER_UNAVAILABLE.
+    FATSECRET_CLIENT_ID: optional,
+    FATSECRET_CLIENT_SECRET: optional,
+    /** Space-separated OAuth scopes. Basic (free) plan: "basic". Premier adds e.g. "premier localization". */
+    FATSECRET_SCOPES: z.string().default('basic'),
+    /** Premier only: dataset country (e.g. "MX") and language (e.g. "es"). Leave unset on Basic (US, English). */
+    FATSECRET_REGION: optional,
+    FATSECRET_LANGUAGE: optional,
   })
   .superRefine((env, ctx) => {
     if (env.APP_ENV !== 'development' && env.AUTH_PROVIDER === 'dev') {
@@ -28,6 +39,9 @@ const ServerEnvSchema = z
     }
     if (env.AUTH_PROVIDER === 'dev' && !env.DEV_AUTH_SECRET) {
       ctx.addIssue({ code: 'custom', path: ['DEV_AUTH_SECRET'], message: 'required for dev auth' });
+    }
+    if (Boolean(env.FATSECRET_CLIENT_ID) !== Boolean(env.FATSECRET_CLIENT_SECRET)) {
+      ctx.addIssue({ code: 'custom', path: ['FATSECRET_CLIENT_ID'], message: 'set both FATSECRET_CLIENT_ID and FATSECRET_CLIENT_SECRET, or neither' });
     }
     if (env.AUTH_PROVIDER === 'cognito' && !env.COGNITO_USER_POOL_ID) {
       ctx.addIssue({ code: 'custom', path: ['COGNITO_USER_POOL_ID'], message: 'required for cognito auth' });

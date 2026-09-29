@@ -1,5 +1,5 @@
 import type {
-  ApiErrorBody, ErrorCode, MeResponse, PatientDto, PatientEntitlement,
+  ApiErrorBody, ErrorCode, FoodDetail, FoodSearchResponse, MeResponse, PatientDto, PatientEntitlement,
   RegisterNutritionistResponse, RegisterPatientResponse, TenantAppConfig,
 } from '@limon/types';
 import type { CreatePatientInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
@@ -77,6 +77,12 @@ export function createApiClient(opts: ApiClientOptions) {
     subscriptions: {
       /** Patient's own entitlement (paywall state). */
       me: () => request<PatientEntitlement>('GET', '/subscriptions/me'),
+    },
+    foods: {
+      /** Nutritionists: search FatSecret. Values may not be kept for more than 24 h. */
+      search: (q: string, page = 0, pageSize = 20) =>
+        request<FoodSearchResponse>('GET', `/foods/search?${new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) })}`),
+      getFatSecret: (fatsecretFoodId: string) => request<FoodDetail>('GET', `/foods/fatsecret/${encodeURIComponent(fatsecretFoodId)}`),
     },
     patients: {
       list: () => request<{ items: PatientDto[] }>('GET', '/patients'),
