@@ -13,4 +13,8 @@ export const tenantsRepository = {
   isFeatureEnabled: async (tx: TenantTx, tenantId: string, featureKey: FeatureKey) =>
     (await tx.tenantFeature.findUnique({ where: { tenantId_featureKey: { tenantId, featureKey } }, select: { enabled: true } }))
       ?.enabled ?? false,
+
+  /** Raw enabled keys; apply effectiveFeatures() before using them. */
+  enabledFeatureKeys: async (tx: TenantTx, tenantId: string) =>
+    (await tx.tenantFeature.findMany({ where: { tenantId, enabled: true }, select: { featureKey: true } })).map((f) => f.featureKey),
 };

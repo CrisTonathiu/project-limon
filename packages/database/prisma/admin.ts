@@ -9,8 +9,8 @@
  *   pnpm --filter @limon/database admin invite <tenant-slug> --patient <patient-id> [--days 30]   (new code for the same patient)
  */
 import { parseArgs } from 'node:util';
-import { generateInviteCode } from '@limon/tenant';
-import { FeatureKey } from '@limon/types';
+import { effectiveFeatures, generateInviteCode } from '@limon/tenant';
+import { FEATURE_DEPENDENCIES, FeatureKey } from '@limon/types';
 import { PrismaClient } from '../generated/client/index.js';
 
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_MIGRATION_URL! } } });
@@ -63,8 +63,13 @@ async function features(args: string[]) {
 
   const rows = await prisma.tenantFeature.findMany({ where: { tenantId: tenant.id } });
   const on = new Set(rows.filter((r) => r.enabled).map((r) => r.featureKey));
+  const effective = new Set<string>(effectiveFeatures(on));
   console.log(`${tenant.name} — admission: ${on.has(FeatureKey.INVITE_ONLY) ? 'INVITE ONLY' : 'OPEN'}`);
-  for (const key of KEYS) console.log(`  ${on.has(key) ? '●' : '○'} ${key}`);
+  for (const key of KEYS) {
+    const needs = FEATURE_DEPENDENCIES[key as FeatureKey] ?? [];
+    const blocked = on.has(key) && !effective.has(key) ? `  ⚠ no effect until ${needs.join(', ')} is enabled` : '';
+    console.log(`  ${on.has(key) ? '●' : '○'} ${key}${blocked}`);
+  }
 }
 
 async function invite(args: string[]) {

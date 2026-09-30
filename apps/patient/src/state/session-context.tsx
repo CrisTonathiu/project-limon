@@ -1,5 +1,5 @@
 import { ApiError } from '@limon/api-client';
-import type { MeResponse } from '@limon/types';
+import type { FeatureKey, MeResponse } from '@limon/types';
 import type { RegisterPatientInput } from '@limon/validation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { patientAuthProvider } from '../features/auth/auth-provider';
@@ -19,6 +19,8 @@ type SignUpInput = Omit<RegisterPatientInput, 'privacyNoticeVersion' | 'termsVer
 type SessionApi = SessionState & {
   /** Paid access. Content screens stay locked until this is true. */
   entitled: boolean;
+  /** Is this module switched on for the tenant? Read from /auth/me at launch and sign-in; the API enforces it too. */
+  hasFeature: (feature: FeatureKey) => boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<void>;
   /** Completes signUp after the emailed code is entered. Only used on the Cognito path. */
@@ -106,6 +108,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const value: SessionApi = {
     ...state,
     entitled: state.status === 'signedIn' ? (state.me.entitlement?.active ?? false) : false,
+    hasFeature: (feature) => state.status === 'signedIn' && state.me.features.includes(feature),
     signIn: (email, password) => run(() => patientAuthProvider.signIn(email, password)),
     signUp: async (input) => {
       try {

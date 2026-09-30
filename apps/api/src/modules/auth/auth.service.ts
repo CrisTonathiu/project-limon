@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { VerifiedPrincipal } from '@limon/auth';
 import { resolveIdentity, resolveTenantApp, withTenant, writeAudit } from '@limon/database';
-import type { TenantContext } from '@limon/tenant';
+import { effectiveFeatures, type TenantContext } from '@limon/tenant';
 import type { MeResponse, RegisterNutritionistResponse, RegisterPatientResponse } from '@limon/types';
 import type { RegisterNutritionistInput, RegisterPatientInput } from '@limon/validation';
 import { createEntitlementService } from '../subscriptions/entitlement.service.js';
+import { tenantsRepository } from '../tenants/tenants.repository.js';
 import type { Container } from '../../infrastructure/container.js';
 import { Errors } from '../../lib/errors.js';
 import { authRepository } from './auth.repository.js';
@@ -107,7 +108,8 @@ export function createAuthService(c: Container) {
       const base = await withTenant(c.db, placement, async (tx) => {
         const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { id: true, email: true, role: true } });
         const tenant = await authRepository.findTenantSummary(tx, ctx.tenantId);
-        return { user, tenant };
+        const features = effectiveFeatures(await tenantsRepository.enabledFeatureKeys(tx, ctx.tenantId));
+        return { user, tenant, features };
       });
       if (ctx.role !== 'PATIENT') return base;
       const entitlement = await createEntitlementService(c).current(ctx.tenantId, { userId: ctx.userId });
