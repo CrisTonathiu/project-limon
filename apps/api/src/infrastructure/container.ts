@@ -1,6 +1,6 @@
 import { CognitoTokenVerifier, DevTokenVerifier, type TokenVerifier } from '@limon/auth';
 import type { ServerEnv } from '@limon/config';
-import { DatabaseRouter, SharedTenantRegistry } from '@limon/database';
+import { createFoodCacheStore, DatabaseRouter, SharedTenantRegistry } from '@limon/database';
 import type { TenantRegistry } from '@limon/tenant';
 import { FatSecretClient } from './fatsecret.js';
 import { createJobPublisher, type JobPublisher } from './queue.js';
@@ -23,6 +23,7 @@ export type Container = {
 };
 
 export function createContainer(env: ServerEnv, overrides: Partial<Container> = {}): Container {
+  const db = overrides.db ?? new DatabaseRouter({ url: env.DATABASE_URL });
   const devVerifier = env.AUTH_PROVIDER === 'dev' ? new DevTokenVerifier(env.DEV_AUTH_SECRET!) : null;
   const verifier =
     devVerifier ??
@@ -32,7 +33,7 @@ export function createContainer(env: ServerEnv, overrides: Partial<Container> = 
     });
   return {
     env,
-    db: new DatabaseRouter({ url: env.DATABASE_URL }),
+    db,
     registry: new SharedTenantRegistry(),
     verifier,
     devVerifier,
@@ -46,6 +47,7 @@ export function createContainer(env: ServerEnv, overrides: Partial<Container> = 
             scopes: env.FATSECRET_SCOPES,
             region: env.FATSECRET_REGION,
             language: env.FATSECRET_LANGUAGE,
+            store: createFoodCacheStore(db),
           })
         : null,
     ...overrides,

@@ -32,9 +32,15 @@ pnpm db:seed                    # tenants: maria-nutrition, carlos-nutrition
 Run things:
 ```bash
 pnpm --filter @limon/api dev          # http://localhost:4000
+pnpm --filter @limon/api worker:dev   # scheduled jobs (FatSecret cache refresh + purge every 15 min)
 pnpm --filter @limon/dashboard dev    # http://localhost:3000  (sign in as dev|nutritionist|maria-nutrition)
 APP_TENANT=dev-tenant pnpm --filter @limon/patient start
 APP_TENANT=carlos-nutrition pnpm --filter @limon/patient start   # invite-only tenant: sign up with code CARLOS-DEV1
+```
+
+FatSecret (credentials in .env, IP whitelisted in the FatSecret portal):
+```bash
+pnpm --filter @limon/api fatsecret search "nopales"   # or: food <id> | cache | refresh
 ```
 
 Platform-team admin (until the dashboard exists):

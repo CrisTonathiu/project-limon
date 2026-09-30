@@ -1,3 +1,4 @@
+import type { FoodCacheKey, FoodCacheStore } from '@limon/database';
 import type { FoodDetail, FoodSearchItem, FoodSearchResponse, FoodServing, Nutrients } from '@limon/types';
 
 /**
@@ -7,15 +8,19 @@ import type { FoodDetail, FoodSearchItem, FoodSearchResponse, FoodServing, Nutri
  * - Basic (free): US data in English; search is `foods.search` v1, which returns a
  *   one-line summary per food instead of servings.
  * - Premier: `region`/`language` (e.g. MX/es) are sent when configured.
- * - Terms: only ids may be stored. Everything else is kept here in memory for at most
- *   CACHE_TTL_MS (< 24 h) and never written to the database.
+ * - Terms: only ids may be stored. Food details go to the shared Postgres cache
+ *   (`store`, rows expire and are deleted after 24 h) with a short in-memory layer in
+ *   front; search results stay in memory only. Without a store, food details are kept
+ *   in memory for MEMORY_TTL_MS (< 24 h).
  * - Keys only work from whitelisted IPs (FatSecret error 21).
  */
 
 const TOKEN_URL = 'https://oauth.fatsecret.com/connect/token';
 const API_URL = 'https://platform.fatsecret.com/rest';
-/** Well inside FatSecret's 24 h caching limit. */
-const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+/** In-memory lifetime: well inside FatSecret's 24 h caching limit. */
+const MEMORY_TTL_MS = 12 * 60 * 60 * 1000;
+/** With the shared Postgres cache, memory only saves repeated reads within a few minutes. */
+const MEMORY_TTL_WITH_STORE_MS = 5 * 60 * 1000;
 const CACHE_MAX_ENTRIES = 2_000;
 const TIMEOUT_MS = 8_000;
 /** Refresh the token this long before it expires. */
@@ -27,6 +32,8 @@ export type FatSecretConfig = {
   scopes: string;
   region?: string;
   language?: string;
+  /** Shared Postgres cache for food details (see @limon/database food-cache). */
+  store?: FoodCacheStore;
   fetchImpl?: typeof fetch;
   now?: () => number;
 };
@@ -49,7 +56,10 @@ export class FatSecretError extends Error {
 /** Small TTL cache with a size cap (oldest entries evicted first). */
 class TtlCache<T> {
   private readonly entries = new Map<string, { value: T; expiresAt: number }>();
-  constructor(private readonly now: () => number) {}
+  constructor(
+    private readonly now: () => number,
+    private readonly ttlMs: number,
+  ) {}
 
   get(key: string): T | undefined {
     const hit = this.entries.get(key);
@@ -63,7 +73,7 @@ class TtlCache<T> {
 
   set(key: string, value: T) {
     if (this.entries.size >= CACHE_MAX_ENTRIES) this.entries.delete(this.entries.keys().next().value!);
-    this.entries.set(key, { value, expiresAt: this.now() + CACHE_TTL_MS });
+    this.entries.set(key, { value, expiresAt: this.now() + this.ttlMs });
   }
 }
 
@@ -156,7 +166,8 @@ export function normalizeSearch(raw: unknown, page: number, pageSize: number): F
 function errorFor(code: number, message: string): FatSecretError {
   if (code === 106) return new FatSecretError('invalid_id', message, code);
   if (code === 21) return new FatSecretError('ip_not_allowed', message, code);
-  if (code === 11) return new FatSecretError('quota', message, code);
+  // 11: monthly quota used up; 12: too many requests in a short time.
+  if (code === 11 || code === 12) return new FatSecretError('quota', message, code);
   if (code >= 2 && code <= 14) return new FatSecretError('auth', message, code);
   return new FatSecretError('unavailable', message, code);
 }
@@ -174,8 +185,20 @@ export class FatSecretClient {
   constructor(private readonly cfg: FatSecretConfig) {
     this.fetch = cfg.fetchImpl ?? fetch;
     this.now = cfg.now ?? Date.now;
-    this.foods = new TtlCache(this.now);
-    this.searches = new TtlCache(this.now);
+    this.foods = new TtlCache(this.now, cfg.store ? MEMORY_TTL_WITH_STORE_MS : MEMORY_TTL_MS);
+    this.searches = new TtlCache(this.now, MEMORY_TTL_MS);
+  }
+
+  /** Dataset this client reads: "" on Basic (US, English). */
+  get region(): string {
+    return this.cfg.region ?? '';
+  }
+  get language(): string {
+    return this.cfg.region ? (this.cfg.language ?? '') : '';
+  }
+
+  private keyFor(fatsecretFoodId: string): FoodCacheKey {
+    return { fatsecretFoodId, region: this.region, language: this.language };
   }
 
   async searchFoods(query: string, page = 0, pageSize = 20): Promise<FoodSearchResponse> {
@@ -192,12 +215,27 @@ export class FatSecretClient {
     return result;
   }
 
+  /** Memory → shared Postgres cache → FatSecret. Only the last step needs FatSecret to be up. */
   async getFood(foodId: string): Promise<FoodDetail> {
-    const key = `${this.cfg.region ?? ''}|${this.cfg.language ?? ''}|${foodId}`;
-    const cached = this.foods.get(key);
-    if (cached) return cached;
+    const key = this.keyFor(foodId);
+    const memoryKey = `${key.region}|${key.language}|${foodId}`;
+    const inMemory = this.foods.get(memoryKey);
+    if (inMemory) return inMemory;
+    const stored = await this.cfg.store?.get(key, new Date(this.now()));
+    if (stored) {
+      this.foods.set(memoryKey, stored);
+      return stored;
+    }
+    return this.refreshFood(foodId);
+  }
+
+  /** Always asks FatSecret, then updates both caches. Used by getFood on a miss and by the refresh job. */
+  async refreshFood(foodId: string): Promise<FoodDetail> {
+    const key = this.keyFor(foodId);
+    const fetchedAt = new Date(this.now());
     const food = normalizeFood(await this.call('/food/v4', { food_id: foodId }));
-    this.foods.set(key, food);
+    await this.cfg.store?.put(key, food, fetchedAt);
+    this.foods.set(`${key.region}|${key.language}|${foodId}`, food);
     return food;
   }
 
