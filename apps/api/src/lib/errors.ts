@@ -24,5 +24,6 @@ export const Errors = {
   appNotRecognized: () => new AppError('APP_NOT_RECOGNIZED', 400, 'This app is not recognized.'),
   nutritionProviderUnavailable: () =>
     new AppError('NUTRITION_PROVIDER_UNAVAILABLE', 503, 'Nutrition data is temporarily unavailable. Please try again later.'),
+  featureDisabled: () => new AppError('FEATURE_DISABLED', 403, 'This feature is not available.'),
   inviteCodeInvalid: () => new AppError('INVITE_CODE_INVALID', 404, 'This invite code is not valid.'),
 };

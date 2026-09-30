@@ -5,3 +5,4 @@ export * from './registry.js';
 export * from './storage.js';
 export * from './jobs.js';
 export * from './invite-code.js';
+export * from './features.js';

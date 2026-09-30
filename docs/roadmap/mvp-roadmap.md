@@ -69,7 +69,7 @@ Close the blockers first so nothing stalls later.
 - [ ] **Stripe:** open the Stripe Mexico account, enable Connect (Express), and decide the patient payment flow (see Risk 1).
 - [ ] **Store accounts:** each pilot nutritionist starts enrolling in Apple Developer + Google Play (ADR-009), as an **individual / personal** account unless they have a registered business. Follow [Nutritionist onboarding](#nutritionist-onboarding-store-accounts); Apple identity checks can take days, so start this now.
 - [x] **Admission modes:** `invite_only` flag (open or invite only), per-patient single-use invite codes, admin command to issue them.
-- [ ] **Feature flags:** add a `tenant_features` table (`tenant_id`, `feature_key`, `enabled`, `config` JSON). Return the enabled flags in `/apps/bootstrap` / `/me`, add an API guard (`requireFeature('meal_plan')`) that returns `FEATURE_DISABLED`, and hide the matching app tabs. Toggle flags with an internal admin script.
+- [x] **Feature flags:** `tenant_features` table (`tenant_id`, `feature_key`, `enabled`, `config` JSON). `/auth/me` returns the effective flags (dependencies such as `shopping_list` → `meal_plan` applied), the API guard `requireFeature(c, FeatureKey.MEAL_PLAN)` returns `FEATURE_DISABLED`, and the app hides disabled screens. Toggle with `pnpm --filter @limon/database admin features <slug> --enable … --disable …`.
 - [ ] **i18n:** set up es-MX strings (`i18next` / `expo-localization`); no hard-coded UI strings from here on.
 - [ ] **Delivery:** staging deploy (CDK), EAS development build on a device, error tracking (Sentry) in the API and the app.
 

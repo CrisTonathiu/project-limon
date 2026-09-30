@@ -1,5 +1,5 @@
 import { withTenant, writeAudit } from '@limon/database';
-import type { TenantContext } from '@limon/tenant';
+import { effectiveFeatures, type TenantContext } from '@limon/tenant';
 import { FeatureKey, type TenantAppConfig } from '@limon/types';
 import type { UpdateTenantBrandingInput } from '@limon/validation';
 import type { Container } from '../../infrastructure/container.js';
@@ -7,6 +7,13 @@ import { tenantsRepository } from './tenants.repository.js';
 
 export function createTenantsService(c: Container) {
   return {
+    /** The tenant's effective feature flags. Read on every call so a toggle applies without a release. */
+    async features(tenantId: string): Promise<FeatureKey[]> {
+      return withTenant(c.db, await c.registry.getPlacement(tenantId), async (tx) =>
+        effectiveFeatures(await tenantsRepository.enabledFeatureKeys(tx, tenantId)),
+      );
+    },
+
     async current(ctx: TenantContext) {
       return withTenant(c.db, await c.registry.getPlacement(ctx.tenantId), (tx) => tenantsRepository.findById(tx, ctx.tenantId));
     },

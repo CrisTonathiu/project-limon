@@ -77,8 +77,15 @@ export const FeatureKey = {
   SHOPPING_LIST: 'shopping_list',
   WATER_TRACKER: 'water_tracker',
   GOAL_TRACKER: 'goal_tracker',
+  /** Paid add-on after the MVP; off everywhere until then. */
+  AI_ASSISTANT: 'ai_assistant',
 } as const;
 export type FeatureKey = (typeof FeatureKey)[keyof typeof FeatureKey];
+
+/** A feature only takes effect when every feature it depends on is enabled too. */
+export const FEATURE_DEPENDENCIES: Partial<Record<FeatureKey, readonly FeatureKey[]>> = {
+  [FeatureKey.SHOPPING_LIST]: [FeatureKey.MEAL_PLAN],
+};
 
 /** Stable error codes. Clients switch on `code`, never on `message`. */
 export const ErrorCode = {
@@ -94,6 +101,8 @@ export const ErrorCode = {
   SUBSCRIPTION_REQUIRED: 'SUBSCRIPTION_REQUIRED',
   APP_NOT_RECOGNIZED: 'APP_NOT_RECOGNIZED',
   INVITE_CODE_INVALID: 'INVITE_CODE_INVALID',
+  /** The module is switched off for this tenant (tenant_features). */
+  FEATURE_DISABLED: 'FEATURE_DISABLED',
   /** The nutrition data provider (FatSecret) is not configured, unreachable or refused the request. */
   NUTRITION_PROVIDER_UNAVAILABLE: 'NUTRITION_PROVIDER_UNAVAILABLE',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
@@ -141,6 +150,8 @@ export type MeResponse = {
   tenant: { id: string; name: string; slug: string; status: TenantStatus } | null;
   /** Present for PATIENT users only. */
   entitlement?: PatientEntitlement;
+  /** The tenant's effective feature flags (dependencies applied). The app hides everything else. */
+  features: FeatureKey[];
 };
 
 export type RegisterPatientResponse = { userId: string; patientId: string; tenantId: string };

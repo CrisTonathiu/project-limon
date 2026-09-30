@@ -1,7 +1,9 @@
 import type { Permission, VerifiedPrincipal } from '@limon/auth';
 import { resolveIdentity, resolveTenantApp } from '@limon/database';
 import { createEntitlementService } from '../modules/subscriptions/entitlement.service.js';
+import { createTenantsService } from '../modules/tenants/tenants.service.js';
 import type { TenantContext } from '@limon/tenant';
+import type { FeatureKey } from '@limon/types';
 import type { FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 import type { Container } from '../infrastructure/container.js';
 import { Errors } from '../lib/errors.js';
@@ -47,6 +49,18 @@ export function requireTenant(c: Container, permission: Permission): preHandlerA
       { principal, appKey, permission, requestId: req.id },
     );
     req.tenantContext = ctx;
+  };
+}
+
+/**
+ * Module gate. Runs AFTER requireTenant:
+ *   { preHandler: [requireTenant(c, Permission.X), requireFeature(c, FeatureKey.MEAL_PLAN)] }
+ * A module switched off for the tenant (or whose dependency is off) answers FEATURE_DISABLED.
+ */
+export function requireFeature(c: Container, feature: FeatureKey): preHandlerAsyncHookHandler {
+  const tenants = createTenantsService(c);
+  return async (req: FastifyRequest) => {
+    if (!(await tenants.features(ctxOf(req).tenantId)).includes(feature)) throw Errors.featureDisabled();
   };
 }
 

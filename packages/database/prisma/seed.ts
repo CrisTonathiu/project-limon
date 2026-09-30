@@ -48,11 +48,15 @@ async function main() {
       update: {},
       create: { tenantId: t.id, userId: patientUser.id, firstName: 'Demo', lastName: 'Patient', email: patientUser.email },
     });
-    await prisma.tenantFeature.upsert({
-      where: { tenantId_featureKey: { tenantId: t.id, featureKey: 'invite_only' } },
-      update: { enabled: t.inviteOnly },
-      create: { tenantId: t.id, featureKey: 'invite_only', enabled: t.inviteOnly },
-    });
+    // Every MVP module on, so local development shows all screens. Toggle with `pnpm admin features`.
+    const flags = { invite_only: t.inviteOnly, recipes: true, meal_plan: true, food_swaps: true, shopping_list: true, water_tracker: true, goal_tracker: true };
+    for (const [featureKey, enabled] of Object.entries(flags)) {
+      await prisma.tenantFeature.upsert({
+        where: { tenantId_featureKey: { tenantId: t.id, featureKey } },
+        update: { enabled },
+        create: { tenantId: t.id, featureKey, enabled },
+      });
+    }
     // A patient the nutritionist pre-registered, with their single-use invite code.
     // Fixed, guessable codes are for local development only; real ones come from `pnpm admin invite`.
     // Re-seeding makes the code usable again unless the patient already signed up.
