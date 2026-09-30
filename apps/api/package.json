@@ -13,7 +13,8 @@
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run test/unit",
     "test:integration": "dotenv -e ../../.env -- vitest run test/integration",
-    "fatsecret": "dotenv -e ../../.env -- tsx scripts/fatsecret.ts"
+    "fatsecret": "dotenv -e ../../.env -- tsx scripts/fatsecret.ts",
+    "catalog": "dotenv -e ../../.env -- tsx scripts/catalog.ts"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.700.0",

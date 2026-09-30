@@ -1,3 +1,5 @@
+import type { FoodCacheKey, FoodCacheStore } from '@limon/database';
+import type { FoodDetail } from '@limon/types';
 import { describe, expect, it } from 'vitest';
 import { FatSecretClient, FatSecretError, parseFoodDescription } from '../../src/infrastructure/fatsecret.js';
 
@@ -114,7 +116,7 @@ describe('FatSecretClient', () => {
   });
 
   it('maps FatSecret error codes, including errors sent with HTTP 200', async () => {
-    const cases: [number, FatSecretError['reason']][] = [[21, 'ip_not_allowed'], [106, 'invalid_id'], [11, 'quota'], [14, 'auth']];
+    const cases: [number, FatSecretError['reason']][] = [[21, 'ip_not_allowed'], [106, 'invalid_id'], [11, 'quota'], [12, 'quota'], [14, 'auth']];
     for (const [code, reason] of cases) {
       const fs = fakeFatSecret(() => ({ error: { code, message: 'x' } }));
       await expect(
@@ -130,6 +132,63 @@ describe('FatSecretClient', () => {
     await expect(new FatSecretClient({ clientId: 'i', clientSecret: 's', scopes: 'basic', fetchImpl }).getFood('1')).rejects.toMatchObject({
       reason: 'unavailable',
     });
+  });
+});
+
+/** In-memory stand-in for the Postgres store (the real one is covered by integration tests). */
+function memoryStore() {
+  const rows = new Map<string, { food: FoodDetail; expiresAt: number }>();
+  const k = (key: FoodCacheKey) => `${key.fatsecretFoodId}|${key.region}|${key.language}`;
+  const store: FoodCacheStore = {
+    get: async (key, now) => {
+      const r = rows.get(k(key));
+      return r && r.expiresAt > now.getTime() ? r.food : null;
+    },
+    put: async (key, food, fetchedAt) => void rows.set(k(key), { food, expiresAt: fetchedAt.getTime() + 24 * 3600_000 }),
+    delete: async (key) => void rows.delete(k(key)),
+    listDue: async () => [],
+    purgeExpired: async () => 0,
+  };
+  return { store, rows };
+}
+
+describe('FatSecretClient with the shared store', () => {
+  it('serves a food another server already stored, without calling FatSecret', async () => {
+    const { store } = memoryStore();
+    const first = fakeFatSecret(() => tortilla);
+    await new FatSecretClient({ clientId: 'i', clientSecret: 's', scopes: 'basic', store, fetchImpl: first.fetchImpl }).getFood('4412');
+
+    // A second client (another API task, or the same one after a restart) with FatSecret down.
+    const down = (async () => {
+      throw new TypeError('fetch failed');
+    }) as typeof fetch;
+    const food = await new FatSecretClient({ clientId: 'i', clientSecret: 's', scopes: 'basic', store, fetchImpl: down }).getFood('4412');
+    expect(food.name).toBe('Corn Tortilla');
+  });
+
+  it('keeps foods in memory only briefly when a store exists, then rereads the store', async () => {
+    let now = 0;
+    const { store, rows } = memoryStore();
+    const fs = fakeFatSecret(() => tortilla);
+    const client = new FatSecretClient({ clientId: 'i', clientSecret: 's', scopes: 'basic', store, fetchImpl: fs.fetchImpl, now: () => now });
+    await client.getFood('4412');
+    rows.clear(); // e.g. purged
+    now += 4 * 60 * 1000;
+    await client.getFood('4412'); // still in memory
+    expect(fs.apiCount()).toBe(1);
+    now += 2 * 60 * 1000;
+    await client.getFood('4412'); // memory expired, store empty → FatSecret
+    expect(fs.apiCount()).toBe(2);
+  });
+
+  it('refreshFood always asks FatSecret and updates the store', async () => {
+    const { store, rows } = memoryStore();
+    const fs = fakeFatSecret(() => tortilla);
+    const client = new FatSecretClient({ clientId: 'i', clientSecret: 's', scopes: 'basic', store, fetchImpl: fs.fetchImpl });
+    await client.getFood('4412');
+    await client.refreshFood('4412');
+    expect(fs.apiCount()).toBe(2);
+    expect(rows.size).toBe(1);
   });
 });
 

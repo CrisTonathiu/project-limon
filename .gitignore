@@ -12,3 +12,6 @@ cdk.out
 !.env.example
 ios/
 android/
+
+# Local-only data: SMAE book, food catalog CSV with SMAE values (copyrighted source; public repo)
+/private/

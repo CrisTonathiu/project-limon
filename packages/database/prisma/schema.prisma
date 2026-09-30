@@ -567,3 +567,25 @@ model AuditLog {
   @@index([tenantId, createdAt])
   @@map("audit_logs")
 }
+
+/// FatSecret food data (normalized FoodDetail), cached for at most 24 h — FatSecret's
+/// terms only allow storing ids longer. Shared by every tenant (not tenant data, no
+/// tenant_id). Refreshed every few hours by the worker; rows past `expiresAt` are
+/// never served and are deleted by the same job (see apps/api/src/jobs/food-cache-maintenance.ts).
+model FatSecretFoodCache {
+  fatsecretFoodId String   @map("fatsecret_food_id")
+  /// "" on the Basic plan (US, English); e.g. "MX" / "es" on Premier.
+  region          String   @default("")
+  language        String   @default("")
+  food            Json
+  fetchedAt       DateTime @map("fetched_at")
+  /// fetchedAt + 24 h. Hard limit from FatSecret's terms.
+  expiresAt       DateTime @map("expires_at")
+  /// Only foods used recently keep being refreshed.
+  lastUsedAt      DateTime @map("last_used_at")
+
+  @@id([fatsecretFoodId, region, language])
+  @@index([expiresAt])
+  @@index([region, language, fetchedAt])
+  @@map("fatsecret_food_cache")
+}
