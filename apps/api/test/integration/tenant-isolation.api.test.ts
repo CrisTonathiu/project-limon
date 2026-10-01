@@ -157,6 +157,11 @@ describe('admission modes', () => {
     expect(inviteOnly.json()).toMatchObject({ tenantId: CARLOS, requiresInviteCode: true });
   });
 
+  it('bootstrap responses are cached per app key, never shared across tenants', async () => {
+    const res = await app.inject({ url: '/api/v1/apps/bootstrap', headers: { 'x-app-key': 'carlos-nutrition-ios' } });
+    expect(String(res.headers.vary)).toMatch(/X-App-Key/i);
+  });
+
   it('OPEN: anyone can sign up without a code', async () => {
     const res = await signup(`dev|patient|open|${Date.now()}`, 'maria-nutrition-ios');
     expect(res.statusCode).toBe(201);

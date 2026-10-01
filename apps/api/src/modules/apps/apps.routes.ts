@@ -25,6 +25,10 @@ export async function appsRoutes(app: FastifyInstance, c: Container) {
    */
   app.get('/apps/bootstrap', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req, reply) => {
     const resolved = await liveTenantApp(c, req);
+    // Same URL for every tenant: without Vary, a shared or client HTTP cache would serve
+    // one tenant's branding to another tenant's app. Append — CORS already set Vary: Origin.
+    const vary = reply.getHeader('vary');
+    reply.header('Vary', vary ? `${String(vary)}, X-App-Key` : 'X-App-Key');
     reply.header('Cache-Control', 'public, max-age=300');
     const body: TenantAppConfig = {
       tenantId: resolved.tenantId,
