@@ -203,6 +203,33 @@ export const Allergen = {
 } as const;
 export type Allergen = (typeof Allergen)[keyof typeof Allergen];
 
+/** Why a patient gets no automatic energy target and is sent to their nutritionist instead. */
+export const EnergyTargetHoldReason = {
+  MINOR: 'MINOR',
+  PREGNANT_OR_BREASTFEEDING: 'PREGNANT_OR_BREASTFEEDING',
+  /** Weight loss asked while BMI < 18.5. */
+  UNDERWEIGHT: 'UNDERWEIGHT',
+  /** Maintenance is already below the calorie floor for their sex. */
+  BELOW_FLOOR: 'BELOW_FLOOR',
+} as const;
+export type EnergyTargetHoldReason = (typeof EnergyTargetHoldReason)[keyof typeof EnergyTargetHoldReason];
+
+/** Daily energy target computed from the profile (and, from week 6, the patient's goal). */
+export type EnergyTargetDto =
+  | {
+      status: 'READY';
+      /** Energy burned at rest (Mifflin-St Jeor). */
+      bmrKcal: number;
+      /** BMR × activity factor: eating this keeps the weight stable. */
+      maintenanceKcal: number;
+      /** Maintenance ± the goal's deficit or surplus, after the guardrails. What meal plans aim at. */
+      targetKcal: number;
+      proteinG: number;
+      carbsG: number;
+      fatG: number;
+    }
+  | { status: 'CONSULT_NUTRITIONIST'; reason: EnergyTargetHoldReason };
+
 /** The patient's onboarding answers. `dateOfBirth` comes from the Patient row. */
 export type PatientProfileDto = {
   sex: BiologicalSex;
@@ -214,6 +241,8 @@ export type PatientProfileDto = {
   pregnantOrBreastfeeding: boolean;
   allergies: Allergen[];
   dislikedFoods: string[];
+  /** Computed on every read, so it follows profile edits and birthdays. */
+  energyTarget: EnergyTargetDto;
   updatedAt: string;
 };
 

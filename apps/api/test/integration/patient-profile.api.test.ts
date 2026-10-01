@@ -68,6 +68,17 @@ describe('patient profile', () => {
     expect(res.json().profile).toMatchObject({ weightKg: 66, allergies: [], dislikedFoods: ['Hígado'] });
   });
 
+  it('includes the energy target: maintenance until the patient sets a goal', async () => {
+    const { energyTarget } = (await app.inject({ url, headers })).json().profile;
+    expect(energyTarget).toMatchObject({ status: 'READY' });
+    expect(energyTarget.targetKcal).toBe(energyTarget.maintenanceKcal);
+  });
+
+  it('holds the target during pregnancy', async () => {
+    const res = await app.inject({ method: 'PUT', url, headers, payload: { ...answers, pregnantOrBreastfeeding: true } });
+    expect(res.json().profile.energyTarget).toEqual({ status: 'CONSULT_NUTRITIONIST', reason: 'PREGNANT_OR_BREASTFEEDING' });
+  });
+
   it('rejects invalid answers and ids sent by the client', async () => {
     for (const payload of [{ ...answers, mealsPerDay: 7 }, { ...answers, tenantId }]) {
       const res = await app.inject({ method: 'PUT', url, headers, payload });
