@@ -4,6 +4,7 @@ import type { Allergen, PatientDto, PatientProfileDto, PatientProfileResponse } 
 import type { CreatePatientInput, PatientProfile } from '@limon/validation';
 import type { Container } from '../../infrastructure/container.js';
 import { Errors } from '../../lib/errors.js';
+import { energyTarget } from './energy-target.js';
 import { patientsRepository } from './patients.repository.js';
 
 type PatientRow = NonNullable<Awaited<ReturnType<typeof patientsRepository.findById>>>;
@@ -12,18 +13,22 @@ const toDto = (p: PatientRow): PatientDto => ({
 });
 
 type ProfileRow = NonNullable<Awaited<ReturnType<typeof patientsRepository.findProfile>>>;
-const toProfileDto = (p: ProfileRow, dateOfBirth: Date): PatientProfileDto => ({
-  sex: p.sex,
-  dateOfBirth: dateOfBirth.toISOString().slice(0, 10),
-  heightCm: p.heightCm,
-  weightKg: p.weightKg,
-  activityLevel: p.activityLevel,
-  mealsPerDay: p.mealsPerDay,
-  pregnantOrBreastfeeding: p.pregnantOrBreastfeeding,
-  allergies: p.allergies as Allergen[],
-  dislikedFoods: p.dislikedFoods,
-  updatedAt: p.updatedAt.toISOString(),
-});
+const toProfileDto = (p: ProfileRow, dateOfBirth: Date): PatientProfileDto => {
+  const isoDateOfBirth = dateOfBirth.toISOString().slice(0, 10);
+  return {
+    sex: p.sex,
+    dateOfBirth: isoDateOfBirth,
+    heightCm: p.heightCm,
+    weightKg: p.weightKg,
+    activityLevel: p.activityLevel,
+    mealsPerDay: p.mealsPerDay,
+    pregnantOrBreastfeeding: p.pregnantOrBreastfeeding,
+    allergies: p.allergies as Allergen[],
+    dislikedFoods: p.dislikedFoods,
+    energyTarget: energyTarget({ ...p, dateOfBirth: isoDateOfBirth }),
+    updatedAt: p.updatedAt.toISOString(),
+  };
+};
 
 export function createPatientsService(c: Container) {
   const scoped = async <T>(ctx: TenantContext, fn: Parameters<typeof withTenant<T>>[2]) =>

@@ -80,10 +80,15 @@ Close the blockers first so nothing stalls later.
 
 - [x] Onboarding questionnaire (multi-step): sex, birth date, height, current weight, activity level, meals per day (3–5), allergies, disliked foods. Shown after sign-up and **before the paywall** until the patient has a profile (`hasProfile` in the session); saved in one `PUT` on the last step. Step checks live in `features/onboarding/onboarding-form.ts` and share their bounds with the API (`PATIENT_PROFILE_LIMITS`).
 - [x] `PatientProfile` model plus API (`GET/PUT /patients/me/profile`) with Zod validation. `GET` returns `{ profile: null }` until onboarding is done; `PUT` always sends the whole questionnaire. Allergies are fixed keys (NOM-051 allergens, `Allergen` in @limon/types); disliked foods are free text until the week 3 catalog exists. Also stores pregnant/breastfeeding for the guardrails.
-- [ ] **Energy target:** Mifflin-St Jeor BMR × activity factor, adjusted by goal. Add **safety guardrails:** a calorie floor (e.g. never below 1,200 kcal), a maximum loss rate (about 0.5–1% of body weight per week), and a block or "consult your nutritionist" path for under-18s and pregnancy.
+- [x] **Energy target:** BMR (Mifflin-St Jeor) × activity factor = maintenance, then ± the goal's deficit or surplus = target kcal, split into macros (`modules/patients/energy-target.ts`, returned as `energyTarget` on the profile and computed on every read, so it follows profile edits and birthdays). The goal defaults to **maintain** until the goal tracker (week 6) lets the patient set one. **Safety guardrails** (platform constants, not per-tenant settings):
+  - Calorie floor by sex: never below **1,200 kcal (female) / 1,500 kcal (male)**.
+  - Maximum loss rate: the deficit never exceeds **1% of body weight per week**.
+  - Maximum surplus: **+20% of maintenance** (bulk) for weight gain.
+  - No automatic target, only a "consult your nutritionist" message, for **under-18s**, **pregnancy or breastfeeding**, weight loss while **underweight (BMI < 18.5)**, and when maintenance is already below the floor.
+  - Nutritionists can't loosen these per tenant: plans are generated with no professional review in the MVP (Risk 3). A per-patient override comes with the dashboard; letting a tenant *tighten* them later fits in `tenant_features.config` without a migration.
 - [ ] Profile screen: edit data, sign out, delete account (ARCO: an email-based request process is enough for the MVP).
 
-**Done when:** a new patient finishes onboarding and has a stored daily kcal and macro target.
+**Done when:** a new patient finishes onboarding and has a daily kcal and macro target.
 
 ### Week 3 · Oct 12 – 16 — Recipe catalog
 
