@@ -35,9 +35,9 @@ jobs:
         run: pnpm turbo run test
       - name: Build
         run: pnpm turbo run build --filter=!@limon/patient
-      - name: CDK synth (development)
+      - name: CDK synth (preproduction)
         working-directory: infrastructure
-        run: npx cdk synth -c env=development --quiet
+        run: npx cdk synth -c env=preproduction --quiet
 
   tenant-isolation:
     name: Tenant isolation (integration)

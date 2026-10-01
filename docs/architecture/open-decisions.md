@@ -17,6 +17,8 @@
 | 11 | Localization | **Spanish (es-MX) only** |
 | — | App distribution | **One branded app per nutritionist**, published from their own developer accounts (ADR-009), from the MVP on |
 | — | Patient admission | Per tenant via the `invite_only` flag: **Open** or **Invite only** (single-use code per patient). Approval by emailed link comes next |
+| 6 | AWS region | **`us-east-1`** for the MVP; revisit `mx-central-1` with the real production environment |
+| — | Hosting during the MVP | One disposable `preproduction` environment (< US$50/month); see [aws.md](aws.md) |
 | — | Tenant billing | Base rate + add-ons; pricing model options in the roadmap |
 | — | Recipes | Global default library copied into each tenant; nutrients from FatSecret MX, equivalents from SMAE |
 
@@ -38,7 +40,6 @@ Still to confirm: who is the *responsable* (data controller) for patient data �
 | # | Decision | Default in code | Why it matters |
 |---|---|---|---|
 | 5 | **Patient payment provider** | Provider-agnostic model; nothing charges yet | Apple 3.1.1 / Google Play Billing generally require store billing for in-app digital access (~15–30% fee). Stripe Connect is only safe for out-of-app sales. See [ADR-008](adr/ADR-008-patient-payments.md) |
-| 6 | AWS region | `us-east-1` | `mx-central-1` exists (Mexico) and may be preferable for latency and data-residency optics; verify Bedrock/Cognito feature availability there first |
 | 7 | Retention periods | 30 days suspended → deletion | Must be reconciled with the ~5-year clinical-record retention above |
 | 8 | Multiple nutritionists per tenant (clinics) | Schema allows it; no assignment rules | Would need per-patient access rules |
 | 9 | Global reference food database | Tenant-private only | Would be the one non-tenant-scoped domain table |

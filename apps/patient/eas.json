@@ -2,7 +2,10 @@
   "cli": { "version": ">= 16.0.0", "appVersionSource": "local" },
   "build": {
     "development": { "developmentClient": true, "distribution": "internal", "env": { "APP_ENV": "development" } },
-    "staging": { "distribution": "internal", "env": { "APP_ENV": "staging" } },
+    "preproduction": {
+      "distribution": "internal",
+      "env": { "APP_ENV": "preproduction", "EXPO_PUBLIC_API_BASE_URL": "https://api.projectlimon.com", "EXPO_PUBLIC_AUTH_PROVIDER": "cognito" }
+    },
     "production": { "env": { "APP_ENV": "production" } }
   },
   "submit": { "production": {} }
