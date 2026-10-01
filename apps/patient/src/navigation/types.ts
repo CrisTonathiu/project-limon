@@ -7,6 +7,7 @@ export type AuthStackParamList = {
   SignUp: { inviteCode?: string } | undefined;
 };
 export type AppStackParamList = {
+  Onboarding: undefined;
   Home: undefined;
   Meals: undefined;
   Recipes: undefined;

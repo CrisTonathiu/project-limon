@@ -1,5 +1,5 @@
 import { ApiError } from '@limon/api-client';
-import type { FeatureKey, MeResponse } from '@limon/types';
+import { UserRole, type FeatureKey, type MeResponse } from '@limon/types';
 import type { RegisterPatientInput } from '@limon/validation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { patientAuthProvider } from '../features/auth/auth-provider';
@@ -12,7 +12,8 @@ type SessionState =
   | { status: 'signedOut'; error?: string }
   // Cognito requires email verification before sign-in; the dev provider never reaches this.
   | { status: 'awaitingConfirmation'; email: string }
-  | { status: 'signedIn'; me: MeResponse };
+  // hasProfile: the patient finished the onboarding questionnaire (always true for other roles).
+  | { status: 'signedIn'; me: MeResponse; hasProfile: boolean };
 
 type SignUpInput = Omit<RegisterPatientInput, 'privacyNoticeVersion' | 'termsVersion'> & { password: string };
 
@@ -76,7 +77,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // the tenant is active, and it also returns the patient's entitlement.
   const verify = useCallback(async () => {
     try {
-      setState({ status: 'signedIn', me: await api.auth.me() });
+      const me = await api.auth.me();
+      const hasProfile = me.user.role !== UserRole.PATIENT || (await api.patients.myProfile()).profile !== null;
+      setState({ status: 'signedIn', me, hasProfile });
     } catch (err) {
       await tokenStore.clear();
       setState({ status: 'signedOut', error: err instanceof ApiError && err.status === 401 ? undefined : messageFor(err) });

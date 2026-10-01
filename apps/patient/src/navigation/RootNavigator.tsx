@@ -8,6 +8,7 @@ import { SignUpScreen } from '../screens/auth/SignUpScreen';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { InviteCodeScreen } from '../screens/invite/InviteCodeScreen';
 import { MealsScreen } from '../screens/meals/MealsScreen';
+import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
 import { RecipesScreen } from '../screens/recipes/RecipesScreen';
@@ -40,7 +41,12 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer>
-      {session.status === 'signedIn' && !session.entitled ? (
+      {session.status === 'signedIn' && !session.hasProfile ? (
+        // The questionnaire comes first, before the paywall: the meal plan needs it.
+        <AppStack.Navigator screenOptions={{ headerShown: false }}>
+          <AppStack.Screen name="Onboarding" component={OnboardingScreen} />
+        </AppStack.Navigator>
+      ) : session.status === 'signedIn' && !session.entitled ? (
         // Signed in but unpaid: the paywall is the only screen. The API enforces this too.
         <AppStack.Navigator screenOptions={appScreenOptions}>
           <AppStack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: '' }} />
