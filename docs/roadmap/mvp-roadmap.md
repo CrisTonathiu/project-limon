@@ -78,7 +78,7 @@ Close the blockers first so nothing stalls later.
 
 ### Week 2 · Oct 5 – 9 — Patient registration and profile
 
-- [ ] Onboarding questionnaire (multi-step): sex, birth date, height, current weight, activity level, meals per day (3–5), allergies, disliked foods.
+- [x] Onboarding questionnaire (multi-step): sex, birth date, height, current weight, activity level, meals per day (3–5), allergies, disliked foods. Shown after sign-up and **before the paywall** until the patient has a profile (`hasProfile` in the session); saved in one `PUT` on the last step. Step checks live in `features/onboarding/onboarding-form.ts` and share their bounds with the API (`PATIENT_PROFILE_LIMITS`).
 - [x] `PatientProfile` model plus API (`GET/PUT /patients/me/profile`) with Zod validation. `GET` returns `{ profile: null }` until onboarding is done; `PUT` always sends the whole questionnaire. Allergies are fixed keys (NOM-051 allergens, `Allergen` in @limon/types); disliked foods are free text until the week 3 catalog exists. Also stores pregnant/breastfeeding for the guardrails.
 - [ ] **Energy target:** Mifflin-St Jeor BMR × activity factor, adjusted by goal. Add **safety guardrails:** a calorie floor (e.g. never below 1,200 kcal), a maximum loss rate (about 0.5–1% of body weight per week), and a block or "consult your nutritionist" path for under-18s and pregnancy.
 - [ ] Profile screen: edit data, sign out, delete account (ARCO: an email-based request process is enough for the MVP).

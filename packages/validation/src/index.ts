@@ -103,6 +103,16 @@ export function ageInYears(isoDate: string, today = new Date()): number {
 const uniqueText = (items: string[]) =>
   items.filter((s, i) => items.findIndex((o) => o.toLowerCase() === s.toLowerCase()) === i);
 
+/** Bounds of the profile questionnaire, shared with the app so it can check each step before the PUT. */
+export const PATIENT_PROFILE_LIMITS = {
+  minBirthDate: '1900-01-01',
+  heightCm: { min: 100, max: 250 },
+  weightKg: { min: 25, max: 350 },
+  mealsPerDay: { min: 3, max: 5 },
+  dislikedFoods: { maxItems: 30, maxLength: 60 },
+} as const;
+const L = PATIENT_PROFILE_LIMITS;
+
 /**
  * The onboarding questionnaire, also sent whole when the patient edits their profile (PUT).
  * Minors and pregnancy are accepted here: the energy target, not the profile, applies those guardrails.
@@ -113,14 +123,18 @@ export const PatientProfileSchema = z
     dateOfBirth: z
       .string()
       .date()
-      .refine((d) => d >= '1900-01-01' && ageInYears(d) >= 0, 'birth date must be in the past'),
-    heightCm: z.number().int().min(100).max(250),
-    weightKg: z.number().min(25).max(350).transform((kg) => Math.round(kg * 10) / 10),
+      .refine((d) => d >= L.minBirthDate && ageInYears(d) >= 0, 'birth date must be in the past'),
+    heightCm: z.number().int().min(L.heightCm.min).max(L.heightCm.max),
+    weightKg: z.number().min(L.weightKg.min).max(L.weightKg.max).transform((kg) => Math.round(kg * 10) / 10),
     activityLevel: z.nativeEnum(ActivityLevel),
-    mealsPerDay: z.number().int().min(3).max(5),
+    mealsPerDay: z.number().int().min(L.mealsPerDay.min).max(L.mealsPerDay.max),
     pregnantOrBreastfeeding: z.boolean().default(false),
     allergies: z.array(z.nativeEnum(Allergen)).max(Object.keys(Allergen).length).default([]).transform((a) => [...new Set(a)]),
-    dislikedFoods: z.array(z.string().trim().min(1).max(60)).max(30).default([]).transform(uniqueText),
+    dislikedFoods: z
+      .array(z.string().trim().min(1).max(L.dislikedFoods.maxLength))
+      .max(L.dislikedFoods.maxItems)
+      .default([])
+      .transform(uniqueText),
   })
   .strict()
   .refine((p) => !(p.sex === BiologicalSex.MALE && p.pregnantOrBreastfeeding), {
