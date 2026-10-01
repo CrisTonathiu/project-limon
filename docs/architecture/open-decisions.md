@@ -43,4 +43,4 @@ Still to confirm: who is the *responsable* (data controller) for patient data â€
 | 8 | Multiple nutritionists per tenant (clinics) | Schema allows it; no assignment rules | Would need per-patient access rules |
 | 9 | Global reference food database | Tenant-private only | Would be the one non-tenant-scoped domain table |
 | 10 | Custom web domains per tenant | Not supported | Affects CloudFront/ACM design |
-| 11 | Spanish localization | UI strings are English placeholders | Mexico-only product; i18n (es-MX) needed before launch, including consent documents |
+| 11 | Spanish localization | es-MX UI strings in `apps/patient/src/i18n/es-MX.ts`, formatting in `format.ts`, iOS system UI declared Spanish | Consent documents still need legal review before launch; the nutritionist dashboard is not localized yet |
