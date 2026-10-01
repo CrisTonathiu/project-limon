@@ -1,14 +1,20 @@
 import * as path from 'node:path';
 import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
+import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
+import { HttpServiceDiscoveryIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import type * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import type * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
-import type * as rds from 'aws-cdk-lib/aws-rds';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
-import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as servicediscovery from 'aws-cdk-lib/aws-servicediscovery';
 import type * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import type { Construct } from 'constructs';
@@ -16,9 +22,9 @@ import type { EnvConfig } from '../../config/environments';
 
 type Deps = {
   vpc: ec2.IVpc;
-  albSg: ec2.ISecurityGroup;
+  ingressSg: ec2.ISecurityGroup;
   appSg: ec2.ISecurityGroup;
-  cluster: rds.DatabaseCluster;
+  dbOwnerSecret: secretsmanager.ISecret;
   appUserSecret: secretsmanager.ISecret;
   tenantBucket: s3.IBucket;
   jobsQueue: sqs.IQueue;
@@ -29,19 +35,34 @@ type Deps = {
 };
 
 /**
- * ECS Fargate: three SHARED services (api, dashboard, worker). Never one per tenant.
- * CloudFront distribution + ACM certificate/domain are added once domains are decided (see aws.md).
+ * ECS Fargate: SHARED services only (api, optional worker, optional dashboard). Never one per tenant.
+ *
+ * Ingress (`cfg.ingress`):
+ * - `http-api`: API Gateway HTTP API → VPC link → Cloud Map (SRV) → API tasks. No hourly
+ *   charge; stage throttling stands in for WAF rate limiting.
+ * - `alb`: ALB (+ optional regional WAF) → API / dashboard target groups.
+ * Either way, `cfg.apiDomain` gets an ACM certificate (DNS-validated) and a custom domain.
  */
 export class ComputeStack extends Stack {
-  readonly alb: elbv2.ApplicationLoadBalancer;
   readonly apiService: ecs.FargateService;
+  /** 5xx count metric of whichever ingress is in front of the API (for alarms). */
+  readonly api5xxMetric: cloudwatch.IMetric;
 
   constructor(scope: Construct, id: string, cfg: EnvConfig, d: Deps, props?: StackProps) {
     super(scope, id, props);
-    const cluster = new ecs.Cluster(this, 'Cluster', { vpc: d.vpc, clusterName: cfg.prefix, containerInsightsV2: ecs.ContainerInsights.ENABLED });
+    const cluster = new ecs.Cluster(this, 'Cluster', {
+      vpc: d.vpc, clusterName: cfg.prefix,
+      containerInsightsV2: cfg.containerInsights ? ecs.ContainerInsights.ENABLED : ecs.ContainerInsights.DISABLED,
+    });
+    // Private subnets; egress goes through the NAT (fixed IPs, whitelisted at FatSecret).
+    const placement = {
+      securityGroups: [d.appSg],
+      vpcSubnets: { subnets: d.vpc.privateSubnets },
+      assignPublicIp: false,
+    };
 
     const commonEnv = {
-      APP_ENV: cfg.name,
+      APP_ENV: cfg.appEnv,
       NODE_ENV: 'production',
       AUTH_PROVIDER: 'cognito',
       AWS_REGION: cfg.region,
@@ -52,10 +73,18 @@ export class ComputeStack extends Stack {
       S3_TENANT_BUCKET: d.tenantBucket.bucketName,
       SQS_JOBS_QUEUE_URL: d.jobsQueue.queueUrl,
     };
-    // DATABASE_URL is assembled at container start from these secret fields (entrypoint script, TODO).
-    const dbSecrets = {
+    // FatSecret API credentials. Created with empty values (the API then runs without FatSecret);
+    // fill them in the console and force a new deployment (docs/architecture/aws.md).
+    const fatsecret = new secretsmanager.Secret(this, 'FatSecretCredentials', {
+      secretName: `${cfg.prefix}/fatsecret`,
+      generateSecretString: { secretStringTemplate: JSON.stringify({ client_id: '', client_secret: '' }), generateStringKey: 'unused' },
+    });
+    // DATABASE_URL is assembled at container start from these secret fields (lib/bootstrap-database-url).
+    const appSecrets = {
       DB_APP_PASSWORD: ecs.Secret.fromSecretsManager(d.appUserSecret, 'password'),
-      DB_HOST: ecs.Secret.fromSecretsManager(d.cluster.secret!, 'host'),
+      DB_HOST: ecs.Secret.fromSecretsManager(d.dbOwnerSecret, 'host'),
+      FATSECRET_CLIENT_ID: ecs.Secret.fromSecretsManager(fatsecret, 'client_id'),
+      FATSECRET_CLIENT_SECRET: ecs.Secret.fromSecretsManager(fatsecret, 'client_secret'),
     };
 
     const taskDef = (name: string, cpu: number, memoryLimitMiB: number) => {
@@ -84,106 +113,178 @@ export class ComputeStack extends Stack {
     const image = (name: 'api' | 'dashboard') =>
       ecs.ContainerImage.fromAsset(repoRoot, { file: `apps/${name}/Dockerfile`, platform: Platform.LINUX_ARM64 });
 
+    // Worker container definition (same image as API, different command).
+    const addWorkerContainer = (td: ecs.FargateTaskDefinition, essential: boolean) => {
+      td.addContainer('worker', {
+        image: image('api'),
+        command: ['node', 'dist/jobs/worker.js'],
+        environment: commonEnv,
+        secrets: appSecrets,
+        essential,
+        logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'worker', logGroup: logGroup('worker') }),
+      });
+      d.jobsQueue.grantConsumeMessages(td.taskRole);
+      d.tenantDeletionQueue.grantConsumeMessages(td.taskRole);
+    };
+
     // API
     const apiTd = taskDef('Api', cfg.api.cpu, cfg.api.memoryMiB);
-    apiTd.addContainer('api', {
+    const apiContainer = apiTd.addContainer('api', {
       image: image('api'),
       command: ['node', 'dist/server.js'],
       environment: { ...commonEnv, API_PORT: '4000' },
-      secrets: dbSecrets,
+      secrets: appSecrets,
       portMappings: [{ containerPort: 4000 }],
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'api', logGroup: logGroup('api') }),
       healthCheck: { command: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1'], interval: Duration.seconds(30) },
     });
     d.jobsQueue.grantSendMessages(apiTd.taskRole);
     d.tenantDeletionQueue.grantSendMessages(apiTd.taskRole);
+    // Sidecar worker shares the API task's CPU/memory. Non-essential: a crashing consumer must
+    // not take the API down with it (failed jobs still land in the DLQ, which is alarmed).
+    if (cfg.worker.mode === 'sidecar') addWorkerContainer(apiTd, false);
+
+    // HTTP API integrates through Cloud Map; SRV records carry the task's port.
+    const namespace = cfg.ingress === 'http-api'
+      ? new servicediscovery.PrivateDnsNamespace(this, 'Namespace', { name: `${cfg.prefix}.internal`, vpc: d.vpc })
+      : undefined;
     this.apiService = new ecs.FargateService(this, 'ApiService', {
-      cluster, taskDefinition: apiTd, desiredCount: cfg.api.desiredCount, securityGroups: [d.appSg],
-      vpcSubnets: { subnets: d.vpc.privateSubnets }, assignPublicIp: false, circuitBreaker: { rollback: true }, minHealthyPercent: 100,
+      cluster, taskDefinition: apiTd, desiredCount: cfg.api.desiredCount, ...placement,
+      circuitBreaker: { rollback: true }, minHealthyPercent: 100,
+      cloudMapOptions: namespace
+        ? { cloudMapNamespace: namespace, name: 'api', dnsRecordType: servicediscovery.DnsRecordType.SRV, container: apiContainer, containerPort: 4000 }
+        : undefined,
     });
 
-    // Dashboard
-    const dashTd = taskDef('Dashboard', 512, 1024);
-    dashTd.addContainer('dashboard', {
-      image: image('dashboard'),
-      command: ['node', 'apps/dashboard/server.js'],
-      environment: { NODE_ENV: 'production', PORT: '3000' },
-      portMappings: [{ containerPort: 3000 }],
-      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'dashboard', logGroup: logGroup('dashboard') }),
-    });
-    const dashboardService = new ecs.FargateService(this, 'DashboardService', {
-      cluster, taskDefinition: dashTd, desiredCount: cfg.dashboard.desiredCount, securityGroups: [d.appSg],
-      vpcSubnets: { subnets: d.vpc.privateSubnets }, assignPublicIp: false, circuitBreaker: { rollback: true }, minHealthyPercent: 100,
-    });
-
-    // Worker (same image as API, different command)
-    const workerTd = taskDef('Worker', 512, 1024);
-    workerTd.addContainer('worker', {
-      image: image('api'),
-      command: ['node', 'dist/jobs/worker.js'],
-      environment: commonEnv,
-      secrets: dbSecrets,
-      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'worker', logGroup: logGroup('worker') }),
-    });
-    d.jobsQueue.grantConsumeMessages(workerTd.taskRole);
-    d.tenantDeletionQueue.grantConsumeMessages(workerTd.taskRole);
-    new ecs.FargateService(this, 'WorkerService', {
-      cluster, taskDefinition: workerTd, desiredCount: cfg.worker.desiredCount, securityGroups: [d.appSg],
-      vpcSubnets: { subnets: d.vpc.privateSubnets }, assignPublicIp: false, circuitBreaker: { rollback: true }, minHealthyPercent: 100,
-    });
+    // Separate worker service (production-scale)
+    if (cfg.worker.mode === 'service') {
+      const workerTd = taskDef('Worker', 512, 1024);
+      addWorkerContainer(workerTd, true);
+      new ecs.FargateService(this, 'WorkerService', {
+        cluster, taskDefinition: workerTd, desiredCount: cfg.worker.desiredCount, ...placement,
+        circuitBreaker: { rollback: true }, minHealthyPercent: 100,
+      });
+    }
 
     // One-off DB bootstrap: creates the limon_app role, runs migrations, seeds tenants.
-    // Not a service — no desiredCount, no ALB target. Invoke manually after each deploy via
-    // `aws ecs run-task` (see docs/architecture/aws.md), using AppSecurityGroupId/PrivateSubnetIds below.
+    // Not a service — no desiredCount, no ingress. Invoke manually after each deploy via
+    // `aws ecs run-task` (see docs/architecture/aws.md), using the TaskSubnetIds/AppSecurityGroupId outputs.
     const migrateTd = new ecs.FargateTaskDefinition(this, 'MigrateTask', { cpu: 512, memoryLimitMiB: 1024, runtimePlatform: { cpuArchitecture: ecs.CpuArchitecture.ARM64 } });
     migrateTd.addContainer('migrate', {
       image: ecs.ContainerImage.fromAsset(repoRoot, { file: 'packages/database/Dockerfile', platform: Platform.LINUX_ARM64 }),
       environment: { AWS_REGION: cfg.region },
       secrets: {
-        DB_HOST: ecs.Secret.fromSecretsManager(d.cluster.secret!, 'host'),
-        DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(d.cluster.secret!, 'password'),
+        DB_HOST: ecs.Secret.fromSecretsManager(d.dbOwnerSecret, 'host'),
+        DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(d.dbOwnerSecret, 'password'),
         DB_APP_PASSWORD: ecs.Secret.fromSecretsManager(d.appUserSecret, 'password'),
       },
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'migrate', logGroup: logGroup('migrate') }),
     });
 
-    // ALB
-    this.alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', { vpc: d.vpc, internetFacing: true, securityGroup: d.albSg, dropInvalidHeaderFields: true });
-    // HTTP listener for the skeleton only; production requires HTTPS listener + ACM cert + redirect.
-    const listener = this.alb.addListener('Http', { port: 80, open: false, defaultAction: elbv2.ListenerAction.fixedResponse(404) });
-    listener.addTargets('Api', {
-      priority: 10, conditions: [elbv2.ListenerCondition.pathPatterns(['/api/*', '/health'])],
-      port: 4000, protocol: elbv2.ApplicationProtocol.HTTP, targets: [this.apiService], healthCheck: { path: '/health' },
-    });
-    listener.addTargets('Dashboard', {
-      priority: 20, conditions: [elbv2.ListenerCondition.pathPatterns(['/*'])],
-      port: 3000, protocol: elbv2.ApplicationProtocol.HTTP, targets: [dashboardService], healthCheck: { path: '/login' },
-    });
+    // Custom domain certificate. Without a Route 53 zone, CloudFormation waits on the
+    // validation CNAME, which must be added at the DNS provider during the first deploy.
+    const zone = cfg.apiDomain?.route53
+      ? route53.HostedZone.fromHostedZoneAttributes(this, 'Zone', cfg.apiDomain.route53)
+      : undefined;
+    const certificate = cfg.apiDomain
+      ? new acm.Certificate(this, 'ApiCertificate', { domainName: cfg.apiDomain.name, validation: acm.CertificateValidation.fromDns(zone) })
+      : undefined;
 
-    // WAF (regional, on ALB). CloudFront-scoped WAF comes with the distribution.
-    const waf = new wafv2.CfnWebACL(this, 'Waf', {
-      scope: 'REGIONAL',
-      defaultAction: { allow: {} },
-      visibilityConfig: { cloudWatchMetricsEnabled: true, metricName: `${cfg.prefix}-waf`, sampledRequestsEnabled: true },
-      rules: [
-        managedRule('AWSManagedRulesCommonRuleSet', 1),
-        managedRule('AWSManagedRulesKnownBadInputsRuleSet', 2),
-        {
-          name: 'RateLimitPerIp', priority: 10, action: { block: {} },
-          statement: { rateBasedStatement: { limit: 2000, aggregateKeyType: 'IP' } },
-          visibilityConfig: { cloudWatchMetricsEnabled: true, metricName: 'rate-limit', sampledRequestsEnabled: true },
-        },
-      ],
-    });
-    new wafv2.CfnWebACLAssociation(this, 'WafAssoc', { resourceArn: this.alb.loadBalancerArn, webAclArn: waf.attrArn });
+    if (cfg.ingress === 'http-api') {
+      const vpcLink = new apigwv2.VpcLink(this, 'VpcLink', {
+        vpc: d.vpc, subnets: { subnets: d.vpc.publicSubnets }, securityGroups: [d.ingressSg],
+      });
+      const domainName = cfg.apiDomain && certificate
+        ? new apigwv2.DomainName(this, 'ApiDomain', { domainName: cfg.apiDomain.name, certificate })
+        : undefined;
+      const httpApi = new apigwv2.HttpApi(this, 'PublicApi', {
+        apiName: `${cfg.prefix}-api`,
+        createDefaultStage: false,
+        // With a custom domain, clients must use it (TLS cert, stable URL); the execute-api URL is disabled.
+        disableExecuteApiEndpoint: !!domainName,
+        defaultIntegration: new HttpServiceDiscoveryIntegration('ApiIntegration', this.apiService.cloudMapService!, { vpcLink }),
+      });
+      httpApi.addStage('PublicStage', {
+        stageName: '$default', autoDeploy: true,
+        // Account-wide coarse limit standing in for WAF; per-route limits stay in Fastify.
+        throttle: { rateLimit: 50, burstLimit: 100 },
+        domainMapping: domainName ? { domainName } : undefined,
+      });
+      this.api5xxMetric = httpApi.metricServerError({ period: Duration.minutes(5) });
 
-    // Consumed by the patient app build config (EXPO_PUBLIC_API_BASE_URL) and by the
-    // `aws ecs run-task` command that runs the one-off DB bootstrap above.
-    new CfnOutput(this, 'AlbDnsName', { value: this.alb.loadBalancerDnsName });
+      if (domainName) {
+        if (zone) {
+          new route53.ARecord(this, 'ApiAlias', {
+            zone, recordName: cfg.apiDomain!.name,
+            target: route53.RecordTarget.fromAlias(new targets.ApiGatewayv2DomainProperties(domainName.regionalDomainName, domainName.regionalHostedZoneId)),
+          });
+        }
+        // External DNS: CNAME <apiDomain> → this value.
+        new CfnOutput(this, 'ApiDomainDnsTarget', { value: domainName.regionalDomainName });
+        new CfnOutput(this, 'ApiBaseUrl', { value: `https://${cfg.apiDomain!.name}` });
+      } else {
+        new CfnOutput(this, 'ApiBaseUrl', { value: httpApi.apiEndpoint });
+      }
+    } else {
+      const alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', { vpc: d.vpc, internetFacing: true, securityGroup: d.ingressSg, dropInvalidHeaderFields: true });
+      const listener = certificate
+        ? alb.addListener('Https', { port: 443, certificates: [certificate], open: false, defaultAction: elbv2.ListenerAction.fixedResponse(404) })
+        : alb.addListener('Http', { port: 80, open: false, defaultAction: elbv2.ListenerAction.fixedResponse(404) });
+      listener.addTargets('Api', {
+        priority: 10, conditions: [elbv2.ListenerCondition.pathPatterns(['/api/*', '/health'])],
+        port: 4000, protocol: elbv2.ApplicationProtocol.HTTP, targets: [this.apiService], healthCheck: { path: '/health' },
+      });
+
+      if (cfg.dashboard.enabled) {
+        const dashTd = taskDef('Dashboard', 512, 1024);
+        dashTd.addContainer('dashboard', {
+          image: image('dashboard'),
+          command: ['node', 'apps/dashboard/server.js'],
+          environment: { NODE_ENV: 'production', PORT: '3000' },
+          portMappings: [{ containerPort: 3000 }],
+          logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'dashboard', logGroup: logGroup('dashboard') }),
+        });
+        const dashboardService = new ecs.FargateService(this, 'DashboardService', {
+          cluster, taskDefinition: dashTd, desiredCount: cfg.dashboard.desiredCount, ...placement,
+          circuitBreaker: { rollback: true }, minHealthyPercent: 100,
+        });
+        listener.addTargets('Dashboard', {
+          priority: 20, conditions: [elbv2.ListenerCondition.pathPatterns(['/*'])],
+          port: 3000, protocol: elbv2.ApplicationProtocol.HTTP, targets: [dashboardService], healthCheck: { path: '/login' },
+        });
+      }
+
+      if (cfg.waf) {
+        const waf = new wafv2.CfnWebACL(this, 'Waf', {
+          scope: 'REGIONAL',
+          defaultAction: { allow: {} },
+          visibilityConfig: { cloudWatchMetricsEnabled: true, metricName: `${cfg.prefix}-waf`, sampledRequestsEnabled: true },
+          rules: [
+            managedRule('AWSManagedRulesCommonRuleSet', 1),
+            managedRule('AWSManagedRulesKnownBadInputsRuleSet', 2),
+            {
+              name: 'RateLimitPerIp', priority: 10, action: { block: {} },
+              statement: { rateBasedStatement: { limit: 2000, aggregateKeyType: 'IP' } },
+              visibilityConfig: { cloudWatchMetricsEnabled: true, metricName: 'rate-limit', sampledRequestsEnabled: true },
+            },
+          ],
+        });
+        new wafv2.CfnWebACLAssociation(this, 'WafAssoc', { resourceArn: alb.loadBalancerArn, webAclArn: waf.attrArn });
+      }
+
+      this.api5xxMetric = alb.metrics.httpCodeTarget(elbv2.HttpCodeTarget.TARGET_5XX_COUNT, { period: Duration.minutes(5) });
+      if (zone && cfg.apiDomain) {
+        new route53.ARecord(this, 'ApiAlias', { zone, recordName: cfg.apiDomain.name, target: route53.RecordTarget.fromAlias(new targets.LoadBalancerTarget(alb)) });
+      }
+      new CfnOutput(this, 'AlbDnsName', { value: alb.loadBalancerDnsName });
+      new CfnOutput(this, 'ApiBaseUrl', { value: cfg.apiDomain ? `https://${cfg.apiDomain.name}` : `http://${alb.loadBalancerDnsName}` });
+    }
+
+    // Used by the `aws ecs run-task` command that runs the one-off DB bootstrap above.
     new CfnOutput(this, 'ClusterName', { value: cluster.clusterName });
     new CfnOutput(this, 'MigrateTaskDefinitionArn', { value: migrateTd.taskDefinitionArn });
     new CfnOutput(this, 'AppSecurityGroupId', { value: d.appSg.securityGroupId });
-    new CfnOutput(this, 'PrivateSubnetIds', { value: d.vpc.privateSubnets.map((s) => s.subnetId).join(',') });
+    new CfnOutput(this, 'TaskSubnetIds', { value: placement.vpcSubnets.subnets.map((s) => s.subnetId).join(',') });
   }
 }
 

@@ -21,6 +21,8 @@ Limon is a multi-tenant, white-label nutrition SaaS. Each nutritionist is a **te
    Patient apps (Expo) ── "Maria Nutrition", "Carlos Nutrition", … ── api-client ── ALB
 ```
 
+> MVP hosting: a single minimal `preproduction` environment (API Gateway → one Fargate task → RDS micro) replaces the diagram below until production exists — see [aws.md](aws.md).
+
 ## Repository
 
 | Path | Purpose |

@@ -29,8 +29,9 @@ export class AuthStack extends Stack {
       mfaSecondFactor: { sms: false, otp: true },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
       featurePlan: cognito.FeaturePlan.ESSENTIALS,
-      deletionProtection: cfg.name !== 'development',
-      removalPolicy: cfg.name === 'development' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN,
+      // Real (pilot) users in every deployed environment; local development uses dev auth.
+      deletionProtection: true,
+      removalPolicy: RemovalPolicy.RETAIN,
     });
 
     this.dashboardClient = this.userPool.addClient('DashboardClient', {

@@ -18,11 +18,11 @@ export class StorageStack extends Stack {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
-      versioned: cfg.name !== 'development',
+      versioned: true,
       objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
       lifecycleRules: [{ prefix: 'tmp/', expiration: Duration.days(1) }, { noncurrentVersionExpiration: Duration.days(30) }],
-      removalPolicy: cfg.name === 'development' ? RemovalPolicy.DESTROY : RemovalPolicy.RETAIN,
-      autoDeleteObjects: cfg.name === 'development',
+      // Holds tenant/patient files in every deployed environment, including preproduction.
+      removalPolicy: RemovalPolicy.RETAIN,
     });
   }
 }

@@ -6,10 +6,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "synth": "cdk synth -c env=development",
-    "synth:staging": "cdk synth -c env=staging",
-    "diff": "cdk diff -c env=development",
-    "deploy:dev": "cdk deploy --all -c env=development"
+    "synth": "cdk synth -c env=preproduction",
+    "diff": "cdk diff -c env=preproduction",
+    "deploy:pre": "cdk deploy --all -c env=preproduction"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.170.0",

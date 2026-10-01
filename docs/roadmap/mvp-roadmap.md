@@ -39,6 +39,7 @@ Nutritionist web dashboard · per-tenant store builds · AI assistant · calenda
 | Recipe ownership | Global default library → **copied** into each tenant at provisioning | Nutritionists edit their own copies; updates to the library never overwrite tenant edits. |
 | Nutrition data | **FatSecret Premier (Mexico region, Spanish)** for nutrients; **SMAE 5th ed. (v2.0, 2024)** for equivalents | FatSecret values differ from other sources, so it stays the source. Mexico data needs the paid Premier plan, and FatSecret only lets us store **IDs**: nutrients are fetched live and cached ≤ 24 h. See [Nutrition data](#nutrition-data-fatsecret--smae) and [Risks](#2-nutrition-data-fatsecret-premier-high). |
 | Meal plan generation | Rule-based, no AI | Favourites are recorded now so a preference model can be trained later. |
+| Hosting | **One AWS environment, `preproduction`** (us-east-1, < US$50/month), used by the pilot. Local development runs on `docker compose` | Sized to the bare minimum: API Gateway instead of a load balancer, one small API task, one small RDS database, and a NAT instance whose fixed IP is whitelisted at FatSecret. It is disposable: replaced by a real `production` environment after the MVP. See [Infrastructure](#infrastructure). |
 | Nutritionist tools | No dashboard in the MVP | Recipe editing goes through an internal admin API + CSV import that **our team** runs for the nutritionist. An in-app nutritionist screen is a stretch goal. |
 
 ## Timeline
@@ -71,9 +72,9 @@ Close the blockers first so nothing stalls later.
 - [x] **Admission modes:** `invite_only` flag (open or invite only), per-patient single-use invite codes, admin command to issue them.
 - [x] **Feature flags:** `tenant_features` table (`tenant_id`, `feature_key`, `enabled`, `config` JSON). `/auth/me` returns the effective flags (dependencies such as `shopping_list` → `meal_plan` applied), the API guard `requireFeature(c, FeatureKey.MEAL_PLAN)` returns `FEATURE_DISABLED`, and the app hides disabled screens. Toggle with `pnpm --filter @limon/database admin features <slug> --enable … --disable …`.
 - [x] **i18n:** es-MX strings in a typed dictionary (`src/i18n/es-MX.ts`, no i18next needed for one locale), number/unit/date/plural formatting in `src/i18n/format.ts`, iOS system UI set to Spanish. No hard-coded UI strings from here on.
-- [ ] **Delivery:** staging deploy (CDK), EAS development build on a device, error tracking (Sentry) in the API and the app.
+- [ ] **Delivery:** deploy `preproduction` (CDK) at `api.projectlimon.com` (see [Infrastructure](#infrastructure)) and whitelist its NAT IP at FatSecret, EAS development build on a device, error tracking (Sentry) in the API and the app.
 
-**Done when:** a patient can sign up in their nutritionist's staging app (with an invite code when that nutritionist is invite only), sees the nutritionist's branding, and only the enabled tabs.
+**Done when:** a patient can sign up in their nutritionist's app (`preproduction` build) (with an invite code when that nutritionist is invite only), sees the nutritionist's branding, and only the enabled tabs.
 
 ### Week 2 · Oct 5 – 9 — Patient registration and profile
 
@@ -147,7 +148,7 @@ Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s
 
 - [ ] Finish the Spanish copy, the privacy notice (aviso de privacidad) and terms, in-app links, and App Store privacy labels.
 - [ ] End-to-end happy path: signup → onboarding → plan → swap → list → trackers → pay. Test with RLS cross-tenant isolation checks.
-- [ ] Security pass on new endpoints (authorization, feature guards, rate limits), then production deploy and backups check.
+- [ ] Security pass on new endpoints (authorization, feature guards, rate limits), then deploy to `preproduction` and check that a database snapshot restores.
 - [ ] Empty states, loading and error states, accessibility basics.
 - [ ] TestFlight with the pilot nutritionists; keep the Play closed test running (testers must stay opted in) and apply for production access once 14 days have passed.
 
@@ -228,7 +229,7 @@ App Review may still question it. Test it with an early TestFlight external buil
 - **Schedule:** curation in week 3 needs Mexican `food_id`s, so Premier must be active by Oct 12. Until then, build against Basic (US data) — the code is the same, only the IDs differ.
 - **Storage:** only IDs may be kept; nutrients, names and serving details can be cached 24 h at most, on every plan. The design above follows this. Ask sales whether a contract can allow storing nutrient values; if yes, the cache can become a table.
 - **Dependency:** plan generation and recipe macros need FatSecret to be reachable. Mitigations: the 24 h cache, refreshing it before the Sunday plan job, and showing plans without macros (instead of failing) if FatSecret is down.
-- **Access:** OAuth 2.0 keys only work from whitelisted IPs (up to 15 ranges). In AWS that's the NAT gateway's fixed outbound IP; add it before the staging deploy.
+- **Access:** OAuth 2.0 keys only work from whitelisted IPs (up to 15 ranges). In AWS that's the NAT instance's Elastic IP (`NatPublicIps` output of the network stack); add it right after the first `preproduction` deploy.
 - **SMAE:** a published, copyrighted book. We store only per-food facts (group, grams per equivalent), not the book's tables; still confirm with the publisher.
 
 ### 3. Auto-generated plans without professional review (medium)
@@ -245,17 +246,14 @@ Launch depends on steps the nutritionist has to do: identity checks, two-factor 
 
 ## Tenant pricing options
 
-For the MVP features, **cloud cost per patient is almost zero.** The cost is the **fixed** baseline of running the platform. Rough list-price estimates for one production environment in `us-east-1` (verify with the AWS Pricing Calculator):
+For the MVP features, **cloud cost per patient is almost zero.** The cost is the **fixed** baseline of running the platform (see [Infrastructure](#infrastructure) for the breakdown):
 
-| Item | ≈ USD / month |
+| Setup | ≈ USD / month |
 |---|---|
-| Aurora Serverless v2 (0.5 ACU min) + storage | 50 |
-| NAT gateway | 35 |
-| ALB + WAF | 30 |
-| ECS Fargate (API + worker, small tasks) | 20–40 |
-| CloudWatch, Secrets Manager, S3, SES | 15–30 |
-| FatSecret Premier (Mexico) | quote pending |
-| **Baseline** | **≈ 150–200 + FatSecret** |
+| `preproduction` (the pilot environment) | **35–40** |
+| A modest real `production` (2 API tasks, a load balancer, small Multi-AZ database) | 150–250 |
+| `production-scale` profile (3 NAT gateways, Aurora with a reader, WAF, 7 tasks) | ~700 |
+| FatSecret Premier (Mexico), on top of any of these | quote pending |
 
 Per active patient: API requests, a few KB of rows, and Cognito (the first 10k MAU are free) — well under **US$0.05/month**. FatSecret calls scale with the number of distinct foods in the shared 24 h cache, not with patients. Stripe fees (~3.6% + MX$3 + IVA per charge) are real per-patient costs, but they are paid out of the nutritionist's revenue.
 
@@ -272,11 +270,50 @@ So the patient count affects **fairness, support load and margin** more than clo
 
 **Recommendation:** **A** for the pilot. It needs no billing code: bands are set manually in Stripe Billing, and a nightly job counts active patients (a patient with an active subscription that month) and alerts us when a tenant passes its band. Revisit **C** once Connect is proven, because it removes the counting problem entirely. Whatever the choice, price the base to cover the per-tenant overhead (onboarding, support, future store accounts), not cloud cost.
 
+## Infrastructure
+
+During the MVP there is **one** AWS environment, `preproduction`, in `us-east-1`. It serves the pilot nutritionists and their patients, and is torn down once a real `production` environment exists. Local development uses `docker compose`; there is no development or staging environment in AWS.
+
+```
+Patient apps ─HTTPS─▶ api.projectlimon.com (API Gateway HTTP API, ACM certificate, throttling)
+                         └─ VPC link ─▶ 1 Fargate task (private subnet)
+                                          ├─ api container
+                                          └─ worker container (SQS consumer, FatSecret cache refresh)
+                                               ├─▶ RDS PostgreSQL db.t4g.micro (isolated subnet)
+                                               └─▶ NAT instance + Elastic IP ─▶ FatSecret, Stripe, Cognito…
+```
+
+Estimated monthly cost (list prices, verify in the AWS Pricing Calculator):
+
+| Item | ≈ USD / month |
+|---|---|
+| RDS PostgreSQL `db.t4g.micro`, single-AZ, 20 GB gp3 | 14 |
+| Fargate ARM task, 0.25 vCPU / 1 GB (API + worker) | 8.50 |
+| NAT instance `t4g.nano` + Elastic IP (the fixed IP FatSecret whitelists) | 7.50 |
+| API Gateway HTTP API (US$1 per million requests) | 1–3 |
+| Secrets Manager (3), Cloud Map, CloudWatch logs and 4 alarms | 3–5 |
+| Cognito (free up to 10k monthly users), S3, SQS, ACM | ~0 |
+| **Total** | **≈ 35–40** |
+
+What was cut, and when to bring it back (all of it is configuration in `infrastructure/config/environments.ts`):
+
+| Cut | Risk accepted for the pilot | Bring back when |
+|---|---|---|
+| Load balancer → API Gateway | None functional; saves ~US$25 | More than one service needs routing (dashboard) |
+| NAT gateway → one NAT instance | If the instance fails, outbound calls (FatSecret, Stripe, Cognito keys) stop until it's replaced; the Elastic IP survives replacement | Production |
+| WAF → API Gateway throttling + Fastify rate limits | No managed bad-input rules | Before scaling past the pilot |
+| 1 task, worker in the same task | A task restart is a short outage; heavy jobs slow the API | Jobs get heavy (meal plan generation at scale) |
+| Single-AZ micro database, 7-day backups | An AZ outage means downtime until restore | Production (Multi-AZ, longer backups) |
+| Staging / development environments | Changes are tested locally, then go straight to the pilot | Production exists (staging returns before it) |
+
+The original full setup is kept as the disabled `production-scale` profile. Deployment steps are in [aws.md](../architecture/aws.md#deploying-preproduction).
+
 ## After the MVP
 
 | Phase | Window (estimate) | Scope |
 |---|---|---|
 | v1.1 | Dec 2026 | Anything past the cut line, pilot feedback, ARCO request flow in-app, analytics |
+| Production environment | Before onboarding nutritionists beyond the pilot | Separate AWS account, `production` profile (Multi-AZ database, 2+ tasks, load balancer + WAF, NAT gateway), a `staging` environment, data migrated from `preproduction` (new NAT IPs whitelisted at FatSecret), then `preproduction` torn down |
 | Nutritionist dashboard | Jan – Feb 2027 | Recipe editor, patient list and progress, meal plan review/override, invite codes, Stripe Connect self-onboarding, feature/add-on self-upgrade |
 | Build automation | Feb – Mar 2027 | Automated per-tenant build and submit pipeline (the MVP pilots are built by hand), OTA updates per tenant, guided store-account onboarding, CFDI invoicing (e.g. Facturapi) |
 | AI add-on (`ai_assistant`) | Q2 2027 | Preference-aware plan generation trained on `meal_feedback`; patient assistant (recipe Q&A, swaps); nutritionist plan drafting; usage-metered billing |

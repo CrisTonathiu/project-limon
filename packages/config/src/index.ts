@@ -10,7 +10,7 @@ const optional = z.string().optional().transform((v) => (v ? v : undefined));
 
 const ServerEnvSchema = z
   .object({
-    APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
+    APP_ENV: z.enum(['development', 'staging', 'preproduction', 'production']).default('development'),
     NODE_ENV: z.string().default('development'),
     API_PORT: z.coerce.number().int().default(4000),
     CORS_ORIGINS: z.string().default('http://localhost:3000'),
