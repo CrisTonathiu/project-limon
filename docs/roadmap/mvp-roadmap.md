@@ -78,7 +78,7 @@ Close the blockers first so nothing stalls later.
 ### Week 2 · Oct 5 – 9 — Patient registration and profile
 
 - [ ] Onboarding questionnaire (multi-step): sex, birth date, height, current weight, activity level, meals per day (3–5), allergies, disliked foods.
-- [ ] `PatientProfile` model plus API (`GET/PUT /patients/me/profile`) with Zod validation.
+- [x] `PatientProfile` model plus API (`GET/PUT /patients/me/profile`) with Zod validation. `GET` returns `{ profile: null }` until onboarding is done; `PUT` always sends the whole questionnaire. Allergies are fixed keys (NOM-051 allergens, `Allergen` in @limon/types); disliked foods are free text until the week 3 catalog exists. Also stores pregnant/breastfeeding for the guardrails.
 - [ ] **Energy target:** Mifflin-St Jeor BMR × activity factor, adjusted by goal. Add **safety guardrails:** a calorie floor (e.g. never below 1,200 kcal), a maximum loss rate (about 0.5–1% of body weight per week), and a block or "consult your nutritionist" path for under-18s and pregnancy.
 - [ ] Profile screen: edit data, sign out, delete account (ARCO: an email-based request process is enough for the MVP).
 
@@ -96,6 +96,7 @@ Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s
 - [ ] **Global library + copy-on-provision:** add `default_recipes` (not tenant-scoped, read-only). When a tenant is created, copy it into tenant-scoped `recipes` with `source_default_recipe_id` kept for traceability.
 - [ ] Curation script: FatSecret search (MX) → pick the food and serving → save the IDs and grams; the SMAE group and grams per equivalent are entered by hand from the book.
 - [ ] Internal admin API + CSV import to create and edit tenant recipes.
+- [ ] **Link disliked foods to the catalog:** `patient_profiles.disliked_foods` is free text since week 2. Change it to `Food` references (the onboarding and profile screens pick from the catalog), and map existing free-text entries to foods. Week 4's generator filters recipes by these, which can't work on free text.
 - [ ] App: recipe list (filter by meal type) and recipe detail (ingredients, steps, macros), with the FatSecret attribution if the contract requires it.
 
 **Done when:** a new tenant automatically gets the default library, an edited tenant recipe differs from the default, and recipe macros come from FatSecret MX through the 24 h cache with nothing else stored.

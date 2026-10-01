@@ -14,11 +14,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // Generating into node_modules/.prisma (the default) doesn't survive `pnpm deploy --prod`
   // in the API/worker Docker images, since it's a side-effect location pnpm's dependency
   // pruning doesn't know about. A path inside the package itself is a normal file and does.
-  output = "../generated/client"
+  output        = "../generated/client"
   // Prisma's own OpenSSL-version auto-detection fails silently inside the Alpine build stage
   // ("defaulting to openssl-1.1.x"), which is wrong for node:22-alpine (OpenSSL 3.x) and makes
   // the engine binary fail to load at runtime. Pin the correct target instead of guessing.
@@ -105,6 +105,21 @@ enum ConsentKind {
   TERMS_OF_SERVICE
 }
 
+/// Biological sex, as used by the energy equations (Mifflin-St Jeor).
+enum BiologicalSex {
+  FEMALE
+  MALE
+}
+
+/// Physical activity level; each maps to a multiplier on BMR for the energy target.
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  ACTIVE
+  VERY_ACTIVE
+}
+
 enum StoreAccountType {
   INDIVIDUAL
   ORGANIZATION
@@ -163,6 +178,7 @@ model Tenant {
   consents              PatientConsent[]
   inviteCodes           TenantInviteCode[]
   features              TenantFeature[]
+  patientProfiles       PatientProfile[]
 
   @@map("tenants")
 }
@@ -278,14 +294,14 @@ model TenantStoreAccount {
 
 /// Append-only record of tenant status transitions (who/when/why).
 model TenantLifecycleEvent {
-  id         String       @id @default(uuid()) @db.Uuid
-  tenantId   String       @map("tenant_id") @db.Uuid
-  fromStatus TenantStatus @map("from_status")
-  toStatus   TenantStatus @map("to_status")
-  reason     String
-  actorId    String?      @map("actor_id") @db.Uuid
-  effectiveAt DateTime    @default(now()) @map("effective_at")
-  scheduledDeletionAt DateTime? @map("scheduled_deletion_at")
+  id                  String       @id @default(uuid()) @db.Uuid
+  tenantId            String       @map("tenant_id") @db.Uuid
+  fromStatus          TenantStatus @map("from_status")
+  toStatus            TenantStatus @map("to_status")
+  reason              String
+  actorId             String?      @map("actor_id") @db.Uuid
+  effectiveAt         DateTime     @default(now()) @map("effective_at")
+  scheduledDeletionAt DateTime?    @map("scheduled_deletion_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
@@ -355,12 +371,42 @@ model Patient {
   subscriptions PatientSubscription[]
   consents      PatientConsent[]
   inviteCodes   TenantInviteCode[]
+  profile       PatientProfile?
 
   @@unique([tenantId, id])
   @@unique([tenantId, userId])
   @@unique([tenantId, email])
   @@index([tenantId, createdAt])
   @@map("patients")
+}
+
+/// Answers from the patient's onboarding questionnaire, editable from their profile.
+/// Health data (LFPDPPP sensitive data): never log it or put it in audit metadata.
+/// Birth date lives on Patient.dateOfBirth, not here.
+model PatientProfile {
+  patientId               String        @id @map("patient_id") @db.Uuid
+  tenantId                String        @map("tenant_id") @db.Uuid
+  sex                     BiologicalSex
+  heightCm                Int           @map("height_cm")
+  /// Weight given at onboarding or last profile edit. Weight logs (goal tracker) come later.
+  weightKg                Float         @map("weight_kg")
+  activityLevel           ActivityLevel @map("activity_level")
+  mealsPerDay             Int           @map("meals_per_day")
+  /// Pregnant or breastfeeding: no automatic energy target, the nutritionist decides.
+  pregnantOrBreastfeeding Boolean       @default(false) @map("pregnant_or_breastfeeding")
+  /// @limon/types Allergen keys, stored as text so the list can grow without a migration.
+  allergies               String[]      @default([])
+  /// TODO(week 3, see docs/roadmap/mvp-roadmap.md): free text for now; replace with Food references once the catalog exists.
+  dislikedFoods           String[]      @default([]) @map("disliked_foods")
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Operational data owned by the patient: deleting a patient removes their profile.
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, patientId])
+  @@map("patient_profiles")
 }
 
 // ── Nutrition domain (placeholders — no business logic yet) ──────────────────
@@ -517,13 +563,13 @@ model PatientConsent {
 }
 
 model Payment {
-  id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @map("tenant_id") @db.Uuid
-  kind         String // PLATFORM | PATIENT
-  amountMinor  Int      @map("amount_minor")
-  currency     String   @db.Char(3)
-  status       String
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  kind        String // PLATFORM | PATIENT
+  amountMinor Int      @map("amount_minor")
+  currency    String   @db.Char(3)
+  status      String
+  createdAt   DateTime @default(now()) @map("created_at")
 
   tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   transactions PaymentTransaction[]
@@ -533,13 +579,13 @@ model Payment {
 }
 
 model PaymentTransaction {
-  id              String   @id @default(uuid()) @db.Uuid
-  tenantId        String   @map("tenant_id") @db.Uuid
-  paymentId       String   @map("payment_id") @db.Uuid
-  stripeObjectId  String   @unique @map("stripe_object_id")
-  type            String
-  amountMinor     Int      @map("amount_minor")
-  createdAt       DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  paymentId      String   @map("payment_id") @db.Uuid
+  stripeObjectId String   @unique @map("stripe_object_id")
+  type           String
+  amountMinor    Int      @map("amount_minor")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   payment Payment @relation(fields: [tenantId, paymentId], references: [tenantId, id], onDelete: Restrict)
 

@@ -1,8 +1,8 @@
 import type {
-  ApiErrorBody, ErrorCode, FoodDetail, FoodSearchResponse, MeResponse, PatientDto, PatientEntitlement,
+  ApiErrorBody, ErrorCode, FoodDetail, FoodSearchResponse, MeResponse, PatientDto, PatientEntitlement, PatientProfileResponse,
   RegisterNutritionistResponse, RegisterPatientResponse, TenantAppConfig,
 } from '@limon/types';
-import type { CreatePatientInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
+import type { CreatePatientInput, PatientProfileInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
 
 /**
  * Typed client shared by the dashboard (web) and patient apps (React Native).
@@ -89,6 +89,10 @@ export function createApiClient(opts: ApiClientOptions) {
       create: (input: CreatePatientInput) => request<PatientDto>('POST', '/patients', input),
       get: (id: string) => request<PatientDto>('GET', `/patients/${encodeURIComponent(id)}`),
       me: () => request<PatientDto>('GET', '/patients/me'),
+      /** `profile` is null until onboarding is done. */
+      myProfile: () => request<PatientProfileResponse>('GET', '/patients/me/profile'),
+      /** Onboarding and profile edits: always the whole questionnaire. */
+      saveMyProfile: (input: PatientProfileInput) => request<PatientProfileResponse>('PUT', '/patients/me/profile', input),
     },
   };
 }

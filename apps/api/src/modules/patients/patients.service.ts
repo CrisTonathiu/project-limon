@@ -1,7 +1,7 @@
 import { withTenant, writeAudit } from '@limon/database';
 import type { TenantContext } from '@limon/tenant';
-import type { PatientDto } from '@limon/types';
-import type { CreatePatientInput } from '@limon/validation';
+import type { Allergen, PatientDto, PatientProfileDto, PatientProfileResponse } from '@limon/types';
+import type { CreatePatientInput, PatientProfile } from '@limon/validation';
 import type { Container } from '../../infrastructure/container.js';
 import { Errors } from '../../lib/errors.js';
 import { patientsRepository } from './patients.repository.js';
@@ -9,6 +9,20 @@ import { patientsRepository } from './patients.repository.js';
 type PatientRow = NonNullable<Awaited<ReturnType<typeof patientsRepository.findById>>>;
 const toDto = (p: PatientRow): PatientDto => ({
   id: p.id, tenantId: p.tenantId, firstName: p.firstName, lastName: p.lastName, email: p.email, createdAt: p.createdAt.toISOString(),
+});
+
+type ProfileRow = NonNullable<Awaited<ReturnType<typeof patientsRepository.findProfile>>>;
+const toProfileDto = (p: ProfileRow, dateOfBirth: Date): PatientProfileDto => ({
+  sex: p.sex,
+  dateOfBirth: dateOfBirth.toISOString().slice(0, 10),
+  heightCm: p.heightCm,
+  weightKg: p.weightKg,
+  activityLevel: p.activityLevel,
+  mealsPerDay: p.mealsPerDay,
+  pregnantOrBreastfeeding: p.pregnantOrBreastfeeding,
+  allergies: p.allergies as Allergen[],
+  dislikedFoods: p.dislikedFoods,
+  updatedAt: p.updatedAt.toISOString(),
 });
 
 export function createPatientsService(c: Container) {
@@ -31,6 +45,26 @@ export function createPatientsService(c: Container) {
         const p = await patientsRepository.findByUserId(tx, ctx.tenantId, ctx.userId);
         if (!p) throw Errors.notFound('Patient');
         return toDto(p);
+      }),
+
+    /** `profile: null` until the patient finishes onboarding. */
+    myProfile: (ctx: TenantContext): Promise<PatientProfileResponse> =>
+      scoped(ctx, async (tx) => {
+        const p = await patientsRepository.findByUserId(tx, ctx.tenantId, ctx.userId);
+        if (!p) throw Errors.notFound('Patient');
+        const profile = await patientsRepository.findProfile(tx, ctx.tenantId, p.id);
+        // A profile always gets a birth date with it (saveProfile), so the guard only satisfies the types.
+        return { profile: profile && p.dateOfBirth ? toProfileDto(profile, p.dateOfBirth) : null };
+      }),
+
+    saveMyProfile: (ctx: TenantContext, input: PatientProfile): Promise<PatientProfileResponse> =>
+      scoped(ctx, async (tx) => {
+        const p = await patientsRepository.findByUserId(tx, ctx.tenantId, ctx.userId);
+        if (!p) throw Errors.notFound('Patient');
+        const profile = await patientsRepository.saveProfile(tx, ctx.tenantId, p.id, input);
+        // Health data: the audit row records that the profile changed, never the values.
+        await writeAudit(tx, ctx, { action: 'PatientProfileSaved', resourceType: 'PatientProfile', resourceId: p.id });
+        return { profile: toProfileDto(profile, new Date(input.dateOfBirth)) };
       }),
 
     create: (ctx: TenantContext, input: CreatePatientInput) =>

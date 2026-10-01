@@ -172,6 +172,54 @@ export type PatientDto = {
   createdAt: string;
 };
 
+/** Biological sex, as used by the energy equations (Mifflin-St Jeor). */
+export const BiologicalSex = { FEMALE: 'FEMALE', MALE: 'MALE' } as const;
+export type BiologicalSex = (typeof BiologicalSex)[keyof typeof BiologicalSex];
+
+export const ActivityLevel = {
+  SEDENTARY: 'SEDENTARY',
+  LIGHT: 'LIGHT',
+  MODERATE: 'MODERATE',
+  ACTIVE: 'ACTIVE',
+  VERY_ACTIVE: 'VERY_ACTIVE',
+} as const;
+export type ActivityLevel = (typeof ActivityLevel)[keyof typeof ActivityLevel];
+
+/**
+ * Allergens a patient can declare (patient_profiles.allergies). Based on the allergens
+ * NOM-051 requires on Mexican labels, so they can be matched against recipe ingredients.
+ * Stored as text: adding a key needs no migration.
+ */
+export const Allergen = {
+  GLUTEN: 'gluten',
+  CRUSTACEANS: 'crustaceans',
+  EGGS: 'eggs',
+  FISH: 'fish',
+  PEANUTS: 'peanuts',
+  SOY: 'soy',
+  MILK: 'milk',
+  TREE_NUTS: 'tree_nuts',
+  SULFITES: 'sulfites',
+} as const;
+export type Allergen = (typeof Allergen)[keyof typeof Allergen];
+
+/** The patient's onboarding answers. `dateOfBirth` comes from the Patient row. */
+export type PatientProfileDto = {
+  sex: BiologicalSex;
+  dateOfBirth: string;
+  heightCm: number;
+  weightKg: number;
+  activityLevel: ActivityLevel;
+  mealsPerDay: number;
+  pregnantOrBreastfeeding: boolean;
+  allergies: Allergen[];
+  dislikedFoods: string[];
+  updatedAt: string;
+};
+
+/** `profile` is null until the patient finishes onboarding. */
+export type PatientProfileResponse = { profile: PatientProfileDto | null };
+
 /**
  * Nutrition data from FatSecret, normalized. Per FatSecret's terms these values may
  * be cached for at most 24 h; only the ids (`fatsecretFoodId`, `fatsecretServingId`)

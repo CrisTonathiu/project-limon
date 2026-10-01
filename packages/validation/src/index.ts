@@ -1,3 +1,4 @@
+import { ActivityLevel, Allergen, BiologicalSex } from '@limon/types';
 import { z } from 'zod';
 
 /**
@@ -90,6 +91,44 @@ export const CreatePatientSchema = z
   })
   .strict();
 export type CreatePatientInput = z.infer<typeof CreatePatientSchema>;
+
+/** Whole years between an ISO date (YYYY-MM-DD) and today. */
+export function ageInYears(isoDate: string, today = new Date()): number {
+  const [y, m, d] = isoDate.split('-').map(Number) as [number, number, number];
+  const beforeBirthday = today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d);
+  return today.getFullYear() - y - (beforeBirthday ? 1 : 0);
+}
+
+/** Case-insensitive de-duplication that keeps the first spelling. */
+const uniqueText = (items: string[]) =>
+  items.filter((s, i) => items.findIndex((o) => o.toLowerCase() === s.toLowerCase()) === i);
+
+/**
+ * The onboarding questionnaire, also sent whole when the patient edits their profile (PUT).
+ * Minors and pregnancy are accepted here: the energy target, not the profile, applies those guardrails.
+ */
+export const PatientProfileSchema = z
+  .object({
+    sex: z.nativeEnum(BiologicalSex),
+    dateOfBirth: z
+      .string()
+      .date()
+      .refine((d) => d >= '1900-01-01' && ageInYears(d) >= 0, 'birth date must be in the past'),
+    heightCm: z.number().int().min(100).max(250),
+    weightKg: z.number().min(25).max(350).transform((kg) => Math.round(kg * 10) / 10),
+    activityLevel: z.nativeEnum(ActivityLevel),
+    mealsPerDay: z.number().int().min(3).max(5),
+    pregnantOrBreastfeeding: z.boolean().default(false),
+    allergies: z.array(z.nativeEnum(Allergen)).max(Object.keys(Allergen).length).default([]).transform((a) => [...new Set(a)]),
+    dislikedFoods: z.array(z.string().trim().min(1).max(60)).max(30).default([]).transform(uniqueText),
+  })
+  .strict()
+  .refine((p) => !(p.sex === BiologicalSex.MALE && p.pregnantOrBreastfeeding), {
+    path: ['pregnantOrBreastfeeding'],
+    message: 'only applies to sex FEMALE',
+  });
+export type PatientProfileInput = z.input<typeof PatientProfileSchema>;
+export type PatientProfile = z.output<typeof PatientProfileSchema>;
 
 /** Placeholders — shape will grow with the nutrition domain. */
 export const CreateRecipeSchema = z
