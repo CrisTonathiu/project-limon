@@ -70,7 +70,7 @@ Close the blockers first so nothing stalls later.
 - [ ] **Store accounts:** each pilot nutritionist starts enrolling in Apple Developer + Google Play (ADR-009), as an **individual / personal** account unless they have a registered business. Follow [Nutritionist onboarding](#nutritionist-onboarding-store-accounts); Apple identity checks can take days, so start this now.
 - [x] **Admission modes:** `invite_only` flag (open or invite only), per-patient single-use invite codes, admin command to issue them.
 - [x] **Feature flags:** `tenant_features` table (`tenant_id`, `feature_key`, `enabled`, `config` JSON). `/auth/me` returns the effective flags (dependencies such as `shopping_list` → `meal_plan` applied), the API guard `requireFeature(c, FeatureKey.MEAL_PLAN)` returns `FEATURE_DISABLED`, and the app hides disabled screens. Toggle with `pnpm --filter @limon/database admin features <slug> --enable … --disable …`.
-- [ ] **i18n:** set up es-MX strings (`i18next` / `expo-localization`); no hard-coded UI strings from here on.
+- [x] **i18n:** es-MX strings in a typed dictionary (`src/i18n/es-MX.ts`, no i18next needed for one locale), number/unit/date/plural formatting in `src/i18n/format.ts`, iOS system UI set to Spanish. No hard-coded UI strings from here on.
 - [ ] **Delivery:** staging deploy (CDK), EAS development build on a device, error tracking (Sentry) in the API and the app.
 
 **Done when:** a patient can sign up in their nutritionist's staging app (with an invite code when that nutritionist is invite only), sees the nutritionist's branding, and only the enabled tabs.

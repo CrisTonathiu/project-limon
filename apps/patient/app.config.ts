@@ -26,7 +26,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: tenant.version,
   orientation: 'portrait',
   icon: asset(tenant.assets.icon),
-  ios: { bundleIdentifier: tenant.ios.bundleIdentifier, buildNumber: String(tenant.buildNumber), supportsTablet: false },
+  ios: {
+    bundleIdentifier: tenant.ios.bundleIdentifier,
+    buildNumber: String(tenant.buildNumber),
+    supportsTablet: false,
+    // Spanish-only app: system UI (text menus, share sheet, permission prompts) follows
+    // the app's language, so declare es or it falls back to English on English devices.
+    infoPlist: { CFBundleDevelopmentRegion: 'es', CFBundleLocalizations: ['es'] },
+  },
   android: { package: tenant.android.package, versionCode: tenant.buildNumber },
   plugins: [
     'expo-secure-store',

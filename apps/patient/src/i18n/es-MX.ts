@@ -1,7 +1,8 @@
 /**
  * Every user-facing string in the patient app. Spanish (es-MX) only for now — the
  * product is Mexico-only (open decision #11). Keep strings here, never inline in
- * screens, so wording stays consistent and a real i18n library can replace this later.
+ * screens, so wording stays consistent. A typed object instead of i18next: one locale,
+ * and a missing key is a compile error. Numbers, units and dates go through ./format.
  *
  * Voice: informal "tú", short and warm. Legal texts (consents) must match the
  * published documents word for word; have them reviewed before launch.
