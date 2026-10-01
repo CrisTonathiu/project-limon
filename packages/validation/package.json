@@ -7,6 +7,6 @@
   "types": "dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit", "lint": "tsc -p tsconfig.json --noEmit", "test": "vitest run" },
-  "dependencies": { "zod": "^3.23.8" },
+  "dependencies": { "@limon/types": "workspace:*", "zod": "^3.23.8" },
   "devDependencies": { "typescript": "^5.6.3", "vitest": "^2.1.5" }
 }

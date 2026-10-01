@@ -34,7 +34,7 @@ Request
 ## Patient entitlement
 Patients pay for access. `ENTITLED_PERMISSIONS` (recipes, own meal plans, AI chat) additionally require an active subscription, derived server-side from `patient_subscriptions` (`ACTIVE`, `TRIALING` or `GRACE_PERIOD`, and not past `currentPeriodEnd`).
 
-Deliberately **not** gated: profile (`self:patient:read`) and subscription (`self:subscription:read`), so an unpaid patient can sign in, see the paywall and restore a purchase. The client never asserts entitlement — only verified store notifications and webhooks write subscription rows ([ADR-008](adr/ADR-008-patient-payments.md)).
+Deliberately **not** gated: profile (`self:patient:read`, `self:patient:write` for the onboarding questionnaire) and subscription (`self:subscription:read`), so an unpaid patient can sign in, see the paywall and restore a purchase. The client never asserts entitlement — only verified store notifications and webhooks write subscription rows ([ADR-008](adr/ADR-008-patient-payments.md)).
 
 ## Resource ownership
 Resource lookups include `tenantId`; a resource from another tenant returns **404**, indistinguishable from non-existent. Patient self-access (`/patients/me`) resolves by `userId` from context, never from a path param.

@@ -1,5 +1,5 @@
 import { Permission } from '@limon/auth';
-import { CreatePatientSchema, UuidParamSchema } from '@limon/validation';
+import { CreatePatientSchema, PatientProfileSchema, UuidParamSchema } from '@limon/validation';
 import type { FastifyInstance } from 'fastify';
 import type { Container } from '../../infrastructure/container.js';
 import { ctxOf, requireTenant } from '../../middleware/auth.js';
@@ -9,6 +9,10 @@ export async function patientsRoutes(app: FastifyInstance, c: Container) {
   const service = createPatientsService(c);
 
   app.get('/patients/me', { preHandler: requireTenant(c, Permission.SELF_PATIENT_READ) }, async (req) => service.me(ctxOf(req)));
+  app.get('/patients/me/profile', { preHandler: requireTenant(c, Permission.SELF_PATIENT_READ) }, async (req) => service.myProfile(ctxOf(req)));
+  app.put('/patients/me/profile', { preHandler: requireTenant(c, Permission.SELF_PATIENT_WRITE) }, async (req) =>
+    service.saveMyProfile(ctxOf(req), PatientProfileSchema.parse(req.body)),
+  );
   app.get('/patients', { preHandler: requireTenant(c, Permission.PATIENTS_READ) }, async (req) => service.list(ctxOf(req)));
   app.get('/patients/:id', { preHandler: requireTenant(c, Permission.PATIENTS_READ) }, async (req) =>
     service.get(ctxOf(req), UuidParamSchema.parse(req.params).id),

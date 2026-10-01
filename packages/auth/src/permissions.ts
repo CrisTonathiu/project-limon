@@ -12,6 +12,8 @@ export const Permission = {
   PATIENTS_READ: 'patients:read',
   PATIENTS_WRITE: 'patients:write',
   SELF_PATIENT_READ: 'self:patient:read',
+  /** The patient's own profile (onboarding answers). */
+  SELF_PATIENT_WRITE: 'self:patient:write',
   RECIPES_READ: 'recipes:read',
   RECIPES_WRITE: 'recipes:write',
   /** Search the nutrition provider (FatSecret) — used to curate recipes. Not for patients: calls cost quota. */
@@ -32,12 +34,12 @@ const policy: Record<UserRole, ReadonlySet<Permission>> = {
     P.TENANT_READ, P.TENANT_MANAGE, P.BRANDING_MANAGE, P.APPS_MANAGE,
     P.PATIENTS_READ, P.PATIENTS_WRITE, P.RECIPES_READ, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE, P.FOODS_SEARCH,
   ]),
-  PATIENT: new Set([P.TENANT_READ, P.SELF_PATIENT_READ, P.SELF_SUBSCRIPTION_READ, P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.AI_CHAT]),
+  PATIENT: new Set([P.TENANT_READ, P.SELF_PATIENT_READ, P.SELF_PATIENT_WRITE, P.SELF_SUBSCRIPTION_READ, P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.AI_CHAT]),
 };
 
 /** Permissions that mutate state; blocked when the tenant is READ_ONLY (suspended). */
 export const WRITE_PERMISSIONS: ReadonlySet<Permission> = new Set([
-  P.TENANT_MANAGE, P.BRANDING_MANAGE, P.APPS_MANAGE, P.PATIENTS_WRITE, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE, P.AI_CHAT,
+  P.TENANT_MANAGE, P.BRANDING_MANAGE, P.APPS_MANAGE, P.PATIENTS_WRITE, P.SELF_PATIENT_WRITE, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE, P.AI_CHAT,
 ]);
 
 /**
