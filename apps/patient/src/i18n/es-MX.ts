@@ -90,6 +90,28 @@ export const es = {
     profile: 'Perfil',
   },
 
+  recipes: {
+    all: 'Todas',
+    mealTypes: { BREAKFAST: 'Desayuno', LUNCH: 'Comida', DINNER: 'Cena', SNACK: 'Colación' },
+    empty: 'No hay recetas para esta comida todavía.',
+    loadFailed: 'No pudimos cargar las recetas. Revisa tu conexión.',
+    detailFailed: 'No pudimos cargar la receta. Revisa tu conexión.',
+    retry: 'Reintentar',
+    servings: (count: string) => `Rinde ${count}`,
+    servingOne: 'porción',
+    servingOther: 'porciones',
+    ingredients: 'Ingredientes',
+    steps: 'Preparación',
+    perServing: 'Por porción',
+    macros: (protein: string, carbs: string, fat: string) => `Proteína ${protein} · Carbohidratos ${carbs} · Grasa ${fat}`,
+    nutritionUnavailable: 'La información nutricional no está disponible por ahora.',
+    attribution: 'Información nutricional de FatSecret',
+    /** [one, other]; abbreviations don't change. */
+    units: {
+      G: ['g', 'g'], ML: ['ml', 'ml'], PIECE: ['pieza', 'piezas'], CUP: ['taza', 'tazas'], TBSP: ['cda.', 'cdas.'], TSP: ['cdita.', 'cditas.'],
+    },
+  },
+
   profile: {
     support: (email: string) => `Soporte: ${email}`,
     open: 'Mi perfil',

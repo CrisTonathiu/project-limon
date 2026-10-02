@@ -1,4 +1,4 @@
-import { ActivityLevel, Allergen, BiologicalSex } from '@limon/types';
+import { ActivityLevel, Allergen, BiologicalSex, MealType } from '@limon/types';
 import { z } from 'zod';
 
 /**
@@ -153,6 +153,10 @@ export const CreateMealPlanSchema = z
 export type CreateMealPlanInput = z.infer<typeof CreateMealPlanSchema>;
 
 export const UuidParamSchema = z.object({ id: z.string().uuid() });
+
+/** GET /recipes: optionally only the recipes that fit one meal. */
+export const RecipeListQuerySchema = z.object({ mealType: z.nativeEnum(MealType).optional() }).strict();
+export type RecipeListQuery = z.infer<typeof RecipeListQuerySchema>;
 
 export const PaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),

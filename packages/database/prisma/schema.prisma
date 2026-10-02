@@ -532,6 +532,8 @@ model Food {
 /// tenant is created; later changes here never touch those copies.
 model DefaultRecipe {
   id           String     @id @default(uuid()) @db.Uuid
+  /// Stable curation key from private/recipes.csv (e.g. "molletes"). Re-imports match on it.
+  key          String     @unique
   title        String
   description  String?
   mealTypes    MealType[] @map("meal_types")

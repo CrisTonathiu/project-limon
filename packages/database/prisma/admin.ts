@@ -8,7 +8,9 @@
  *   pnpm --filter @limon/database admin invite <tenant-slug> --first-name Ana --last-name López [--email ana@correo.mx] [--days 30]
  *   pnpm --filter @limon/database admin invite <tenant-slug> --patient <patient-id> [--days 30]   (new code for the same patient)
  *   pnpm --filter @limon/database admin recipes <tenant-slug>   (copy default recipes added to the library since the tenant was created)
+ *   pnpm --filter @limon/database admin recipes --all   (the same for every tenant)
  *   pnpm --filter @limon/database admin foods [csv]   (load the food catalog, default ../../private/foods.csv)
+ *   pnpm --filter @limon/database admin default-recipes [dir]   (load the default recipe library from recipes.csv and recipe-ingredients.csv, default ../../private)
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -19,6 +21,7 @@ import { PrismaClient } from '../generated/client/index.js';
 import { copyDefaultRecipes } from '../src/recipes.js';
 import { parseCsv } from './csv.js';
 import { parseCatalogRows, SMAE_EDITION, type CatalogFood } from './food-catalog.js';
+import { parseLibraryRows, type LibraryRecipe } from './recipe-library.js';
 
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_MIGRATION_URL! } } });
 const KEYS = Object.values(FeatureKey) as string[];
@@ -127,11 +130,23 @@ async function invite(args: string[]) {
   console.log(`  expires:  ${expiresAt.toISOString().slice(0, 10)} (single use)`);
 }
 
+/** Copies new default recipes into one tenant, or every tenant with --all. Never touches existing copies. */
 async function recipes(args: string[]) {
-  const tenant = await tenantBySlug(args[0]);
-  const copied = await prisma.$transaction((tx) => copyDefaultRecipes(tx, tenant.id));
-  if (copied) await audit(tenant.id, 'DefaultRecipesCopied', 'Tenant', tenant.id, { recipesCopied: copied });
-  console.log(copied ? `Copied ${copied} default recipe(s) into ${tenant.name}.` : `${tenant.name} already has every default recipe.`);
+  const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { all: { type: 'boolean' } } });
+  if (values.all && positionals.length) fail('Give a tenant slug or --all, not both.');
+  const tenants = values.all
+    ? await prisma.tenant.findMany({ where: { deletedAt: null }, select: { id: true, name: true }, orderBy: { createdAt: 'asc' } })
+    : [await tenantBySlug(positionals[0])];
+
+  let total = 0;
+  for (const tenant of tenants) {
+    // One transaction per tenant: a failure leaves the tenants before it fully copied.
+    const copied = await prisma.$transaction((tx) => copyDefaultRecipes(tx, tenant.id));
+    if (copied) await audit(tenant.id, 'DefaultRecipesCopied', 'Tenant', tenant.id, { recipesCopied: copied });
+    console.log(copied ? `Copied ${copied} default recipe(s) into ${tenant.name}.` : `${tenant.name} already has every default recipe.`);
+    total += copied;
+  }
+  if (values.all) console.log(`${total} recipe(s) copied into ${tenants.length} tenant(s).`);
 }
 
 /**
@@ -163,8 +178,55 @@ async function foods(args: string[]) {
   if (parsed.otherSmaeEdition.length) console.log(`  ⚠ ${parsed.otherSmaeEdition.length} SMAE row(s) not from the ${SMAE_EDITION}th edition; check their grams per equivalent against it`);
 }
 
+/**
+ * Loads the default recipe library (platform reference data) from recipes.csv and
+ * recipe-ingredients.csv. Matches recipes on `key`: new keys are created, changed recipes
+ * updated with their ingredients replaced. Nothing is written if any row is invalid.
+ * Recipes missing from the CSV are listed, never deleted. Tenants' copies are never
+ * updated: new recipes reach them with `admin recipes --all`.
+ */
+async function defaultRecipes(args: string[]) {
+  const dir = resolve(process.cwd(), args[0] ?? '../../private');
+  const read = (name: string) => parseCsv(readFileSync(resolve(dir, name), 'utf8')).rows;
+  const foodIds = new Map((await prisma.food.findMany({ select: { id: true, key: true } })).map((f) => [f.key, f.id]));
+  const parsed = parseLibraryRows(read('recipes.csv'), read('recipe-ingredients.csv'), new Set(foodIds.keys()));
+  if (parsed.errors.length) fail(`Nothing imported, fix these rows in ${dir}:\n  ${parsed.errors.join('\n  ')}`);
+
+  type Data = Omit<LibraryRecipe, 'key' | 'ingredients'>;
+  type Ingredient = Omit<LibraryRecipe['ingredients'][number], 'foodKey'> & { foodId: string };
+  const data = (r: Data): Data => ({
+    title: r.title, description: r.description, mealTypes: r.mealTypes, servings: r.servings,
+    totalMinutes: r.totalMinutes, tags: r.tags, steps: r.steps, imageKey: r.imageKey,
+  });
+  const ingredients = (r: LibraryRecipe): Ingredient[] =>
+    r.ingredients.map((i) => ({ position: i.position, quantity: i.quantity, unit: i.unit, grams: i.grams, note: i.note, foodId: foodIds.get(i.foodKey)! }));
+  const fields = (d: Data, i: Ingredient[]) => JSON.stringify([data(d), i]);
+
+  const stored = await prisma.defaultRecipe.findMany({ include: { ingredients: { orderBy: { position: 'asc' } } } });
+  const existing = new Map(stored.map((d) => [d.key, fields(d as Data, d.ingredients.map((i) => (
+    { position: i.position, quantity: i.quantity, unit: i.unit, grams: i.grams, note: i.note, foodId: i.foodId }
+  )))]));
+  const created = parsed.recipes.filter((r) => !existing.has(r.key));
+  const updated = parsed.recipes.filter((r) => existing.has(r.key) && existing.get(r.key) !== fields(r, ingredients(r)));
+  await prisma.$transaction([
+    ...created.map((r) => prisma.defaultRecipe.create({ data: { key: r.key, ...data(r), ingredients: { create: ingredients(r) } } })),
+    ...updated.map((r) => prisma.defaultRecipe.update({
+      where: { key: r.key },
+      data: { ...data(r), ingredients: { deleteMany: {}, create: ingredients(r) } },
+    })),
+  ]);
+
+  console.log(`Default recipe library ← ${dir}`);
+  console.log(`  ${created.length} created, ${updated.length} updated, ${parsed.recipes.length - created.length - updated.length} unchanged`);
+  const keys = new Set(parsed.recipes.map((r) => r.key));
+  const missing = [...existing.keys()].filter((k) => !keys.has(k));
+  if (missing.length) console.log(`  ⚠ in the database but not in the CSV (kept): ${missing.join(', ')}`);
+  if (created.length) console.log('  → copy the new recipes into every tenant with: pnpm --filter @limon/database admin recipes --all');
+  if (updated.length) console.log('  ⚠ tenants that already have a copy of an updated recipe keep their copy as it was');
+}
+
 const [command, ...rest] = process.argv.slice(2);
-const commands: Record<string, (args: string[]) => Promise<void>> = { features, invite, recipes, foods };
+const commands: Record<string, (args: string[]) => Promise<void>> = { features, invite, recipes, foods, 'default-recipes': defaultRecipes };
 const run = command ? commands[command] : undefined;
 if (!run) fail(`Usage: admin <${Object.keys(commands).join('|')}> <tenant-slug | csv> [options]`);
 run(rest)

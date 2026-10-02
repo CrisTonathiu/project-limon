@@ -11,6 +11,8 @@ export type AppStackParamList = {
   Home: undefined;
   Meals: undefined;
   Recipes: undefined;
+  /** `title` shows in the header while the recipe loads. */
+  RecipeDetail: { recipeId: string; title: string };
   Progress: undefined;
   AiChat: undefined;
   Profile: undefined;
@@ -22,6 +24,7 @@ export type AppStackParamList = {
 export const SCREEN_FEATURE: Partial<Record<keyof AppStackParamList, FeatureKey>> = {
   Meals: FeatureKey.MEAL_PLAN,
   Recipes: FeatureKey.RECIPES,
+  RecipeDetail: FeatureKey.RECIPES,
   Progress: FeatureKey.GOAL_TRACKER,
   AiChat: FeatureKey.AI_ASSISTANT,
 };
