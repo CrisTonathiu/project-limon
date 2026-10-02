@@ -9,6 +9,7 @@ import { appsRoutes } from './modules/apps/apps.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { foodsRoutes } from './modules/foods/foods.routes.js';
 import { patientsRoutes } from './modules/patients/patients.routes.js';
+import { recipesRoutes } from './modules/recipes/recipes.routes.js';
 import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes.js';
 import { tenantsRoutes } from './modules/tenants/tenants.routes.js';
 
@@ -71,6 +72,7 @@ export async function buildApp(c: Container) {
       await patientsRoutes(v1, c);
       await subscriptionsRoutes(v1, c);
       await foodsRoutes(v1, c);
+      await recipesRoutes(v1, c);
     },
     { prefix: '/api/v1' },
   );

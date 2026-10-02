@@ -9,7 +9,7 @@ import { useSession } from '../../state/session-context';
 export function HomeScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Home'>) {
   const session = useSession();
   if (session.status !== 'signedIn') return null;
-  const links: [Exclude<keyof AppStackParamList, 'ProfileEdit'>, string][] = [
+  const links: [Exclude<keyof AppStackParamList, 'ProfileEdit' | 'RecipeDetail'>, string][] = [
     ['Meals', t.nav.meals],
     ['Recipes', t.nav.recipes],
     ['Progress', t.nav.progress],

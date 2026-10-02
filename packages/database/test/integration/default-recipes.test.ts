@@ -25,7 +25,7 @@ let foodId = '';
 async function addDefaultRecipe(title: string) {
   const recipe = await owner.defaultRecipe.create({
     data: {
-      title, mealTypes: ['BREAKFAST'], servings: 2, tags: [tag], steps: ['Mezclar.'],
+      key: `${tag}-${defaultIds.length}`, title, mealTypes: ['BREAKFAST'], servings: 2, tags: [tag], steps: ['Mezclar.'],
       ingredients: {
         create: [
           { foodId, position: 1, quantity: 1, unit: 'CUP', grams: 80 },

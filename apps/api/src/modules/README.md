@@ -20,7 +20,8 @@ Rules:
 | auth, tenants, patients, apps | foundation implemented |
 | apps/provisioning | boundary only |
 | foods | FatSecret lookups (search, food detail); no database yet |
-| users, nutritionists, recipes, meal-plans, protocols, progress, conversations, subscriptions, payments, ai, files, notifications | placeholder |
+| recipes | tenant recipes for patients (list, detail with macros from FatSecret); no editing yet |
+| users, nutritionists, meal-plans, protocols, progress, conversations, subscriptions, payments, ai, files, notifications | placeholder |
 
 Notes for placeholders:
 - **ai**: Bedrock is called only from here. Must build patient context via TenantContext + patient authorization

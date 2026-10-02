@@ -365,3 +365,38 @@ export type FoodOptionDto = { id: string; name: string };
 
 /** The whole catalog, sorted by name (Spanish collation). Small enough to search on the device. */
 export type FoodCatalogResponse = { items: FoodOptionDto[] };
+
+/** A tenant recipe in the patient's recipe list. */
+export type RecipeSummaryDto = {
+  id: string;
+  title: string;
+  mealTypes: MealType[];
+  servings: number;
+  totalMinutes: number | null;
+};
+
+/** The tenant's recipes, sorted by title (Spanish collation). */
+export type RecipeListResponse = { items: RecipeSummaryDto[] };
+
+export type RecipeIngredientDto = {
+  foodId: string;
+  /** Our Spanish food name. */
+  name: string;
+  quantity: number;
+  unit: IngredientUnit;
+  /** For the whole recipe (all servings). */
+  grams: number;
+  note: string | null;
+};
+
+/** Per serving, from FatSecret: kcal and grams. Computed on every read, never stored. */
+export type RecipeMacros = { calories: number; protein: number; carbohydrate: number; fat: number };
+
+export type RecipeDetailDto = RecipeSummaryDto & {
+  description: string | null;
+  tags: string[];
+  steps: string[];
+  ingredients: RecipeIngredientDto[];
+  /** Null when FatSecret is unreachable or doesn't give an ingredient's calories or macros: partial totals would mislead. */
+  macrosPerServing: RecipeMacros | null;
+};

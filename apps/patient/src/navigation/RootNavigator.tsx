@@ -12,6 +12,7 @@ import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 import { ProfileEditScreen } from '../screens/profile/ProfileEditScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
+import { RecipeDetailScreen } from '../screens/recipes/RecipeDetailScreen';
 import { RecipesScreen } from '../screens/recipes/RecipesScreen';
 import { SubscriptionScreen } from '../screens/subscription/SubscriptionScreen';
 import { UnavailableScreen } from '../screens/UnavailableScreen';
@@ -61,6 +62,9 @@ export function RootNavigator() {
           {/* Modules switched off for this tenant are not registered at all. */}
           {canOpen('Meals') && <AppStack.Screen name="Meals" component={MealsScreen} options={{ title: t.nav.meals }} />}
           {canOpen('Recipes') && <AppStack.Screen name="Recipes" component={RecipesScreen} options={{ title: t.nav.recipes }} />}
+          {canOpen('RecipeDetail') && (
+            <AppStack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={({ route }) => ({ title: route.params.title })} />
+          )}
           {canOpen('Progress') && <AppStack.Screen name="Progress" component={ProgressScreen} options={{ title: t.nav.progress }} />}
           {canOpen('AiChat') && <AppStack.Screen name="AiChat" component={AiChatScreen} options={{ title: t.nav.aiShort }} />}
           <AppStack.Screen name="Profile" component={ProfileScreen} options={{ title: t.nav.profile }} />
