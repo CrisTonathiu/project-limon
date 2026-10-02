@@ -1,7 +1,9 @@
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Text } from 'react-native';
 import { Button } from '../../components/Button';
 import { Screen } from '../../components/Screen';
 import { t } from '../../i18n/es-MX';
+import type { AppStackParamList } from '../../navigation/types';
 import { useSession } from '../../state/session-context';
 import { useTenantTheme } from '../../theme/theme-context';
 
@@ -14,7 +16,7 @@ import { useTenantTheme } from '../../theme/theme-context';
  * notification → patient_subscriptions updated → refresh() unlocks the app.
  * The client never asserts its own entitlement.
  */
-export function SubscriptionScreen() {
+export function SubscriptionScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Subscription'>) {
   const session = useSession();
   const { config, theme } = useTenantTheme();
   const entitlement = session.status === 'signedIn' ? session.me.entitlement : undefined;
@@ -29,6 +31,7 @@ export function SubscriptionScreen() {
       ) : null}
       <Button label={t.subscription.subscribe} disabled onPress={() => undefined} />
       <Button label={t.subscription.restore} onPress={() => void session.refresh()} />
+      <Button label={t.profile.open} onPress={() => navigation.navigate('Profile')} />
       <Button label={t.common.signOut} onPress={() => void session.signOut()} />
     </Screen>
   );

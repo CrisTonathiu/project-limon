@@ -27,6 +27,8 @@ type SessionApi = SessionState & {
   /** Completes signUp after the emailed code is entered. Only used on the Cognito path. */
   confirmSignUp: (code: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Erases the patient's data and login, then signs out. Throws if the API call fails. */
+  deleteAccount: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -141,6 +143,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       await patientAuthProvider.signOut();
       await tokenStore.clear();
       pendingSignUp.current = null;
+      setState({ status: 'signedOut' });
+    },
+    deleteAccount: async () => {
+      const token = await tokenStore.get();
+      // The data goes first: if the app stops halfway, a leftover login leads to nothing.
+      await api.patients.deleteMyAccount();
+      try {
+        if (token) await patientAuthProvider.deleteUser(token);
+      } catch (err) {
+        // The account is already deleted for the API; only the bare login remains.
+        console.error('[session] deleting the login failed', err);
+      }
+      await tokenStore.clear();
       setState({ status: 'signedOut' });
     },
     refresh: verify,

@@ -9,6 +9,10 @@ export async function patientsRoutes(app: FastifyInstance, c: Container) {
   const service = createPatientsService(c);
 
   app.get('/patients/me', { preHandler: requireTenant(c, Permission.SELF_PATIENT_READ) }, async (req) => service.me(ctxOf(req)));
+  app.delete('/patients/me', { preHandler: requireTenant(c, Permission.SELF_PATIENT_WRITE) }, async (req, reply) => {
+    await service.deleteMyAccount(ctxOf(req));
+    return reply.status(204).send();
+  });
   app.get('/patients/me/profile', { preHandler: requireTenant(c, Permission.SELF_PATIENT_READ) }, async (req) => service.myProfile(ctxOf(req)));
   app.put('/patients/me/profile', { preHandler: requireTenant(c, Permission.SELF_PATIENT_WRITE) }, async (req) =>
     service.saveMyProfile(ctxOf(req), PatientProfileSchema.parse(req.body)),

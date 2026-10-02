@@ -18,6 +18,8 @@ export interface PatientAuthProvider {
   confirmSignUp(email: string, code: string): Promise<void>;
   signIn(email: string, password: string): Promise<string>;
   signOut(): Promise<void>;
+  /** Deletes the login itself. Called after the API has erased the patient's data. */
+  deleteUser(accessToken: string): Promise<void>;
 }
 
 /** The identifier sent to Cognito. Exported for tests and for the dev provider. */
@@ -46,6 +48,8 @@ export const devAuthProvider: PatientAuthProvider = {
     throw new Error('devAuthProvider never needs confirmation');
   },
   async signOut() {},
+  // Dev identities live only in the dev token; nothing to delete.
+  async deleteUser() {},
 };
 
 let pool: CognitoUserPool | undefined;
@@ -88,6 +92,18 @@ export const cognitoAuthProvider: PatientAuthProvider = {
   // (session-context re-derives everything from the stored access token via /auth/me), so
   // there's nothing beyond that to tear down here.
   async signOut() {},
+  // Cognito's DeleteUser accepts the user's own access token, so the API needs no admin rights
+  // over the pool. Called directly because the SDK's deleteUser needs its cached session.
+  async deleteUser(accessToken) {
+    const region = buildConfig.cognitoUserPoolId?.split('_')[0];
+    if (!region) throw new Error('Build config is missing Cognito user pool id');
+    const res = await fetch(`https://cognito-idp.${region}.amazonaws.com/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-amz-json-1.1', 'X-Amz-Target': 'AWSCognitoIdentityProviderService.DeleteUser' },
+      body: JSON.stringify({ AccessToken: accessToken }),
+    });
+    if (!res.ok) throw new Error(`Cognito DeleteUser failed (${res.status})`);
+  },
 };
 
 export const patientAuthProvider: PatientAuthProvider = buildConfig.authProvider === 'cognito' ? cognitoAuthProvider : devAuthProvider;

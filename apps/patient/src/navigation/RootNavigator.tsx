@@ -9,6 +9,7 @@ import { HomeScreen } from '../screens/home/HomeScreen';
 import { InviteCodeScreen } from '../screens/invite/InviteCodeScreen';
 import { MealsScreen } from '../screens/meals/MealsScreen';
 import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
+import { ProfileEditScreen } from '../screens/profile/ProfileEditScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
 import { RecipesScreen } from '../screens/recipes/RecipesScreen';
@@ -47,9 +48,12 @@ export function RootNavigator() {
           <AppStack.Screen name="Onboarding" component={OnboardingScreen} />
         </AppStack.Navigator>
       ) : session.status === 'signedIn' && !session.entitled ? (
-        // Signed in but unpaid: the paywall is the only screen. The API enforces this too.
+        // Signed in but unpaid: the paywall, plus the profile so the patient can still edit
+        // or delete their account (store rules). The API enforces the paywall too.
         <AppStack.Navigator screenOptions={appScreenOptions}>
           <AppStack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: '' }} />
+          <AppStack.Screen name="Profile" component={ProfileScreen} options={{ title: t.nav.profile }} />
+          <AppStack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ title: t.profile.edit }} />
         </AppStack.Navigator>
       ) : session.status === 'signedIn' ? (
         <AppStack.Navigator screenOptions={appScreenOptions}>
@@ -60,6 +64,7 @@ export function RootNavigator() {
           {canOpen('Progress') && <AppStack.Screen name="Progress" component={ProgressScreen} options={{ title: t.nav.progress }} />}
           {canOpen('AiChat') && <AppStack.Screen name="AiChat" component={AiChatScreen} options={{ title: t.nav.aiShort }} />}
           <AppStack.Screen name="Profile" component={ProfileScreen} options={{ title: t.nav.profile }} />
+          <AppStack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ title: t.profile.edit }} />
           <AppStack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: t.subscription.title }} />
         </AppStack.Navigator>
       ) : (

@@ -92,6 +92,43 @@ export const es = {
 
   profile: {
     support: (email: string) => `Soporte: ${email}`,
+    open: 'Mi perfil',
+    loadFailed: 'No pudimos cargar tu perfil. Revisa tu conexión.',
+    retry: 'Reintentar',
+    target: {
+      title: 'Tu meta diaria',
+      macros: (protein: string, carbs: string, fat: string) => `Proteína ${protein} · Carbohidratos ${carbs} · Grasa ${fat}`,
+      note: 'Calculada con tus datos para mantener tu peso. Tu nutriólogo puede ajustarla.',
+      hold: {
+        MINOR: 'Por ser menor de edad, tu nutriólogo definirá tu meta diaria.',
+        PREGNANT_OR_BREASTFEEDING: 'Durante el embarazo o la lactancia, tu nutriólogo definirá tu meta diaria.',
+        UNDERWEIGHT: 'Con tu peso actual no recomendamos bajar de peso. Consulta a tu nutriólogo.',
+        BELOW_FLOOR: 'Tu meta diaria necesita la revisión de tu nutriólogo.',
+      },
+    },
+    data: {
+      title: 'Tus datos',
+      birthDate: (date: string) => `Fecha de nacimiento: ${date}`,
+      heightWeight: (height: string, weight: string) => `Estatura ${height} · Peso ${weight}`,
+      pregnant: 'Embarazo o lactancia',
+      noAllergies: 'Sin alergias',
+      allergies: (list: string) => `Alergias: ${list}`,
+      dislikes: (list: string) => `No te gusta: ${list}`,
+    },
+    edit: 'Editar mis datos',
+    save: 'Guardar cambios',
+    saving: 'Guardando…',
+    fixErrors: 'Revisa los datos marcados.',
+    deleteAccount: 'Eliminar mi cuenta',
+    deleting: 'Eliminando…',
+    deleteConfirm: {
+      title: '¿Eliminar tu cuenta?',
+      body: (name: string) =>
+        `Se borrarán tus datos de salud, tus planes y tu cuenta en la app de ${name}. No se puede deshacer. ` +
+        'Si tienes una suscripción, cancélala con tu nutriólogo.',
+      confirm: 'Eliminar',
+      cancel: 'Cancelar',
+    },
   },
 
   onboarding: {

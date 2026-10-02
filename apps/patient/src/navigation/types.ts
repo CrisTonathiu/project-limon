@@ -1,4 +1,4 @@
-import { FeatureKey } from '@limon/types';
+import { FeatureKey, type PatientProfileDto } from '@limon/types';
 
 export type AuthStackParamList = {
   SignIn: undefined;
@@ -14,6 +14,7 @@ export type AppStackParamList = {
   Progress: undefined;
   AiChat: undefined;
   Profile: undefined;
+  ProfileEdit: { profile: PatientProfileDto };
   Subscription: undefined;
 };
 

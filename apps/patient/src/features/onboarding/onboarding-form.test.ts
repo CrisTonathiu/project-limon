@@ -1,7 +1,9 @@
+import type { PatientProfileDto } from '@limon/types';
 import { PatientProfileSchema } from '@limon/validation';
 import { describe, expect, it } from 'vitest';
 import {
-  addDislikedFood, birthDateFrom, emptyDraft, parseDecimal, stepErrors, toProfileInput, type OnboardingDraft,
+  addDislikedFood, birthDateFrom, draftFromProfile, emptyDraft, formErrors, parseDecimal, stepErrors, toProfileInput,
+  type OnboardingDraft,
 } from './onboarding-form';
 
 const today = new Date(2026, 9, 1); // Oct 1, 2026
@@ -95,5 +97,29 @@ describe('toProfileInput', () => {
     const input = toProfileInput({ ...complete, sex: 'MALE', pregnantOrBreastfeeding: true }, today);
     expect(input?.pregnantOrBreastfeeding).toBe(false);
     expect(PatientProfileSchema.safeParse(input).success).toBe(true);
+  });
+});
+
+describe('formErrors', () => {
+  it('collects the errors of every step', () => {
+    expect(formErrors({ ...complete, sex: null, weightKg: '', mealsPerDay: null }, today)).toEqual({
+      sex: 'required', weightKg: 'required', mealsPerDay: 'required',
+    });
+    expect(formErrors(complete, today)).toEqual({});
+  });
+});
+
+describe('draftFromProfile', () => {
+  it('round-trips a saved profile back to the same PUT body', () => {
+    const saved = {
+      sex: 'FEMALE', dateOfBirth: '1990-05-20', heightCm: 162, weightKg: 68.4, activityLevel: 'LIGHT',
+      mealsPerDay: 4, pregnantOrBreastfeeding: false, allergies: ['milk'], dislikedFoods: ['Hígado'],
+    } as const satisfies Omit<PatientProfileDto, 'energyTarget' | 'updatedAt'>;
+    const draft = draftFromProfile({
+      ...saved, allergies: [...saved.allergies], dislikedFoods: [...saved.dislikedFoods],
+      energyTarget: { status: 'CONSULT_NUTRITIONIST', reason: 'MINOR' }, updatedAt: '2026-10-01T00:00:00.000Z',
+    });
+    expect(draft).toMatchObject({ birthDay: '20', birthMonth: '5', birthYear: '1990', weightKg: '68.4' });
+    expect(toProfileInput(draft, today)).toEqual(saved);
   });
 });

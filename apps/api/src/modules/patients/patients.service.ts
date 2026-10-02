@@ -72,6 +72,19 @@ export function createPatientsService(c: Container) {
         return { profile: toProfileDto(profile, new Date(input.dateOfBirth)) };
       }),
 
+    /**
+     * The patient deletes their own account. The app deletes the Cognito user afterwards
+     * with the patient's own token; once this commits, that login resolves to no one.
+     * TODO(week 7, see docs/roadmap/mvp-roadmap.md): cancel the patient's Stripe subscription.
+     */
+    deleteMyAccount: (ctx: TenantContext): Promise<void> =>
+      scoped(ctx, async (tx) => {
+        const p = await patientsRepository.findByUserId(tx, ctx.tenantId, ctx.userId);
+        if (!p) throw Errors.notFound('Patient');
+        await patientsRepository.deleteAccount(tx, ctx.tenantId, p.id, ctx.userId);
+        await writeAudit(tx, ctx, { action: 'PatientDeleted', resourceType: 'Patient', resourceId: p.id });
+      }),
+
     create: (ctx: TenantContext, input: CreatePatientInput) =>
       scoped(ctx, async (tx) => {
         const p = await patientsRepository.create(tx, ctx.tenantId, input);
