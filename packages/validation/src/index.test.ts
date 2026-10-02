@@ -23,13 +23,14 @@ describe('PatientProfileSchema', () => {
 
   it('accepts a complete questionnaire and fills defaults', () => {
     const r = PatientProfileSchema.parse(valid);
-    expect(r).toMatchObject({ weightKg: 68.4, pregnantOrBreastfeeding: false, allergies: [], dislikedFoods: [] });
+    expect(r).toMatchObject({ weightKg: 68.4, pregnantOrBreastfeeding: false, allergies: [], dislikedFoodIds: [] });
   });
 
   it('de-duplicates allergies and disliked foods', () => {
-    const r = PatientProfileSchema.parse({ ...valid, allergies: ['milk', 'milk'], dislikedFoods: ['Hígado', ' hígado ', 'Brócoli'] });
+    const [higado, brocoli] = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'];
+    const r = PatientProfileSchema.parse({ ...valid, allergies: ['milk', 'milk'], dislikedFoodIds: [higado, brocoli, higado] });
     expect(r.allergies).toEqual(['milk']);
-    expect(r.dislikedFoods).toEqual(['Hígado', 'Brócoli']);
+    expect(r.dislikedFoodIds).toEqual([higado, brocoli]);
   });
 
   it.each([
@@ -38,6 +39,8 @@ describe('PatientProfileSchema', () => {
     ['height in meters', { heightCm: 1.62 }],
     ['future birth date', { dateOfBirth: '2999-01-01' }],
     ['pregnancy with sex MALE', { sex: 'MALE', pregnantOrBreastfeeding: true }],
+    ['disliked food as free text', { dislikedFoodIds: ['Hígado'] }],
+    ['the old free-text field', { dislikedFoods: ['Hígado'] }],
     ['client-supplied patientId', { patientId: '11111111-1111-4111-8111-111111111111' }],
   ])('rejects %s', (_label, patch) => {
     expect(PatientProfileSchema.safeParse({ ...valid, ...patch }).success).toBe(false);

@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { createContainer } from '../../src/infrastructure/container.js';
 import { FatSecretClient } from '../../src/infrastructure/fatsecret.js';
+import { createTestFoods } from './test-foods.js';
 
 const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', SQS_JOBS_QUEUE_URL: '' });
 
@@ -30,19 +31,50 @@ const unconfigured = createContainer(env, { fatsecret: null });
 let app: Awaited<ReturnType<typeof buildApp>>;
 let appWithout: Awaited<ReturnType<typeof buildApp>>;
 const token = (sub: string) => c.devVerifier!.issue(sub);
+let testFoods: Awaited<ReturnType<typeof createTestFoods>>;
 
 beforeAll(async () => {
   app = await buildApp(c);
   appWithout = await buildApp(unconfigured);
+  testFoods = await createTestFoods('test-catalog', ['Ñame (prueba)', 'Nuez (prueba)', 'Limonada (prueba)', 'Limón (prueba)']);
 });
 afterAll(async () => {
   await app.close();
   await appWithout.close();
+  await testFoods.cleanup();
   await c.db.disconnect();
   await unconfigured.db.disconnect();
 });
 
 const asNutritionist = async () => ({ authorization: `Bearer ${await token('dev|nutritionist|maria-nutrition')}` });
+
+describe('GET /foods/catalog', () => {
+  const asPatient = async () => ({
+    authorization: `Bearer ${await token('dev|patient|maria-nutrition')}`, 'x-app-key': 'maria-nutrition-ios',
+  });
+
+  it('gives a patient without a subscription ids and names, in Spanish order', async () => {
+    const res = await app.inject({ url: '/api/v1/foods/catalog', headers: await asPatient() });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['cache-control']).toBe('private, max-age=3600');
+    // Only this file's foods: other test files add their own in parallel.
+    const ids = new Set(testFoods.foods.map((f) => f.id));
+    const ours = res.json().items.filter((f: { id: string }) => ids.has(f.id));
+    // Accents only break ties (code-point order would put "Limonada" first), Ñ after N.
+    expect(ours.map((f: { name: string }) => f.name)).toEqual(['Limón (prueba)', 'Limonada (prueba)', 'Nuez (prueba)', 'Ñame (prueba)']);
+    expect(Object.keys(ours[0]).sort()).toEqual(['id', 'name']);
+  });
+
+  it('is available to nutritionists too', async () => {
+    const res = await app.inject({ url: '/api/v1/foods/catalog', headers: await asNutritionist() });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('needs a signed-in user', async () => {
+    const res = await app.inject({ url: '/api/v1/foods/catalog', headers: { 'x-app-key': 'maria-nutrition-ios' } });
+    expect(res.statusCode).toBe(401);
+  });
+});
 
 describe('GET /foods/search', () => {
   it('returns normalized FatSecret results to a nutritionist, not cacheable', async () => {

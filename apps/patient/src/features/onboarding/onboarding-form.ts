@@ -1,4 +1,4 @@
-import { BiologicalSex, type ActivityLevel, type Allergen, type PatientProfileDto } from '@limon/types';
+import { BiologicalSex, type ActivityLevel, type Allergen, type FoodOptionDto, type PatientProfileDto } from '@limon/types';
 import { PATIENT_PROFILE_LIMITS as L, type PatientProfileInput } from '@limon/validation';
 import { toDateOnly } from '../../i18n/format';
 
@@ -21,7 +21,8 @@ export type OnboardingDraft = {
   activityLevel: ActivityLevel | null;
   mealsPerDay: number | null;
   allergies: Allergen[];
-  dislikedFoods: string[];
+  /** Picked from the food catalog; names kept for the chips, only ids are sent. */
+  dislikedFoods: FoodOptionDto[];
 };
 
 export const emptyDraft: OnboardingDraft = {
@@ -111,12 +112,26 @@ export function formErrors(draft: OnboardingDraft, today = new Date()): StepErro
 
 export const hasErrors = (errors: StepErrors) => Object.keys(errors).length > 0;
 
-/** Adds a disliked food unless it's blank, already listed (any casing) or the list is full. */
-export function addDislikedFood(list: string[], text: string): string[] {
-  const food = text.trim().slice(0, L.dislikedFoods.maxLength);
-  if (!food || list.length >= L.dislikedFoods.maxItems) return list;
-  if (list.some((f) => f.toLowerCase() === food.toLowerCase())) return list;
+/** Adds a disliked food unless it's already listed or the list is full. */
+export function addDislikedFood(list: FoodOptionDto[], food: FoodOptionDto): FoodOptionDto[] {
+  if (list.length >= L.dislikedFoods.maxItems || list.some((f) => f.id === food.id)) return list;
   return [...list, food];
+}
+
+/** Lowercase, without accents or ñ, so "pina" finds "Piña" and "HIGADO" finds "Hígado". */
+const fold = (s: string) => s.toLowerCase().replace(/[áéíóúüñ]/g, (c) => ({ á: 'a', é: 'e', í: 'i', ó: 'o', ú: 'u', ü: 'u', ñ: 'n' })[c]!);
+
+/**
+ * Catalog foods whose name contains every word typed, leaving out those already picked.
+ * Names starting with the query come first; otherwise the catalog's order (by name) is kept.
+ */
+export function searchFoods(catalog: FoodOptionDto[], query: string, picked: FoodOptionDto[], limit = 8): FoodOptionDto[] {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const pickedIds = new Set(picked.map((f) => f.id));
+  const matches = catalog.filter((f) => !pickedIds.has(f.id) && words.every((w) => fold(f.name).includes(w)));
+  const first = fold(query.trim());
+  return [...matches.filter((f) => fold(f.name).startsWith(first)), ...matches.filter((f) => !fold(f.name).startsWith(first))].slice(0, limit);
 }
 
 /** The PUT body, or null while any step still has errors. */
@@ -137,6 +152,6 @@ export function toProfileInput(draft: OnboardingDraft, today = new Date()): Pati
     // The answer is kept while toggling sex, but only sent for FEMALE (the API rejects it otherwise).
     pregnantOrBreastfeeding: sex === BiologicalSex.FEMALE && draft.pregnantOrBreastfeeding,
     allergies: draft.allergies,
-    dislikedFoods: draft.dislikedFoods,
+    dislikedFoodIds: draft.dislikedFoods.map((f) => f.id),
   };
 }

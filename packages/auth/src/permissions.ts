@@ -18,6 +18,8 @@ export const Permission = {
   RECIPES_WRITE: 'recipes:write',
   /** Search the nutrition provider (FatSecret) — used to curate recipes. Not for patients: calls cost quota. */
   FOODS_SEARCH: 'foods:search',
+  /** Our own food catalog (names only), e.g. to pick disliked foods during onboarding. */
+  FOODS_READ: 'foods:read',
   MEAL_PLANS_WRITE: 'meal-plans:write',
   SELF_MEAL_PLANS_READ: 'self:meal-plans:read',
   AI_CHAT: 'ai:chat',
@@ -32,9 +34,9 @@ const policy: Record<UserRole, ReadonlySet<Permission>> = {
   PLATFORM_ADMIN: new Set([P.PLATFORM_TENANTS_MANAGE]),
   NUTRITIONIST: new Set([
     P.TENANT_READ, P.TENANT_MANAGE, P.BRANDING_MANAGE, P.APPS_MANAGE,
-    P.PATIENTS_READ, P.PATIENTS_WRITE, P.RECIPES_READ, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE, P.FOODS_SEARCH,
+    P.PATIENTS_READ, P.PATIENTS_WRITE, P.RECIPES_READ, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE, P.FOODS_SEARCH, P.FOODS_READ,
   ]),
-  PATIENT: new Set([P.TENANT_READ, P.SELF_PATIENT_READ, P.SELF_PATIENT_WRITE, P.SELF_SUBSCRIPTION_READ, P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.AI_CHAT]),
+  PATIENT: new Set([P.TENANT_READ, P.SELF_PATIENT_READ, P.SELF_PATIENT_WRITE, P.SELF_SUBSCRIPTION_READ, P.FOODS_READ, P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.AI_CHAT]),
 };
 
 /** Permissions that mutate state; blocked when the tenant is READ_ONLY (suspended). */
@@ -44,8 +46,8 @@ export const WRITE_PERMISSIONS: ReadonlySet<Permission> = new Set([
 
 /**
  * Permissions a PATIENT may only use with an active paid subscription.
- * Deliberately excludes profile and subscription access, so an unpaid patient can
- * still sign in, see the paywall and manage/restore their purchase.
+ * Deliberately excludes profile, food catalog and subscription access, so an unpaid patient
+ * can still sign in, finish onboarding, see the paywall and manage/restore their purchase.
  */
 export const ENTITLED_PERMISSIONS: ReadonlySet<Permission> = new Set([
   P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.AI_CHAT,

@@ -24,7 +24,7 @@ const toProfileDto = (p: ProfileRow, dateOfBirth: Date): PatientProfileDto => {
     mealsPerDay: p.mealsPerDay,
     pregnantOrBreastfeeding: p.pregnantOrBreastfeeding,
     allergies: p.allergies as Allergen[],
-    dislikedFoods: p.dislikedFoods,
+    dislikedFoods: p.dislikedFoods.map((d) => d.food),
     energyTarget: energyTarget({ ...p, dateOfBirth: isoDateOfBirth }),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -66,6 +66,9 @@ export function createPatientsService(c: Container) {
       scoped(ctx, async (tx) => {
         const p = await patientsRepository.findByUserId(tx, ctx.tenantId, ctx.userId);
         if (!p) throw Errors.notFound('Patient');
+        if ((await patientsRepository.countFoods(tx, input.dislikedFoodIds)) !== input.dislikedFoodIds.length) {
+          throw Errors.validation('dislikedFoodIds: unknown food');
+        }
         const profile = await patientsRepository.saveProfile(tx, ctx.tenantId, p.id, input);
         // Health data: the audit row records that the profile changed, never the values.
         await writeAudit(tx, ctx, { action: 'PatientProfileSaved', resourceType: 'PatientProfile', resourceId: p.id });

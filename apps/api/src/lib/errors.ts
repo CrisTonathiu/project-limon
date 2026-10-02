@@ -16,6 +16,7 @@ export const Errors = {
   unauthenticated: () => new AppError('UNAUTHENTICATED', 401, 'Authentication required.'),
   forbidden: () => new AppError('FORBIDDEN', 403, 'You do not have permission to perform this action.'),
   notFound: (what = 'Resource') => new AppError('NOT_FOUND', 404, `${what} not found.`),
+  validation: (msg: string) => new AppError('VALIDATION_ERROR', 400, msg),
   conflict: (msg: string) => new AppError('CONFLICT', 409, msg),
   tenantNotFound: () => new AppError('TENANT_NOT_FOUND', 403, 'This account is not available.'),
   tenantSuspended: () => new AppError('TENANT_SUSPENDED', 403, 'This account is currently unavailable.'),

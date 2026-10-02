@@ -95,7 +95,7 @@ export function ProfileScreen({ navigation }: NativeStackScreenProps<AppStackPar
               ? t.profile.data.allergies(profile.allergies.map((a) => t.onboarding.allergies.names[a]).join(', '))
               : t.profile.data.noAllergies}
           </Line>
-          {profile.dislikedFoods.length ? <Line>{t.profile.data.dislikes(profile.dislikedFoods.join(', '))}</Line> : null}
+          {profile.dislikedFoods.length ? <Line>{t.profile.data.dislikes(profile.dislikedFoods.map((f) => f.name).join(', '))}</Line> : null}
         </Section>
 
         <Button label={t.profile.edit} onPress={() => navigation.navigate('ProfileEdit', { profile })} />

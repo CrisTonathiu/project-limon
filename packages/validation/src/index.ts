@@ -99,17 +99,13 @@ export function ageInYears(isoDate: string, today = new Date()): number {
   return today.getFullYear() - y - (beforeBirthday ? 1 : 0);
 }
 
-/** Case-insensitive de-duplication that keeps the first spelling. */
-const uniqueText = (items: string[]) =>
-  items.filter((s, i) => items.findIndex((o) => o.toLowerCase() === s.toLowerCase()) === i);
-
 /** Bounds of the profile questionnaire, shared with the app so it can check each step before the PUT. */
 export const PATIENT_PROFILE_LIMITS = {
   minBirthDate: '1900-01-01',
   heightCm: { min: 100, max: 250 },
   weightKg: { min: 25, max: 350 },
   mealsPerDay: { min: 3, max: 5 },
-  dislikedFoods: { maxItems: 30, maxLength: 60 },
+  dislikedFoods: { maxItems: 30 },
 } as const;
 const L = PATIENT_PROFILE_LIMITS;
 
@@ -130,11 +126,8 @@ export const PatientProfileSchema = z
     mealsPerDay: z.number().int().min(L.mealsPerDay.min).max(L.mealsPerDay.max),
     pregnantOrBreastfeeding: z.boolean().default(false),
     allergies: z.array(z.nativeEnum(Allergen)).max(Object.keys(Allergen).length).default([]).transform((a) => [...new Set(a)]),
-    dislikedFoods: z
-      .array(z.string().trim().min(1).max(L.dislikedFoods.maxLength))
-      .max(L.dislikedFoods.maxItems)
-      .default([])
-      .transform(uniqueText),
+    /** Ids from the food catalog (GET /foods/catalog); the API checks they exist. */
+    dislikedFoodIds: z.array(z.string().uuid()).max(L.dislikedFoods.maxItems).default([]).transform((ids) => [...new Set(ids)]),
   })
   .strict()
   .refine((p) => !(p.sex === BiologicalSex.MALE && p.pregnantOrBreastfeeding), {
