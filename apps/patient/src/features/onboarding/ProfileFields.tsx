@@ -1,11 +1,11 @@
 import { ActivityLevel, Allergen, BiologicalSex } from '@limon/types';
-import { PATIENT_PROFILE_LIMITS } from '@limon/validation';
 import type { ReactNode } from 'react';
-import { Pressable, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { Text, TextInput, View, type TextInputProps } from 'react-native';
 import { Choice } from '../../components/Choice';
 import { t } from '../../i18n/es-MX';
 import { useTenantTheme } from '../../theme/theme-context';
-import { addDislikedFood, type FieldError, type OnboardingDraft, type OnboardingStep, type StepErrors } from './onboarding-form';
+import { DislikedFoodsPicker } from './DislikedFoodsPicker';
+import type { FieldError, OnboardingDraft, OnboardingStep, StepErrors } from './onboarding-form';
 
 const MEAL_OPTIONS = [3, 4, 5];
 
@@ -14,16 +14,13 @@ type Props = {
   draft: OnboardingDraft;
   update: (patch: Partial<OnboardingDraft>) => void;
   errors: StepErrors;
-  /** The disliked food being typed, held by the screen so its save can include it. */
-  dislikeText: string;
-  setDislikeText: (text: string) => void;
 };
 
 /**
  * The fields of one questionnaire step. Onboarding shows one step per page; the profile
  * edit screen shows every step on one page.
  */
-export function ProfileFields({ step, draft, update, errors, dislikeText, setDislikeText }: Props) {
+export function ProfileFields({ step, draft, update, errors }: Props) {
   const { theme } = useTenantTheme();
 
   /** `rangeMessage` explains the expected unit and range; only number fields can be out of range. */
@@ -144,45 +141,12 @@ export function ProfileFields({ step, draft, update, errors, dislikeText, setDis
         })}
       </>
     ),
-    // Free text for now; becomes a pick from the food catalog in week 3.
-    dislikes: () => {
-      const add = () => {
-        update({ dislikedFoods: addDislikedFood(draft.dislikedFoods, dislikeText) });
-        setDislikeText('');
-      };
-      const full = draft.dislikedFoods.length >= PATIENT_PROFILE_LIMITS.dislikedFoods.maxItems;
-      return (
-        <>
-          <Hint>{t.onboarding.dislikes.hint}</Hint>
-          <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-            {input({
-              placeholder: t.onboarding.dislikes.placeholder, maxLength: PATIENT_PROFILE_LIMITS.dislikedFoods.maxLength,
-              value: dislikeText, onChangeText: setDislikeText, onSubmitEditing: add, returnKeyType: 'done',
-              editable: !full, style: { flex: 1 }, accessibilityLabel: t.onboarding.dislikes.title,
-            })}
-            <Pressable accessibilityRole="button" onPress={add} disabled={full} style={{ justifyContent: 'center', paddingHorizontal: theme.spacing.sm }}>
-              <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>{t.onboarding.dislikes.add}</Text>
-            </Pressable>
-          </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm }}>
-            {draft.dislikedFoods.map((food) => (
-              <Pressable
-                key={food}
-                accessibilityRole="button"
-                accessibilityLabel={t.onboarding.dislikes.remove(food)}
-                onPress={() => update({ dislikedFoods: draft.dislikedFoods.filter((f) => f !== food) })}
-                style={{
-                  backgroundColor: theme.colors.surface, borderRadius: theme.radius.pill,
-                  paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.md,
-                }}
-              >
-                <Text style={{ color: theme.colors.text }}>{food} ✕</Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      );
-    },
+    dislikes: () => (
+      <>
+        <Hint>{t.onboarding.dislikes.hint}</Hint>
+        <DislikedFoodsPicker value={draft.dislikedFoods} onChange={(dislikedFoods) => update({ dislikedFoods })} />
+      </>
+    ),
   } satisfies Record<OnboardingStep, () => ReactNode>;
 
   return steps[step]();

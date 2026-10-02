@@ -240,6 +240,7 @@ model Tenant {
   inviteCodes           TenantInviteCode[]
   features              TenantFeature[]
   patientProfiles       PatientProfile[]
+  patientDislikedFoods  PatientDislikedFood[]
 
   @@map("tenants")
 }
@@ -457,17 +458,34 @@ model PatientProfile {
   pregnantOrBreastfeeding Boolean       @default(false) @map("pregnant_or_breastfeeding")
   /// @limon/types Allergen keys, stored as text so the list can grow without a migration.
   allergies               String[]      @default([])
-  /// TODO(week 3, see docs/roadmap/mvp-roadmap.md): free text for now; replace with Food references (foods.id).
-  dislikedFoods           String[]      @default([]) @map("disliked_foods")
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")
 
-  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   // Operational data owned by the patient: deleting a patient removes their profile.
-  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+  patient       Patient               @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+  dislikedFoods PatientDislikedFood[]
 
   @@unique([tenantId, patientId])
   @@map("patient_profiles")
+}
+
+/// A catalog food the patient doesn't want in their meal plans (onboarding / profile).
+/// The meal plan generator leaves out recipes that use any of them.
+model PatientDislikedFood {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  patientId String   @map("patient_id") @db.Uuid
+  foodId    String   @map("food_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Part of the profile: replaced with it on every save, erased with it on account deletion.
+  profile PatientProfile @relation(fields: [tenantId, patientId], references: [tenantId, patientId], onDelete: Cascade)
+  food    Food           @relation(fields: [foodId], references: [id], onDelete: Restrict)
+
+  @@id([tenantId, patientId, foodId])
+  @@index([foodId])
+  @@map("patient_disliked_foods")
 }
 
 // ── Nutrition domain ─────────────────────────────────────────────────────────
@@ -503,6 +521,7 @@ model Food {
 
   recipeIngredients        RecipeIngredient[]
   defaultRecipeIngredients DefaultRecipeIngredient[]
+  dislikedBy               PatientDislikedFood[]
 
   @@index([fatsecretFoodId])
   @@index([smaeGroup])

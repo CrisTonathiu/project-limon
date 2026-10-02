@@ -1,5 +1,10 @@
-import type { TenantTx } from '@limon/database';
+import type { Prisma, TenantTx } from '@limon/database';
 import type { CreatePatientInput, PatientProfile } from '@limon/validation';
+
+/** Disliked foods come with their names, sorted by name. */
+const profileInclude = {
+  dislikedFoods: { select: { food: { select: { id: true, name: true } } }, orderBy: { food: { name: 'asc' } } },
+} satisfies Prisma.PatientProfileInclude;
 
 /**
  * Every query filters by tenantId explicitly (defence in depth on top of RLS).
@@ -26,17 +31,26 @@ export const patientsRepository = {
     }),
 
   findProfile: (tx: TenantTx, tenantId: string, patientId: string) =>
-    tx.patientProfile.findFirst({ where: { patientId, tenantId } }),
+    tx.patientProfile.findFirst({ where: { patientId, tenantId }, include: profileInclude }),
 
-  /** Birth date is stored on the patient row; everything else on patient_profiles. */
+  /** How many of these ids are foods in the catalog. */
+  countFoods: (tx: TenantTx, ids: string[]) => tx.food.count({ where: { id: { in: ids } } }),
+
+  /**
+   * Birth date is stored on the patient row, disliked foods on patient_disliked_foods,
+   * everything else on patient_profiles. The disliked foods are replaced as a whole.
+   */
   saveProfile: async (tx: TenantTx, tenantId: string, patientId: string, input: PatientProfile) => {
-    const { dateOfBirth, ...fields } = input;
+    const { dateOfBirth, dislikedFoodIds, ...fields } = input;
     await tx.patient.update({ where: { tenantId_id: { tenantId, id: patientId } }, data: { dateOfBirth: new Date(dateOfBirth) } });
-    return tx.patientProfile.upsert({
+    await tx.patientProfile.upsert({
       where: { tenantId_patientId: { tenantId, patientId } },
       create: { tenantId, patientId, ...fields },
       update: fields,
     });
+    await tx.patientDislikedFood.deleteMany({ where: { tenantId, patientId } });
+    await tx.patientDislikedFood.createMany({ data: dislikedFoodIds.map((foodId) => ({ tenantId, patientId, foodId })) });
+    return tx.patientProfile.findFirstOrThrow({ where: { patientId, tenantId }, include: profileInclude });
   },
 
   /**

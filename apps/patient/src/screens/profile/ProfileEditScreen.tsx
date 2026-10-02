@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import {
-  addDislikedFood, draftFromProfile, formErrors, hasErrors, ONBOARDING_STEPS, toProfileInput, type OnboardingDraft,
+  draftFromProfile, formErrors, hasErrors, ONBOARDING_STEPS, toProfileInput, type OnboardingDraft,
 } from '../../features/onboarding/onboarding-form';
 import { ProfileFields } from '../../features/onboarding/ProfileFields';
 import { t } from '../../i18n/es-MX';
@@ -21,7 +21,6 @@ export function ProfileEditScreen({ navigation, route }: NativeStackScreenProps<
   const [draft, setDraft] = useState<OnboardingDraft>(() => draftFromProfile(route.params.profile));
   // As in onboarding, errors appear only once "Guardar" is pressed.
   const [showErrors, setShowErrors] = useState(false);
-  const [dislikeText, setDislikeText] = useState('');
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -29,8 +28,7 @@ export function ProfileEditScreen({ navigation, route }: NativeStackScreenProps<
   const update = (patch: Partial<OnboardingDraft>) => setDraft((d) => ({ ...d, ...patch }));
 
   const save = async () => {
-    // A food typed but not yet added with "Agregar" still counts.
-    const input = toProfileInput({ ...draft, dislikedFoods: addDislikedFood(draft.dislikedFoods, dislikeText) });
+    const input = toProfileInput(draft);
     if (!input) return setShowErrors(true);
     setBusy(true);
     setSaveError(null);
@@ -56,7 +54,7 @@ export function ProfileEditScreen({ navigation, route }: NativeStackScreenProps<
           <Text style={{ fontSize: theme.typography.fontSize.lg, fontWeight: '700', color: theme.colors.text }}>
             {t.onboarding[step].title}
           </Text>
-          <ProfileFields step={step} draft={draft} update={update} errors={errors} dislikeText={dislikeText} setDislikeText={setDislikeText} />
+          <ProfileFields step={step} draft={draft} update={update} errors={errors} />
         </View>
       ))}
 

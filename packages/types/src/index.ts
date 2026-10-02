@@ -286,7 +286,8 @@ export type PatientProfileDto = {
   mealsPerDay: number;
   pregnantOrBreastfeeding: boolean;
   allergies: Allergen[];
-  dislikedFoods: string[];
+  /** Sorted by name. */
+  dislikedFoods: FoodOptionDto[];
   /** Computed on every read, so it follows profile edits and birthdays. */
   energyTarget: EnergyTargetDto;
   updatedAt: string;
@@ -358,3 +359,9 @@ export type FoodSearchItem = {
 };
 
 export type FoodSearchResponse = { items: FoodSearchItem[]; page: number; pageSize: number; total: number };
+
+/** A food from our catalog (foods table), as patients pick it: e.g. for disliked foods. */
+export type FoodOptionDto = { id: string; name: string };
+
+/** The whole catalog, sorted by name (Spanish collation). Small enough to search on the device. */
+export type FoodCatalogResponse = { items: FoodOptionDto[] };

@@ -190,9 +190,14 @@ export const es = {
     dislikes: {
       title: '¿Hay alimentos que no te gusten?',
       hint: 'Los evitaremos en tu plan. Es opcional.',
-      placeholder: 'Ej. hígado',
-      add: 'Agregar',
+      placeholder: 'Busca un alimento, ej. hígado',
+      add: (food: string) => `Agregar ${food}`,
       remove: (food: string) => `Quitar ${food}`,
+      noMatches: 'No encontramos ese alimento. Prueba con otra palabra.',
+      full: 'Llegaste al máximo de alimentos. Quita alguno para agregar otro.',
+      loading: 'Cargando alimentos',
+      loadError: 'No pudimos cargar la lista de alimentos.',
+      retry: 'Reintentar',
     },
     errors: {
       required: 'Este dato es obligatorio.',

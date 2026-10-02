@@ -7,11 +7,13 @@ import { withTenant } from '@limon/database';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { createContainer } from '../../src/infrastructure/container.js';
+import { createTestFoods } from './test-foods.js';
 
 const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', SQS_JOBS_QUEUE_URL: '' });
 const c = createContainer(env);
 let app: Awaited<ReturnType<typeof buildApp>>;
 let ip = 0;
+let testFoods: Awaited<ReturnType<typeof createTestFoods>>;
 
 const appKey = 'maria-nutrition-ios';
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -24,7 +26,7 @@ const consent = {
 };
 const answers = {
   sex: 'FEMALE', dateOfBirth: '1990-05-20', heightCm: 162, weightKg: 68.4,
-  activityLevel: 'LIGHT', mealsPerDay: 4, allergies: ['milk'], dislikedFoods: ['Hígado'],
+  activityLevel: 'LIGHT', mealsPerDay: 4, allergies: ['milk'],
 };
 
 /** A fresh patient with a profile, so each test deletes its own account. */
@@ -35,7 +37,7 @@ async function signUpPatient(sub: string, email: string) {
     payload: { email, firstName: 'Ana', lastName: 'Borrar', ...consent },
   });
   expect(signup.statusCode).toBe(201);
-  expect((await app.inject({ method: 'PUT', url: '/api/v1/patients/me/profile', headers, payload: answers })).statusCode).toBe(200);
+  expect((await app.inject({ method: 'PUT', url: '/api/v1/patients/me/profile', headers, payload: { ...answers, dislikedFoodIds: testFoods.foods.map((f) => f.id) } })).statusCode).toBe(200);
   return { headers, patientId: signup.json().patientId as string };
 }
 
@@ -43,8 +45,10 @@ const scoped = async <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(
 
 beforeAll(async () => {
   app = await buildApp(c);
+  testFoods = await createTestFoods('test-deletion', ['Hígado (prueba)']);
 });
 afterAll(async () => {
+  await testFoods.cleanup();
   await app.close();
   await c.db.disconnect();
 });
@@ -57,17 +61,19 @@ describe('account deletion', () => {
     const res = await app.inject({ method: 'DELETE', url: '/api/v1/patients/me', headers });
     expect(res.statusCode).toBe(204);
 
-    const { patient, profile, consents, user, audit } = await scoped(async (tx) => {
+    const { patient, profile, dislikedFoods, consents, user, audit } = await scoped(async (tx) => {
       const patient = await tx.patient.findUniqueOrThrow({ where: { id: patientId } });
       return {
         patient,
         profile: await tx.patientProfile.findFirst({ where: { tenantId, patientId } }),
+        dislikedFoods: await tx.patientDislikedFood.findMany({ where: { tenantId, patientId } }),
         consents: await tx.patientConsent.findMany({ where: { tenantId, patientId } }),
         user: await tx.user.findUniqueOrThrow({ where: { id: patient.userId! } }),
         audit: await tx.auditLog.findFirst({ where: { tenantId, action: 'PatientDeleted', resourceId: patientId } }),
       };
     });
     expect(profile).toBeNull();
+    expect(dislikedFoods).toEqual([]);
     expect(patient).toMatchObject({ firstName: '', lastName: '', email: null, dateOfBirth: null });
     expect(patient.deletedAt).not.toBeNull();
     expect(user).toMatchObject({ status: 'DISABLED', email: `deleted+${user.id}@deleted.invalid` });

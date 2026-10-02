@@ -7,12 +7,14 @@ import { withTenant } from '@limon/database';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { createContainer } from '../../src/infrastructure/container.js';
+import { createTestFoods } from './test-foods.js';
 
 const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', SQS_JOBS_QUEUE_URL: '' });
 const c = createContainer(env);
 let app: Awaited<ReturnType<typeof buildApp>>;
 let tenantId: string;
 let headers: Record<string, string>;
+let testFoods: Awaited<ReturnType<typeof createTestFoods>>;
 
 const url = '/api/v1/patients/me/profile';
 const answers = {
@@ -23,8 +25,9 @@ const answers = {
   activityLevel: 'LIGHT',
   mealsPerDay: 4,
   allergies: ['milk'],
-  dislikedFoods: ['Hígado'],
 };
+/** The PUT body: `answers` plus disliked foods picked from the catalog. */
+let payload: typeof answers & { dislikedFoodIds: string[] };
 
 /** Back to the seeded state: no profile, no birth date. */
 async function resetProfile() {
@@ -40,9 +43,13 @@ beforeAll(async () => {
   headers = { authorization: `Bearer ${await c.devVerifier!.issue('dev|patient|maria-nutrition')}`, 'x-app-key': 'maria-nutrition-ios' };
   tenantId = (await app.inject({ url: '/api/v1/auth/me', headers })).json().tenant.id;
   await resetProfile();
+  // Listed in the opposite order to how they sort by name.
+  testFoods = await createTestFoods('test-profile', ['Hígado (prueba)', 'Brócoli (prueba)']);
+  payload = { ...answers, dislikedFoodIds: testFoods.foods.map((f) => f.id) };
 });
 afterAll(async () => {
   await resetProfile();
+  await testFoods.cleanup();
   await app.close();
   await c.db.disconnect();
 });
@@ -55,17 +62,32 @@ describe('patient profile', () => {
   });
 
   it('saves the questionnaire and reads it back, birth date included', async () => {
-    const put = await app.inject({ method: 'PUT', url, headers, payload: answers });
+    const [higado, brocoli] = testFoods.foods;
+    const put = await app.inject({ method: 'PUT', url, headers, payload });
     expect(put.statusCode).toBe(200);
-    expect(put.json().profile).toMatchObject({ ...answers, pregnantOrBreastfeeding: false });
+    // Disliked foods come back with their names, sorted by name.
+    expect(put.json().profile).toMatchObject({ ...answers, pregnantOrBreastfeeding: false, dislikedFoods: [brocoli, higado] });
 
     const get = await app.inject({ url, headers });
-    expect(get.json().profile).toMatchObject(answers);
+    expect(get.json().profile).toMatchObject({ ...answers, dislikedFoods: [brocoli, higado] });
   });
 
-  it('a second save replaces the whole profile', async () => {
-    const res = await app.inject({ method: 'PUT', url, headers, payload: { ...answers, weightKg: 66, allergies: [] } });
-    expect(res.json().profile).toMatchObject({ weightKg: 66, allergies: [], dislikedFoods: ['Hígado'] });
+  it('a second save replaces the whole profile, disliked foods included', async () => {
+    const [higado] = testFoods.foods;
+    const res = await app.inject({ method: 'PUT', url, headers, payload: { ...payload, weightKg: 66, allergies: [], dislikedFoodIds: [higado!.id] } });
+    expect(res.json().profile).toMatchObject({ weightKg: 66, allergies: [], dislikedFoods: [higado] });
+
+    const cleared = await app.inject({ method: 'PUT', url, headers, payload: { ...payload, dislikedFoodIds: [] } });
+    expect(cleared.json().profile.dislikedFoods).toEqual([]);
+  });
+
+  it('rejects a disliked food that is not in the catalog, keeping the saved profile', async () => {
+    const before = (await app.inject({ url, headers })).json().profile;
+    const unknown = '99999999-9999-4999-8999-999999999999';
+    const res = await app.inject({ method: 'PUT', url, headers, payload: { ...payload, weightKg: 70, dislikedFoodIds: [testFoods.foods[0]!.id, unknown] } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+    expect((await app.inject({ url, headers })).json().profile).toEqual(before);
   });
 
   it('includes the energy target: maintenance until the patient sets a goal', async () => {
@@ -75,13 +97,13 @@ describe('patient profile', () => {
   });
 
   it('holds the target during pregnancy', async () => {
-    const res = await app.inject({ method: 'PUT', url, headers, payload: { ...answers, pregnantOrBreastfeeding: true } });
+    const res = await app.inject({ method: 'PUT', url, headers, payload: { ...payload, pregnantOrBreastfeeding: true } });
     expect(res.json().profile.energyTarget).toEqual({ status: 'CONSULT_NUTRITIONIST', reason: 'PREGNANT_OR_BREASTFEEDING' });
   });
 
   it('rejects invalid answers and ids sent by the client', async () => {
-    for (const payload of [{ ...answers, mealsPerDay: 7 }, { ...answers, tenantId }]) {
-      const res = await app.inject({ method: 'PUT', url, headers, payload });
+    for (const invalid of [{ ...payload, mealsPerDay: 7 }, { ...payload, tenantId }, { ...answers, dislikedFoods: ['Hígado'] }]) {
+      const res = await app.inject({ method: 'PUT', url, headers, payload: invalid });
       expect(res.statusCode).toBe(400);
       expect(res.json().error.code).toBe('VALIDATION_ERROR');
     }
@@ -96,7 +118,7 @@ describe('patient profile', () => {
 
   it('nutritionists have no "me" profile to edit', async () => {
     const nutritionist = { authorization: `Bearer ${await c.devVerifier!.issue('dev|nutritionist|maria-nutrition')}` };
-    const res = await app.inject({ method: 'PUT', url, headers: nutritionist, payload: answers });
+    const res = await app.inject({ method: 'PUT', url, headers: nutritionist, payload });
     expect(res.statusCode).toBe(403);
   });
 });

@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
 import {
-  addDislikedFood, emptyDraft, hasErrors, ONBOARDING_STEPS, stepErrors, toProfileInput, type OnboardingDraft,
+  emptyDraft, hasErrors, ONBOARDING_STEPS, stepErrors, toProfileInput, type OnboardingDraft,
 } from '../../features/onboarding/onboarding-form';
 import { ProfileFields } from '../../features/onboarding/ProfileFields';
 import { t } from '../../i18n/es-MX';
@@ -24,7 +24,6 @@ export function OnboardingScreen() {
   const [stepIndex, setStepIndex] = useState(0);
   // Errors appear only after "Siguiente" is pressed, not while the patient is still typing.
   const [showErrors, setShowErrors] = useState(false);
-  const [dislikeText, setDislikeText] = useState('');
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -43,8 +42,7 @@ export function OnboardingScreen() {
     setShowErrors(false);
     if (!isLast) return setStepIndex((i) => i + 1);
 
-    // A food typed but not yet added with "Agregar" still counts.
-    const input = toProfileInput({ ...draft, dislikedFoods: addDislikedFood(draft.dislikedFoods, dislikeText) });
+    const input = toProfileInput(draft);
     if (!input) return; // Every step was checked on the way here.
     setBusy(true);
     setSaveError(null);
@@ -68,7 +66,7 @@ export function OnboardingScreen() {
         </Text>
         {stepIndex === 0 ? <Text style={{ color: theme.colors.text }}>{t.onboarding.intro}</Text> : null}
 
-        <ProfileFields step={step} draft={draft} update={update} errors={errors} dislikeText={dislikeText} setDislikeText={setDislikeText} />
+        <ProfileFields step={step} draft={draft} update={update} errors={errors} />
 
         <View style={{ marginTop: theme.spacing.md, gap: theme.spacing.sm }}>
           <Button label={busy ? t.onboarding.saving : isLast ? t.onboarding.finish : t.onboarding.next} disabled={busy} onPress={() => void goNext()} />
