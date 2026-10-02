@@ -1,4 +1,4 @@
-import { BiologicalSex, type ActivityLevel, type Allergen } from '@limon/types';
+import { BiologicalSex, type ActivityLevel, type Allergen, type PatientProfileDto } from '@limon/types';
 import { PATIENT_PROFILE_LIMITS as L, type PatientProfileInput } from '@limon/validation';
 import { toDateOnly } from '../../i18n/format';
 
@@ -28,6 +28,25 @@ export const emptyDraft: OnboardingDraft = {
   sex: null, pregnantOrBreastfeeding: false, birthDay: '', birthMonth: '', birthYear: '',
   heightCm: '', weightKg: '', activityLevel: null, mealsPerDay: null, allergies: [], dislikedFoods: [],
 };
+
+/** A saved profile as an editable draft (the profile screen's edit form). */
+export function draftFromProfile(profile: PatientProfileDto): OnboardingDraft {
+  const [year = '', month = '', day = ''] = profile.dateOfBirth.split('-');
+  return {
+    sex: profile.sex,
+    pregnantOrBreastfeeding: profile.pregnantOrBreastfeeding,
+    // "05" → "5": what the patient would have typed.
+    birthDay: String(Number(day)),
+    birthMonth: String(Number(month)),
+    birthYear: year,
+    heightCm: String(profile.heightCm),
+    weightKg: String(profile.weightKg),
+    activityLevel: profile.activityLevel,
+    mealsPerDay: profile.mealsPerDay,
+    allergies: profile.allergies,
+    dislikedFoods: profile.dislikedFoods,
+  };
+}
 
 export type DraftField = 'sex' | 'dateOfBirth' | 'heightCm' | 'weightKg' | 'activityLevel' | 'mealsPerDay';
 export type FieldError = 'required' | 'invalidDate' | 'futureDate' | 'outOfRange';
@@ -83,6 +102,11 @@ export function stepErrors(step: OnboardingStep, draft: OnboardingDraft, today =
     // Allergies and disliked foods are optional.
   }
   return errors;
+}
+
+/** Every step's errors at once, for the edit form that shows all fields together. */
+export function formErrors(draft: OnboardingDraft, today = new Date()): StepErrors {
+  return Object.assign({}, ...ONBOARDING_STEPS.map((step) => stepErrors(step, draft, today))) as StepErrors;
 }
 
 export const hasErrors = (errors: StepErrors) => Object.keys(errors).length > 0;

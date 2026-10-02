@@ -93,6 +93,8 @@ export function createApiClient(opts: ApiClientOptions) {
       myProfile: () => request<PatientProfileResponse>('GET', '/patients/me/profile'),
       /** Onboarding and profile edits: always the whole questionnaire. */
       saveMyProfile: (input: PatientProfileInput) => request<PatientProfileResponse>('PUT', '/patients/me/profile', input),
+      /** Erases the patient's data. The Cognito login is deleted separately by the app. */
+      deleteMyAccount: () => request<void>('DELETE', '/patients/me'),
     },
   };
 }

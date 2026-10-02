@@ -38,4 +38,26 @@ export const patientsRepository = {
       update: fields,
     });
   },
+
+  /**
+   * Account deletion: erases the health data and anonymizes what has to stay. The patient
+   * row itself is kept because consents and subscriptions reference it (legal and financial
+   * records). The user's email and Cognito id are replaced, so the same email can sign up again.
+   */
+  deleteAccount: async (tx: TenantTx, tenantId: string, patientId: string, userId: string) => {
+    const now = new Date();
+    await tx.patientProfile.deleteMany({ where: { tenantId, patientId } });
+    await tx.mealPlan.deleteMany({ where: { tenantId, patientId } });
+    await tx.conversation.deleteMany({ where: { tenantId, patientId } }); // messages cascade
+    await tx.tenantInviteCode.updateMany({ where: { tenantId, patientId }, data: { active: false } });
+    await tx.patientConsent.updateMany({ where: { tenantId, patientId, revokedAt: null }, data: { revokedAt: now } });
+    await tx.patient.update({
+      where: { tenantId_id: { tenantId, id: patientId } },
+      data: { firstName: '', lastName: '', email: null, dateOfBirth: null, deletedAt: now },
+    });
+    await tx.user.update({
+      where: { tenantId_id: { tenantId, id: userId } },
+      data: { email: `deleted+${userId}@deleted.invalid`, cognitoUserId: `deleted:${userId}`, status: 'DISABLED', deletedAt: now },
+    });
+  },
 };

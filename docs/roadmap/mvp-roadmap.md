@@ -86,7 +86,15 @@ Close the blockers first so nothing stalls later.
   - Maximum surplus: **+20% of maintenance** (bulk) for weight gain.
   - No automatic target, only a "consult your nutritionist" message, for **under-18s**, **pregnancy or breastfeeding**, weight loss while **underweight (BMI < 18.5)**, and when maintenance is already below the floor.
   - Nutritionists can't loosen these per tenant: plans are generated with no professional review in the MVP (Risk 3). A per-patient override comes with the dashboard; letting a tenant *tighten* them later fits in `tenant_features.config` without a migration.
-- [ ] Profile screen: edit data, sign out, delete account (ARCO: an email-based request process is enough for the MVP).
+- [x] Profile screen: shows the energy target and the questionnaire answers, edits them (same fields and checks as onboarding), sign out, delete account. Also reachable from the paywall, so an unpaid patient can delete their account too.
+- [x] **Account deletion in the app** (`DELETE /patients/me`). Required by both stores: Apple 5.1.1(v) (an account created in the app must be deletable from the app; "email us" isn't accepted outside highly regulated industries) and Google Play (in-app deletion plus a public web URL to request it). Mexican law (LFPDPPP, ARCO rights) alone would accept an email request, but the stores don't.
+  - Erases the health data (profile, meal plans, conversations), anonymizes the patient and user rows, revokes the consents, and frees the email so it can sign up again. Consent records and `PatientSubscription` rows stay (legal and financial records, `onDelete: Restrict`).
+  - Works without a subscription (`SELF_PATIENT_WRITE`, like profile edits). Patients of a suspended tenant can't reach the API at all, so they use the web or email request below.
+  - The app then deletes the Cognito user with the patient's own access token (Cognito `DeleteUser`), so the API needs no Cognito admin permissions. If that call fails, the Cognito login is left over but leads to no data; an admin cleanup comes with the `production` environment.
+  - The other ARCO rights (access, rectification, opposition) stay manual by email for the MVP; the privacy notice (week 8) gives the address. Rectification is also covered by profile editing.
+  - **Week 7:** cancel the patient's Stripe subscription when they delete their account.
+  - **Week 8:** publish the web page (or email address) for deletion requests and enter it in Google Play's Data safety form.
+  - **Before launch:** ask a lawyer whether clinical-record retention (NOM-004-SSA3-2012) applies to the nutritionist's records. If it does, keep what it requires (anonymized or locked) instead of erasing it.
 
 **Done when:** a new patient finishes onboarding and has a daily kcal and macro target.
 
