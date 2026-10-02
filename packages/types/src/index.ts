@@ -203,6 +203,52 @@ export const Allergen = {
 } as const;
 export type Allergen = (typeof Allergen)[keyof typeof Allergen];
 
+/** Meal slots a recipe can fill. */
+export const MealType = { BREAKFAST: 'BREAKFAST', LUNCH: 'LUNCH', DINNER: 'DINNER', SNACK: 'SNACK' } as const;
+export type MealType = (typeof MealType)[keyof typeof MealType];
+
+/**
+ * Food groups of the Sistema Mexicano de Alimentos Equivalentes (SMAE), 5th ed. v2.0.
+ * Food swaps stay within one group. The Spanish names are in the Prisma schema.
+ */
+export const SmaeGroup = {
+  VEGETABLES: 'VEGETABLES',
+  FRUITS: 'FRUITS',
+  CEREALS_FAT_FREE: 'CEREALS_FAT_FREE',
+  CEREALS_WITH_FAT: 'CEREALS_WITH_FAT',
+  LEGUMES: 'LEGUMES',
+  ANIMAL_VERY_LOW_FAT: 'ANIMAL_VERY_LOW_FAT',
+  ANIMAL_LOW_FAT: 'ANIMAL_LOW_FAT',
+  ANIMAL_MODERATE_FAT: 'ANIMAL_MODERATE_FAT',
+  ANIMAL_HIGH_FAT: 'ANIMAL_HIGH_FAT',
+  MILK_SKIM: 'MILK_SKIM',
+  MILK_SEMI_SKIM: 'MILK_SEMI_SKIM',
+  MILK_WHOLE: 'MILK_WHOLE',
+  MILK_WITH_SUGAR: 'MILK_WITH_SUGAR',
+  FATS_WITHOUT_PROTEIN: 'FATS_WITHOUT_PROTEIN',
+  FATS_WITH_PROTEIN: 'FATS_WITH_PROTEIN',
+  SUGARS_FAT_FREE: 'SUGARS_FAT_FREE',
+  SUGARS_WITH_FAT: 'SUGARS_WITH_FAT',
+  FREE_FOODS: 'FREE_FOODS',
+  ALCOHOLIC_BEVERAGES: 'ALCOHOLIC_BEVERAGES',
+} as const;
+export type SmaeGroup = (typeof SmaeGroup)[keyof typeof SmaeGroup];
+
+/** Shopping list sections, the way people shop in Mexico. */
+export const ShoppingCategory = {
+  PRODUCE: 'PRODUCE',
+  MEAT_FISH: 'MEAT_FISH',
+  DAIRY_EGGS: 'DAIRY_EGGS',
+  BAKERY: 'BAKERY',
+  GROCERY: 'GROCERY',
+  NUTS_SEEDS: 'NUTS_SEEDS',
+} as const;
+export type ShoppingCategory = (typeof ShoppingCategory)[keyof typeof ShoppingCategory];
+
+/** Display unit of an ingredient quantity. Every ingredient also has its weight in grams. */
+export const IngredientUnit = { G: 'G', ML: 'ML', PIECE: 'PIECE', CUP: 'CUP', TBSP: 'TBSP', TSP: 'TSP' } as const;
+export type IngredientUnit = (typeof IngredientUnit)[keyof typeof IngredientUnit];
+
 /** Why a patient gets no automatic energy target and is sent to their nutritionist instead. */
 export const EnergyTargetHoldReason = {
   MINOR: 'MINOR',

@@ -139,6 +139,67 @@ enum UserStatus {
   DISABLED
 }
 
+/// Meal slots a recipe can fill. A recipe can fit several (e.g. a salad for lunch or dinner).
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+/// Food groups of the Sistema Mexicano de Alimentos Equivalentes (SMAE), 5th ed. v2.0.
+/// Swaps only happen within the same group. Spanish names from the book:
+///   VEGETABLES = Verduras · FRUITS = Frutas
+///   CEREALS_FAT_FREE / CEREALS_WITH_FAT = Cereales y tubérculos sin / con grasa
+///   LEGUMES = Leguminosas
+///   ANIMAL_VERY_LOW_FAT … ANIMAL_HIGH_FAT = Alimentos de origen animal de muy bajo / bajo / moderado / alto aporte de grasa
+///   MILK_SKIM / MILK_SEMI_SKIM / MILK_WHOLE / MILK_WITH_SUGAR = Leche descremada / semidescremada / entera / con azúcar
+///   FATS_WITHOUT_PROTEIN / FATS_WITH_PROTEIN = Aceites y grasas sin / con proteína
+///   SUGARS_FAT_FREE / SUGARS_WITH_FAT = Azúcares sin / con grasa
+///   FREE_FOODS = Alimentos libres de energía · ALCOHOLIC_BEVERAGES = Bebidas alcohólicas
+enum SmaeGroup {
+  VEGETABLES
+  FRUITS
+  CEREALS_FAT_FREE
+  CEREALS_WITH_FAT
+  LEGUMES
+  ANIMAL_VERY_LOW_FAT
+  ANIMAL_LOW_FAT
+  ANIMAL_MODERATE_FAT
+  ANIMAL_HIGH_FAT
+  MILK_SKIM
+  MILK_SEMI_SKIM
+  MILK_WHOLE
+  MILK_WITH_SUGAR
+  FATS_WITHOUT_PROTEIN
+  FATS_WITH_PROTEIN
+  SUGARS_FAT_FREE
+  SUGARS_WITH_FAT
+  FREE_FOODS
+  ALCOHOLIC_BEVERAGES
+}
+
+/// Shopping list sections, the way people shop in Mexico.
+enum ShoppingCategory {
+  PRODUCE // Frutas y verduras
+  MEAT_FISH // Carnes y pescados
+  DAIRY_EGGS // Lácteos y huevo
+  BAKERY // Panadería y tortillería
+  GROCERY // Abarrotes
+  NUTS_SEEDS // Semillas
+}
+
+/// The unit an ingredient quantity is written in, for display. Every ingredient also
+/// stores its weight in grams, which is what portions, swaps and the shopping list use.
+enum IngredientUnit {
+  G
+  ML
+  PIECE
+  CUP
+  TBSP
+  TSP
+}
+
 // ── Platform / tenancy ───────────────────────────────────────────────────────
 
 model Tenant {
@@ -164,7 +225,7 @@ model Tenant {
   nutritionists         Nutritionist[]
   patients              Patient[]
   recipes               Recipe[]
-  foods                 Food[]
+  recipeIngredients     RecipeIngredient[]
   mealPlans             MealPlan[]
   protocols             Protocol[]
   conversations         Conversation[]
@@ -396,7 +457,7 @@ model PatientProfile {
   pregnantOrBreastfeeding Boolean       @default(false) @map("pregnant_or_breastfeeding")
   /// @limon/types Allergen keys, stored as text so the list can grow without a migration.
   allergies               String[]      @default([])
-  /// TODO(week 3, see docs/roadmap/mvp-roadmap.md): free text for now; replace with Food references once the catalog exists.
+  /// TODO(week 3, see docs/roadmap/mvp-roadmap.md): free text for now; replace with Food references (foods.id).
   dislikedFoods           String[]      @default([]) @map("disliked_foods")
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")
@@ -409,34 +470,139 @@ model PatientProfile {
   @@map("patient_profiles")
 }
 
-// ── Nutrition domain (placeholders — no business logic yet) ──────────────────
+// ── Nutrition domain ─────────────────────────────────────────────────────────
+//
+// Food and the default recipe library are platform reference data: shared by every
+// tenant, no tenant_id, no RLS, read-only for the app role (curated by our team with
+// the owner role). Each tenant gets its own editable copy of the default recipes.
+//
+// FatSecret's terms only let us store its ids, so no nutrient value is stored here:
+// macros are computed on demand from fatsecret_food_cache (≤ 24 h) and the grams below.
 
+/// A food in the platform catalog, curated by our team from FatSecret (MX) and the SMAE book
+/// (private/foods.csv, loaded with `pnpm --filter @limon/database admin foods`).
+model Food {
+  id                 String           @id @default(uuid()) @db.Uuid
+  /// Stable curation key from the CSV (e.g. "jitomate"). Re-imports match on it, and recipe imports refer to foods by it.
+  key                String           @unique
+  /// Spanish display name, written by us (not FatSecret's).
+  name               String
+  fatsecretFoodId    String           @map("fatsecret_food_id")
+  /// The FatSecret serving the nutrients are read from. Its size in grams comes with the
+  /// food from FatSecret (cached ≤ 24 h), so it isn't stored here.
+  fatsecretServingId String           @map("fatsecret_serving_id")
+  /// SMAE group and the grams of this food in one equivalent, entered by hand from the book.
+  /// Both null for foods SMAE doesn't list (e.g. garlic); those can't be swapped.
+  smaeGroup          SmaeGroup?       @map("smae_group")
+  gramsPerEquivalent Float?           @map("grams_per_equivalent")
+  shoppingCategory   ShoppingCategory @map("shopping_category")
+  /// @limon/types Allergen keys this food contains, matched against patient_profiles.allergies.
+  allergens          String[]         @default([])
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  recipeIngredients        RecipeIngredient[]
+  defaultRecipeIngredients DefaultRecipeIngredient[]
+
+  @@index([fatsecretFoodId])
+  @@index([smaeGroup])
+  @@map("foods")
+}
+
+/// The platform's default recipe library. Copied into each tenant's `recipes` when the
+/// tenant is created; later changes here never touch those copies.
+model DefaultRecipe {
+  id           String     @id @default(uuid()) @db.Uuid
+  title        String
+  description  String?
+  mealTypes    MealType[] @map("meal_types")
+  servings     Int
+  totalMinutes Int?       @map("total_minutes")
+  /// S3 object key of the photo.
+  imageKey     String?    @map("image_key")
+  tags         String[]   @default([])
+  steps        String[]   @default([])
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  ingredients DefaultRecipeIngredient[]
+  copies      Recipe[]
+
+  @@map("default_recipes")
+}
+
+model DefaultRecipeIngredient {
+  id              String         @id @default(uuid()) @db.Uuid
+  defaultRecipeId String         @map("default_recipe_id") @db.Uuid
+  foodId          String         @map("food_id") @db.Uuid
+  /// Order in the recipe.
+  position        Int
+  quantity        Float
+  unit            IngredientUnit
+  /// The quantity in grams, for the whole recipe (all servings).
+  grams           Float
+  /// e.g. "picado", "sin semillas".
+  note            String?
+
+  defaultRecipe DefaultRecipe @relation(fields: [defaultRecipeId], references: [id], onDelete: Cascade)
+  food          Food          @relation(fields: [foodId], references: [id], onDelete: Restrict)
+
+  @@unique([defaultRecipeId, position])
+  @@index([foodId])
+  @@map("default_recipe_ingredients")
+}
+
+/// A tenant's recipe: a copy of a default recipe (possibly edited) or one of their own.
 model Recipe {
-  id          String   @id @default(uuid()) @db.Uuid
-  tenantId    String   @map("tenant_id") @db.Uuid
-  title       String
-  description String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                    String     @id @default(uuid()) @db.Uuid
+  tenantId              String     @map("tenant_id") @db.Uuid
+  /// The default recipe this was copied from, for traceability. Null for the tenant's own.
+  sourceDefaultRecipeId String?    @map("source_default_recipe_id") @db.Uuid
+  title                 String
+  description           String?
+  mealTypes             MealType[] @map("meal_types")
+  servings              Int
+  totalMinutes          Int?       @map("total_minutes")
+  /// S3 object key of the photo.
+  imageKey              String?    @map("image_key")
+  tags                  String[]   @default([])
+  steps                 String[]   @default([])
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sourceDefaultRecipe DefaultRecipe?     @relation(fields: [sourceDefaultRecipeId], references: [id], onDelete: SetNull)
+  ingredients         RecipeIngredient[]
 
   @@unique([tenantId, id])
+  @@unique([tenantId, sourceDefaultRecipeId])
   @@map("recipes")
 }
 
-/// Tenant-private foods. A global reference food DB (tenant_id NULL) is deferred.
-model Food {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @map("tenant_id") @db.Uuid
-  name      String
-  createdAt DateTime @default(now()) @map("created_at")
+model RecipeIngredient {
+  id       String         @id @default(uuid()) @db.Uuid
+  tenantId String         @map("tenant_id") @db.Uuid
+  recipeId String         @map("recipe_id") @db.Uuid
+  foodId   String         @map("food_id") @db.Uuid
+  /// Order in the recipe.
+  position Int
+  quantity Float
+  unit     IngredientUnit
+  /// The quantity in grams, for the whole recipe (all servings).
+  grams    Float
+  /// e.g. "picado", "sin semillas".
+  note     String?
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  recipe Recipe @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Cascade)
+  food   Food   @relation(fields: [foodId], references: [id], onDelete: Restrict)
 
-  @@unique([tenantId, id])
-  @@map("foods")
+  @@unique([tenantId, recipeId, position])
+  @@index([foodId])
+  @@map("recipe_ingredients")
 }
+
+// ── Placeholders (tables exist, no business logic yet) ───────────────────────
 
 model MealPlan {
   id        String    @id @default(uuid()) @db.Uuid

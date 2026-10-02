@@ -1,14 +1,17 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ActivityLevel, AppPlatform, BiologicalSex, DatabaseMode, TenantAppStatus, TenantStatus, UserRole } from '@limon/types';
+import {
+  ActivityLevel, AppPlatform, BiologicalSex, DatabaseMode, IngredientUnit, MealType, ShoppingCategory, SmaeGroup, TenantAppStatus,
+  TenantStatus, UserRole,
+} from '@limon/types';
 
 const schema = readFileSync(fileURLToPath(new URL('../../prisma/schema.prisma', import.meta.url)), 'utf8');
 
 function prismaEnum(name: string): string[] {
   const m = schema.match(new RegExp(`enum ${name} \\{([^}]*)\\}`));
   if (!m) throw new Error(`enum ${name} not found`);
-  return m[1]!.split('\n').map((l) => l.trim()).filter(Boolean).sort();
+  return m[1]!.split('\n').map((l) => l.replace(/\/\/.*$/, '').trim()).filter(Boolean).sort();
 }
 
 describe('@limon/types ↔ Prisma enum parity', () => {
@@ -20,6 +23,10 @@ describe('@limon/types ↔ Prisma enum parity', () => {
     ['DatabaseMode', DatabaseMode],
     ['BiologicalSex', BiologicalSex],
     ['ActivityLevel', ActivityLevel],
+    ['MealType', MealType],
+    ['SmaeGroup', SmaeGroup],
+    ['ShoppingCategory', ShoppingCategory],
+    ['IngredientUnit', IngredientUnit],
   ])('%s matches', (name, values) => {
     expect(prismaEnum(name)).toEqual(Object.values(values).sort());
   });

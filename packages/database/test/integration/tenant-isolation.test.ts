@@ -33,7 +33,7 @@ describe('RLS tenant isolation', () => {
   it('tenant A cannot insert rows tagged with tenant B', async () => {
     await expect(
       withTenant(router, await registry.getPlacement(A), (tx) =>
-        tx.recipe.create({ data: { tenantId: B, title: 'smuggled' } }),
+        tx.recipe.create({ data: { tenantId: B, title: 'smuggled', mealTypes: ['LUNCH'], servings: 1 } }),
       ),
     ).rejects.toThrow(/row-level security/);
   });
@@ -48,6 +48,18 @@ describe('RLS tenant isolation', () => {
   it('with no tenant set, tenant-owned tables return nothing', async () => {
     const rows = await router.controlPlane().patient.findMany();
     expect(rows).toHaveLength(0);
+  });
+
+  it('the shared food catalog and default recipes are read-only for the app role', async () => {
+    const tx = router.controlPlane();
+    await expect(tx.food.findMany()).resolves.toBeDefined();
+    await expect(
+      tx.food.create({
+        data: { key: 'x', name: 'x', fatsecretFoodId: 'x', fatsecretServingId: 'x', shoppingCategory: 'GROCERY' },
+      }),
+    ).rejects.toThrow(/permission denied/);
+    await expect(tx.defaultRecipe.deleteMany({})).rejects.toThrow(/permission denied/);
+    await expect(tx.defaultRecipeIngredient.deleteMany({})).rejects.toThrow(/permission denied/);
   });
 
   it('audit logs are append-only for the app role', async () => {

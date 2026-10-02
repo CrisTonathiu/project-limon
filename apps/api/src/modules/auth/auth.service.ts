@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { VerifiedPrincipal } from '@limon/auth';
-import { resolveIdentity, resolveTenantApp, withTenant, writeAudit } from '@limon/database';
+import { copyDefaultRecipes, resolveIdentity, resolveTenantApp, withTenant, writeAudit } from '@limon/database';
 import { effectiveFeatures, type TenantContext } from '@limon/tenant';
 import type { MeResponse, RegisterNutritionistResponse, RegisterPatientResponse } from '@limon/types';
 import type { RegisterNutritionistInput, RegisterPatientInput } from '@limon/validation';
@@ -15,7 +15,8 @@ export function createAuthService(c: Container) {
     /**
      * Nutritionist signup. Precondition: the user already has a verified Cognito identity.
      * Creates Tenant + Branding + User + Nutritionist + TenantApps atomically — a
-     * nutritionist can never exist without a tenant.
+     * nutritionist can never exist without a tenant — and gives the tenant its own copy
+     * of the default recipe library in the same transaction.
      */
     async registerNutritionist(principal: VerifiedPrincipal, input: RegisterNutritionistInput, requestId: string): Promise<RegisterNutritionistResponse> {
       if (await resolveIdentity(c.db, principal.subject)) throw Errors.conflict('This account is already registered.');
@@ -30,6 +31,8 @@ export function createAuthService(c: Container) {
         const ctx = { tenantId, userId: r.user.id, requestId };
         await writeAudit(tx, ctx, { action: 'TenantCreated', resourceType: 'Tenant', resourceId: tenantId });
         await writeAudit(tx, ctx, { action: 'NutritionistRegistered', resourceType: 'Nutritionist', resourceId: r.nutritionist.id });
+        const recipesCopied = await copyDefaultRecipes(tx, tenantId);
+        await writeAudit(tx, ctx, { action: 'DefaultRecipesCopied', resourceType: 'Tenant', resourceId: tenantId, metadata: { recipesCopied } });
         return { userId: r.user.id, tenantId, nutritionistId: r.nutritionist.id, tenantAppIds: r.apps.map((a) => a.id) };
       });
     },

@@ -11,13 +11,15 @@ Aurora PostgreSQL (16), shared cluster, Prisma ORM. Local: `docker compose` Post
 
 ## Entities (foundation)
 Implemented: `Tenant`, `TenantBranding`, `TenantApp`, `TenantStoreAccount`, `TenantLifecycleEvent`, `User`, `Nutritionist`, `Patient`, `PatientConsent`, `PatientSubscription` (entitlement only), `AuditLog`.
-Placeholders (tables exist, no logic): `Recipe`, `Food`, `MealPlan`, `Protocol`, `Conversation`, `Message`, `PlatformSubscription`, `Payment`, `PaymentTransaction`.
+Recipe catalog (schema only, week 3): `Food`, `DefaultRecipe`, `DefaultRecipeIngredient` (platform reference data), `Recipe`, `RecipeIngredient` (tenant-owned).
+Placeholders (tables exist, no logic): `MealPlan`, `Protocol`, `Conversation`, `Message`, `PlatformSubscription`, `Payment`, `PaymentTransaction`.
 
 ## Data classes and deletion behaviour
 | Class | Tables | FK on delete | Tenant deletion |
 |---|---|---|---|
 | Platform | `tenants`, `tenant_apps`, `tenant_lifecycle_events` | RESTRICT | tombstone (status `DELETED`) |
-| Operational (user-owned) | patients, meal_plans, conversations, messages, recipes, foods, protocols | CASCADE only *within* a patient's subtree (patient → meal plans/conversations → messages) | hard delete / anonymize |
+| Platform reference | foods, default_recipes, default_recipe_ingredients (no tenant_id, no RLS; `SELECT` only for `limon_app`, curated with the owner role) | RESTRICT from ingredients to foods | untouched |
+| Operational (user-owned) | patients, meal_plans, conversations, messages, recipes, recipe_ingredients, protocols | CASCADE only *within* a patient's subtree (patient → meal plans/conversations → messages) | hard delete / anonymize |
 | Financial | platform_subscriptions, patient_subscriptions, payments, payment_transactions | RESTRICT | retained per legal retention, PII stripped |
 | Audit | audit_logs | no user FK; RESTRICT to tenant | retained; contains no health data |
 | Legal | patient_consents | RESTRICT | retained as proof of consent (DELETE revoked for the app role) |
@@ -39,6 +41,7 @@ route → service(TenantContext) → withTenant(router, placement, tx => reposit
 - `0002_rls` hand-written: policies, resolver functions, grants.
 - `0003_patient_access`: consent, store accounts, provider-agnostic patient subscriptions.
 - `0004_rls_patient_access`: policies and grants for those tables.
+- `0009_recipe_catalog`: global food catalog and default recipe library (read-only for the app role), tenant recipes and ingredients (RLS).
 - Unit test scans **all** migrations and asserts every model with `tenantId` is covered by an RLS policy, and that Prisma enums match `@limon/types`.
 - When adding a tenant-owned table: add it to an RLS migration or the test fails.
 
