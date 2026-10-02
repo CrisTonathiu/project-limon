@@ -3,6 +3,7 @@
  * Runs as the owner role (DATABASE_MIGRATION_URL), which is not subject to RLS.
  */
 import { PrismaClient } from '../generated/client/index.js';
+import { copyDefaultRecipes } from '../src/recipes.js';
 
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_MIGRATION_URL! } } });
 
@@ -70,6 +71,8 @@ async function main() {
       update: invited.userId ? {} : { active: true, redeemedAt: null, expiresAt: null },
       create: { tenantId: t.id, patientId: invited.id, code: t.inviteCode },
     });
+    // Same as at sign-up. Only copies default recipes the tenant doesn't have yet.
+    await copyDefaultRecipes(prisma, t.id);
   }
   for (const t of tenants) {
     console.log(`Seeded ${t.slug}: ${t.inviteOnly ? 'INVITE ONLY' : 'OPEN'}, invite code ${t.inviteCode}`);

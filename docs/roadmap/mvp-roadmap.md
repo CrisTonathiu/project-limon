@@ -102,13 +102,15 @@ Close the blockers first so nothing stalls later.
 
 Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s.
 
-- [ ] Data model — **only what we may store** (see [Nutrition data](#nutrition-data-fatsecret--smae)):
-  - `Food`: our own id, Spanish display name we write ourselves, FatSecret `food_id` + default `serving_id`, grams per serving, **SMAE group and grams per equivalent** (from the book), shopping category. **No nutrient values.**
-  - `Recipe`: meal types (breakfast / lunch / dinner / snack), servings, time, image, tags.
-  - `RecipeIngredient`: food, quantity, unit (converted to grams).
+- [x] Data model — **only what we may store** (see [Nutrition data](#nutrition-data-fatsecret--smae)), migration `0009_recipe_catalog`:
+  - `Food`: **global** (one catalog for every tenant, read-only for the app role). Our own id and curation `key`, Spanish display name we write ourselves, FatSecret `food_id` + default `serving_id` (its size in grams comes from FatSecret with the nutrients, so it isn't stored), **SMAE group and grams per equivalent** (from the book; both empty for foods SMAE doesn't list, which can't be swapped), shopping category (the six Mexican sections: frutas y verduras, carnes y pescados, lácteos y huevo, panadería y tortillería, abarrotes, semillas), and the NOM-051 allergens it contains (for week 4's allergy filter). **No nutrient values.**
+  - `Recipe`: meal types (breakfast / lunch / dinner / snack, at least one), servings, total time, image key, tags, steps, `source_default_recipe_id`.
+  - `RecipeIngredient`: food, quantity, display unit, and the weight in grams for the whole recipe (what portions, swaps and the shopping list use).
+  - `DefaultRecipe` / `DefaultRecipeIngredient`: the global library, same shape, read-only for the app role.
 - [x] **Nutrition service** (`modules/foods`): FatSecret client (OAuth 2.0 token reuse, `foods.search` v1 / `food.get` v4, `region`/`language` when on Premier) and the **shared Postgres cache** `fatsecret_food_cache`: every API task and the worker share it, rows expire and are deleted 24 h after fetch, and the worker refreshes foods older than 6 h every 15 min. A FatSecret outage of up to ~18 h, or a restart, doesn't affect lookups. Calls scale with distinct foods (~300 → ~1,200/day), not patients. Recipe macros are computed on demand, never stored.
-- [ ] **Global library + copy-on-provision:** add `default_recipes` (not tenant-scoped, read-only). When a tenant is created, copy it into tenant-scoped `recipes` with `source_default_recipe_id` kept for traceability.
-- [ ] Curation script: FatSecret search (MX) → pick the food and serving → save the IDs and grams; the SMAE group and grams per equivalent are entered by hand from the book.
+- [x] **Global library + copy-on-provision:** `default_recipes` exists (data model above). Nutritionist sign-up copies it into tenant-scoped `recipes` with `source_default_recipe_id` kept for traceability, in the same transaction (`copyDefaultRecipes` in `@limon/database`, also run by the seed). Recipes added to the library later reach an existing tenant with `pnpm --filter @limon/database admin recipes <slug>`, which copies only what the tenant doesn't have and never touches its edits.
+- [x] Curation script: FatSecret search (MX) → pick the food and serving → save the IDs; the SMAE group and grams per equivalent are entered by hand from the book. The curated list is `private/foods.csv` (git-ignored): `pnpm --filter @limon/api catalog suggest | review | set` fills and checks the FatSecret ids, and `pnpm --filter @limon/database admin foods` loads it into `foods` (matched on `key`; nothing is written if a row is invalid).
+  - **Before launch:** all 86 matches are still `auto` (confirm each with `catalog review`, then set `match_status` to `checked`), and 83 SMAE rows come from the 4th edition: re-check their grams per equivalent against the 5th. The import warns about both. Re-run the suggest step once FatSecret Premier (MX) is active, since the ids change.
 - [ ] Internal admin API + CSV import to create and edit tenant recipes.
 - [ ] **Link disliked foods to the catalog:** `patient_profiles.disliked_foods` is free text since week 2. Change it to `Food` references (the onboarding and profile screens pick from the catalog), and map existing free-text entries to foods. Week 4's generator filters recipes by these, which can't work on free text.
 - [ ] App: recipe list (filter by meal type) and recipe detail (ingredients, steps, macros), with the FatSecret attribution if the contract requires it.
@@ -181,7 +183,7 @@ The generator is only as good as the catalog. Target **≥ 80 default recipes** 
 |---|---|---|
 | Calories, macros and micronutrients | FatSecret Premier, `region=MX`, `language=es` | **No.** Fetched with `food.get` v4 and cached ≤ 24 h |
 | Food and serving identifiers | FatSecret (`food_id`, `serving_id`) | Yes, indefinitely (allowed) |
-| Spanish display names, grams per serving, shopping category | Written by us during curation | Yes |
+| Spanish display names, shopping category, allergens | Written by us during curation | Yes |
 | SMAE group and grams per equivalent (for swaps) | SMAE 5th ed. v2.0, entered by hand | Yes |
 
 Where to get SMAE: *Sistema Mexicano de Alimentos Equivalentes*, 5th edition (v2.0 updated in 2024 with 88 new foods and a dishes section), by Ana Bertha Pérez Lizaur et al. Sold at El Sótano, Gonvill, Librería León, Librería Científica, Nutritienda MX and Medi-ción (about MX$350–440).

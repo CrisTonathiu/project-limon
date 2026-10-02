@@ -7,11 +7,18 @@
  *   pnpm --filter @limon/database admin features <tenant-slug> --enable invite_only --disable meal_plan
  *   pnpm --filter @limon/database admin invite <tenant-slug> --first-name Ana --last-name López [--email ana@correo.mx] [--days 30]
  *   pnpm --filter @limon/database admin invite <tenant-slug> --patient <patient-id> [--days 30]   (new code for the same patient)
+ *   pnpm --filter @limon/database admin recipes <tenant-slug>   (copy default recipes added to the library since the tenant was created)
+ *   pnpm --filter @limon/database admin foods [csv]   (load the food catalog, default ../../private/foods.csv)
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { effectiveFeatures, generateInviteCode } from '@limon/tenant';
 import { FEATURE_DEPENDENCIES, FeatureKey } from '@limon/types';
 import { PrismaClient } from '../generated/client/index.js';
+import { copyDefaultRecipes } from '../src/recipes.js';
+import { parseCsv } from './csv.js';
+import { parseCatalogRows, SMAE_EDITION, type CatalogFood } from './food-catalog.js';
 
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_MIGRATION_URL! } } });
 const KEYS = Object.values(FeatureKey) as string[];
@@ -120,10 +127,46 @@ async function invite(args: string[]) {
   console.log(`  expires:  ${expiresAt.toISOString().slice(0, 10)} (single use)`);
 }
 
+async function recipes(args: string[]) {
+  const tenant = await tenantBySlug(args[0]);
+  const copied = await prisma.$transaction((tx) => copyDefaultRecipes(tx, tenant.id));
+  if (copied) await audit(tenant.id, 'DefaultRecipesCopied', 'Tenant', tenant.id, { recipesCopied: copied });
+  console.log(copied ? `Copied ${copied} default recipe(s) into ${tenant.name}.` : `${tenant.name} already has every default recipe.`);
+}
+
+/**
+ * Loads the food catalog CSV into `foods` (platform reference data, not tenant data).
+ * Matches on `key`: new keys are created, changed rows updated. Nothing is written if any
+ * row is invalid. Foods missing from the CSV are listed, never deleted (recipes use them).
+ */
+async function foods(args: string[]) {
+  const file = resolve(process.cwd(), args[0] ?? '../../private/foods.csv');
+  const { rows } = parseCsv(readFileSync(file, 'utf8'));
+  const parsed = parseCatalogRows(rows);
+  if (parsed.errors.length) fail(`Nothing imported, fix these rows in ${file}:\n  ${parsed.errors.join('\n  ')}`);
+
+  const fields = (f: CatalogFood) => JSON.stringify([f.name, f.fatsecretFoodId, f.fatsecretServingId, f.smaeGroup, f.gramsPerEquivalent, f.shoppingCategory, [...f.allergens].sort()]);
+  const existing = new Map((await prisma.food.findMany()).map((f) => [f.key, f]));
+  const created = parsed.foods.filter((f) => !existing.has(f.key));
+  const updated = parsed.foods.filter((f) => existing.has(f.key) && fields(existing.get(f.key)! as CatalogFood) !== fields(f));
+  await prisma.$transaction([
+    ...created.map((data) => prisma.food.create({ data })),
+    ...updated.map(({ key, ...data }) => prisma.food.update({ where: { key }, data })),
+  ]);
+
+  console.log(`Food catalog ← ${file}`);
+  console.log(`  ${created.length} created, ${updated.length} updated, ${parsed.foods.length - created.length - updated.length} unchanged`);
+  const keys = new Set(parsed.foods.map((f) => f.key));
+  const missing = [...existing.keys()].filter((k) => !keys.has(k));
+  if (missing.length) console.log(`  ⚠ in the database but not in the CSV (kept): ${missing.join(', ')}`);
+  if (parsed.unchecked.length) console.log(`  ⚠ ${parsed.unchecked.length} FatSecret match(es) not confirmed yet (match_status ≠ checked). Check with: pnpm --filter @limon/api catalog review`);
+  if (parsed.otherSmaeEdition.length) console.log(`  ⚠ ${parsed.otherSmaeEdition.length} SMAE row(s) not from the ${SMAE_EDITION}th edition; check their grams per equivalent against it`);
+}
+
 const [command, ...rest] = process.argv.slice(2);
-const commands: Record<string, (args: string[]) => Promise<void>> = { features, invite };
+const commands: Record<string, (args: string[]) => Promise<void>> = { features, invite, recipes, foods };
 const run = command ? commands[command] : undefined;
-if (!run) fail(`Usage: admin <${Object.keys(commands).join('|')}> <tenant-slug> [options]`);
+if (!run) fail(`Usage: admin <${Object.keys(commands).join('|')}> <tenant-slug | csv> [options]`);
 run(rest)
   .catch((err) => fail(err instanceof Error ? err.message : String(err)))
   .finally(() => prisma.$disconnect());
