@@ -120,15 +120,17 @@ Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s
 
 ### Week 4 · Oct 19 – 23 — Weekly meal plan generator
 
-- [ ] Split the daily target across meals (e.g. 25 / 35 / 10 / 30 %).
-- [ ] **Generator v1 (deterministic, testable):** for each day × meal slot, pick a recipe from the tenant catalog.
+- [x] Split the daily target across meals: 30 / 40 / 30 % for 3 meals, 25 / 35 / 10 / 30 % for 4, 25 / 10 / 30 / 10 / 25 % for 5 (`meal-plans/meal-split.ts`).
+- [x] **Generator v1 (deterministic, testable):** for each day × meal slot, pick a recipe from the tenant catalog.
   - Hard filters: meal type, allergies, disliked foods.
   - Scoring: closeness to the slot's kcal and protein after portion scaling, variety (no repeat within 3 days), and a boost for favourites.
-- [ ] Portion scaling: scale servings so each meal lands within ±10% of its slot target.
+- [x] Portion scaling: scale servings so each meal lands within ±10% of its slot target (0.5–2.5 servings, in 0.05 steps).
 - [ ] A worker job builds next week's plan every Sunday (SQS worker already exists). It refreshes the nutrient cache for the catalog's foods first, then generates every plan from that cache. "Regenerate this day" on demand.
-- [ ] Plans store recipe ids and portion factors only; the day totals shown in the app are recomputed from the cache.
-- [ ] ♥ Favourite a meal → `meal_feedback` (patient, recipe, rating, week). This is the training data for future AI.
-- [ ] App: week view → day view → meal detail, with daily totals against the target.
+  - [x] On demand: `GET /meal-plans/current` generates the current week on its first read (patients who join mid-week get a plan), `POST /meal-plans/current/days/:date/regenerate` replaces today or a later day, avoiding the recipes of the days around it. `pnpm --filter @limon/api meal-plans generate <slug>` generates plans from the terminal.
+  - [ ] The Sunday job.
+- [x] Plans store recipe ids and portion factors only; the day totals shown in the app are recomputed from the cache (migration `0012_meal_plans`).
+- [ ] ♥ Favourite a meal → `meal_feedback` (patient, recipe, rating, week). This is the training data for future AI. The table exists and the generator boosts favourites; the endpoint and the ♥ button are still to do.
+- [x] App: week view → day view → meal detail, with daily totals against the target. The Meals tab shows a 7-day strip, the day's meals with portion and kcal, opens the recipe, and has "Cambiar el menú de este día" for today and later days.
 
 **Done when:** a patient with any valid profile gets a full 7-day plan within ±10% of their daily kcal, respecting allergies. Unit tests cover the generator.
 

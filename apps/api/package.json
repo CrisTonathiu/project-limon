@@ -12,7 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run test/unit",
-    "test:integration": "dotenv -e ../../.env -- vitest run test/integration",
+    "test:integration": "dotenv -e ../../.env -- vitest run test/integration --no-file-parallelism",
     "fatsecret": "dotenv -e ../../.env -- tsx scripts/fatsecret.ts",
     "catalog": "dotenv -e ../../.env -- tsx scripts/catalog.ts",
     "meal-plans": "dotenv -e ../../.env -- tsx scripts/meal-plans.ts"

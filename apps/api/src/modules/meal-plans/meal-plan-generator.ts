@@ -12,7 +12,7 @@ import { splitDailyTarget, type SlotTarget } from './meal-split.js';
  *   2. Portion: servings scaled so the meal's kcal lands on the slot's share of the target,
  *      in 0.05 steps and within sensible bounds.
  *   3. Score (lower is better): kcal and protein distance after scaling, a penalty for
- *      recipes eaten in the last 3 days, a boost for favourites, and a small seeded jitter
+ *      recipes planned within 3 days either side, a boost for favourites, and a small seeded jitter
  *      so plans vary between patients and weeks but the same seed gives the same plan.
  */
 
@@ -39,6 +39,12 @@ export type GeneratorInput = {
   /** Same seed, same plan, e.g. `${patientId}:${weekStart}`. */
   seed: string;
   days?: number;
+  /** Day index (0 = Monday) of the first day generated, when regenerating part of a week. */
+  startDay?: number;
+  /** Recipes already planned on other days of the week, so the variety rule sees them. */
+  alreadyPlanned?: { day: number; recipeIds: string[] }[];
+  /** Recipes to steer away from as if eaten nearby, e.g. the ones a regenerated day had. */
+  avoidRecipeIds?: string[];
 };
 
 export type PlannedMeal =
@@ -48,7 +54,7 @@ export type PlannedMeal =
 
 export const GENERATOR_RULES = {
   days: 7,
-  /** A recipe eaten on day d isn't offered again before day d + 3. */
+  /** A recipe planned on day d isn't offered again between days d - 2 and d + 2. */
   varietyWindowDays: 3,
   servings: { min: 0.5, max: 2.5, step: 0.05 },
 } as const;
@@ -68,22 +74,30 @@ export function generateMealPlan(input: GeneratorInput): PlannedMeal[][] {
   const eligible = eligibleRecipes(input);
   const favourites = new Set(input.favouriteRecipeIds);
   const random = seededRandom(input.seed);
-  /** Recipe id → last day it was planned. */
-  const lastPlanned = new Map<string, number>();
+  const avoid = new Set(input.avoidRecipeIds);
+  /** Recipe id → days it is planned on. */
+  const plannedOn = new Map<string, number[]>();
+  const plan = (recipeId: string, day: number) => plannedOn.set(recipeId, [...(plannedOn.get(recipeId) ?? []), day]);
+  for (const { day, recipeIds } of input.alreadyPlanned ?? []) for (const id of recipeIds) plan(id, day);
 
-  return Array.from({ length: input.days ?? GENERATOR_RULES.days }, (_, day) =>
-    slots.map((slot): PlannedMeal => {
+  const startDay = input.startDay ?? 0;
+  return Array.from({ length: input.days ?? GENERATOR_RULES.days }, (_, i) => {
+    const day = startDay + i;
+    return slots.map((slot): PlannedMeal => {
       let best: { recipe: PortionableRecipe; score: number } | null = null;
       for (const recipe of eligible) {
         if (!recipe.mealTypes.includes(slot.mealType)) continue;
         // Drawn for every candidate in a fixed order, so the sequence (and the plan) is reproducible.
-        const score = scoreRecipe(recipe, slot, day, lastPlanned, favourites) + random() * WEIGHT.jitter;
+        const score =
+          scoreRecipe(recipe, slot, day, plannedOn.get(recipe.id) ?? [], favourites) +
+          (avoid.has(recipe.id) ? WEIGHT.repeatInWindow : 0) +
+          random() * WEIGHT.jitter;
         if (!best || score < best.score) best = { recipe, score };
       }
       if (!best) return { mealType: slot.mealType, recipeId: null };
 
       const { recipe } = best;
-      lastPlanned.set(recipe.id, day);
+      plan(recipe.id, day);
       const servings = portionServings(slot.kcal, recipe.perServing.kcal);
       return {
         mealType: slot.mealType,
@@ -92,8 +106,8 @@ export function generateMealPlan(input: GeneratorInput): PlannedMeal[][] {
         kcal: Math.round(recipe.perServing.kcal * servings),
         proteinG: Math.round(recipe.perServing.proteinG * servings * 10) / 10,
       };
-    }),
-  );
+    });
+  });
 }
 
 /** Servings that bring a recipe closest to the slot's kcal, in steps and within bounds. */
@@ -122,7 +136,7 @@ function scoreRecipe(
   recipe: PortionableRecipe,
   slot: SlotTarget,
   day: number,
-  lastPlanned: ReadonlyMap<string, number>,
+  plannedDays: readonly number[],
   favourites: ReadonlySet<string>,
 ): number {
   const servings = portionServings(slot.kcal, recipe.perServing.kcal);
@@ -130,9 +144,8 @@ function scoreRecipe(
   const proteinDistance = slot.proteinG > 0 ? Math.abs(recipe.perServing.proteinG * servings - slot.proteinG) / slot.proteinG : 0;
 
   let score = kcalDistance + WEIGHT.protein * proteinDistance;
-  const last = lastPlanned.get(recipe.id);
-  if (last === day) score += WEIGHT.repeatSameDay;
-  else if (last !== undefined && day - last < GENERATOR_RULES.varietyWindowDays) score += WEIGHT.repeatInWindow;
+  if (plannedDays.includes(day)) score += WEIGHT.repeatSameDay;
+  else if (plannedDays.some((d) => Math.abs(day - d) < GENERATOR_RULES.varietyWindowDays)) score += WEIGHT.repeatInWindow;
   if (favourites.has(recipe.id)) score -= WEIGHT.favourite;
   return score;
 }

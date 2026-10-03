@@ -28,6 +28,20 @@ export function createRecipesService(c: Container) {
   const scoped = async <T>(ctx: TenantContext, fn: Parameters<typeof withTenant<T>>[2]) =>
     withTenant(c.db, await c.registry.getPlacement(ctx.tenantId), fn);
 
+  /** FatSecret is called after the transaction, so a slow provider doesn't hold a connection. */
+  const withMacros = async (tenantId: string, ids: string[] | undefined, log: Logger) => {
+    const recipes = await withTenant(c.db, await c.registry.getPlacement(tenantId), (tx) => recipesRepository.listWithIngredients(tx, tenantId, ids));
+    const fatsecret = await foods.getMany(recipes.flatMap((r) => r.ingredients.map((i) => i.food.fatsecretFoodId)), log);
+    return recipes.map((r) => ({
+      ...r,
+      macrosPerServing: macrosPerServing(
+        r.ingredients.map((i) => ({ grams: i.grams, fatsecretFoodId: i.food.fatsecretFoodId, fatsecretServingId: i.food.fatsecretServingId })),
+        r.servings,
+        fatsecret,
+      ),
+    }));
+  };
+
   return {
     list: (ctx: TenantContext, query: RecipeListQuery): Promise<RecipeListResponse> =>
       scoped(ctx, async (tx) => ({
@@ -58,24 +72,23 @@ export function createRecipesService(c: Container) {
      * Takes a tenant id rather than a TenantContext because the weekly job and the admin
      * command generate plans with no user signed in.
      */
-    forPlanning: async (tenantId: string, log: Logger): Promise<PlanningRecipe[]> => {
-      const recipes = await withTenant(c.db, await c.registry.getPlacement(tenantId), (tx) => recipesRepository.listForPlanning(tx, tenantId));
-      const fatsecret = await foods.getMany(recipes.flatMap((r) => r.ingredients.map((i) => i.food.fatsecretFoodId)), log);
-      return recipes.map((r) => {
-        const macros = macrosPerServing(
-          r.ingredients.map((i) => ({ grams: i.grams, fatsecretFoodId: i.food.fatsecretFoodId, fatsecretServingId: i.food.fatsecretServingId })),
-          r.servings,
-          fatsecret,
-        );
-        return {
-          id: r.id,
-          title: r.title,
-          mealTypes: r.mealTypes,
-          foodIds: [...new Set(r.ingredients.map((i) => i.food.id))],
-          allergens: [...new Set(r.ingredients.flatMap((i) => i.food.allergens))],
-          perServing: macros && { kcal: macros.calories, proteinG: macros.protein },
-        };
-      });
-    },
+    forPlanning: async (tenantId: string, log: Logger): Promise<PlanningRecipe[]> =>
+      (await withMacros(tenantId, undefined, log)).map((r) => ({
+        id: r.id,
+        title: r.title,
+        mealTypes: r.mealTypes,
+        foodIds: [...new Set(r.ingredients.map((i) => i.food.id))],
+        allergens: [...new Set(r.ingredients.flatMap((i) => i.food.allergens))],
+        perServing: r.macrosPerServing && { kcal: r.macrosPerServing.calories, proteinG: r.macrosPerServing.protein },
+      })),
+
+    /** Title, time and macros per serving of these recipes, by id: for showing a meal plan. */
+    summariesWithMacros: async (tenantId: string, ids: string[], log: Logger) =>
+      new Map(
+        (await withMacros(tenantId, ids, log)).map((r) => [
+          r.id,
+          { id: r.id, title: r.title, totalMinutes: r.totalMinutes, macrosPerServing: r.macrosPerServing },
+        ]),
+      ),
   };
 }

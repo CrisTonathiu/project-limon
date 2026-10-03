@@ -25,4 +25,20 @@ export const mealPlansRepository = {
     await tx.mealPlanMeal.createMany({ data: meals.map((m) => ({ tenantId, mealPlanId: plan.id, ...m })) });
     return plan;
   },
+
+  findWeek: (tx: TenantTx, tenantId: string, patientId: string, weekStart: Date) =>
+    tx.mealPlan.findUnique({
+      where: { tenantId_patientId_weekStart: { tenantId, patientId, weekStart } },
+      select: {
+        id: true,
+        meals: { orderBy: [{ date: 'asc' }, { slot: 'asc' }], select: { id: true, date: true, slot: true, mealType: true, recipeId: true, servings: true } },
+      },
+    }),
+
+  /** Replaces one date's meals. Touching the plan row first serializes concurrent regenerations of it. */
+  replaceDay: async (tx: TenantTx, tenantId: string, mealPlanId: string, date: Date, meals: Omit<MealRow, 'date'>[]) => {
+    await tx.mealPlan.update({ where: { tenantId_id: { tenantId, id: mealPlanId } }, data: { updatedAt: new Date() } });
+    await tx.mealPlanMeal.deleteMany({ where: { tenantId, mealPlanId, date } });
+    await tx.mealPlanMeal.createMany({ data: meals.map((m) => ({ tenantId, mealPlanId, date, ...m })) });
+  },
 };

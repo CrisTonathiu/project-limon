@@ -16,10 +16,15 @@ export function isMonday(iso: string): boolean {
   return isIsoDate(iso) && toDate(iso).getUTCDay() === 1;
 }
 
+/** Today's date on the plan time zone's calendar. */
+export function localToday(now: Date): string {
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat('en-CA', { timeZone: PLAN_TIME_ZONE }).format(now);
+}
+
 /** The Monday of the week `now` falls in, on the plan time zone's calendar. */
 export function weekStartOf(now: Date): string {
-  // en-CA formats as YYYY-MM-DD.
-  const today = toDate(new Intl.DateTimeFormat('en-CA', { timeZone: PLAN_TIME_ZONE }).format(now));
+  const today = toDate(localToday(now));
   const sinceMonday = (today.getUTCDay() + 6) % 7;
   return toIso(new Date(today.getTime() - sinceMonday * DAY_MS));
 }

@@ -112,6 +112,21 @@ export const es = {
     },
   },
 
+  meals: {
+    loadFailed: 'No pudimos cargar tu plan. Revisa tu conexión.',
+    retry: 'Reintentar',
+    today: 'Hoy',
+    /** "1,820 de 1,850 kcal" */
+    dayTotal: (planned: string, target: string) => `${planned} de ${target}`,
+    totalsUnavailable: 'Los totales del día no están disponibles por ahora.',
+    portion: (amount: string, unit: string) => `${amount} ${unit}`,
+    noRecipe: 'Ninguna receta se ajusta a tu perfil para esta comida. Tu nutriólogo puede agregar más.',
+    regenerate: 'Cambiar el menú de este día',
+    regenerating: 'Buscando otras recetas…',
+    regenerateFailed: 'No pudimos cambiar el menú. Inténtalo de nuevo.',
+    consult: 'Tu plan de comidas estará listo cuando tu nutriólogo defina tu meta diaria.',
+  },
+
   profile: {
     support: (email: string) => `Soporte: ${email}`,
     open: 'Mi perfil',

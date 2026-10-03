@@ -400,3 +400,35 @@ export type RecipeDetailDto = RecipeSummaryDto & {
   /** Null when FatSecret is unreachable or doesn't give an ingredient's calories or macros: partial totals would mislead. */
   macrosPerServing: RecipeMacros | null;
 };
+
+/** One meal of a plan day. `recipe` and `servings` are null when no recipe fit the patient's filters. */
+export type PlannedMealDto = {
+  id: string;
+  mealType: MealType;
+  recipe: { id: string; title: string; totalMinutes: number | null } | null;
+  /** Recipe servings the patient eats (0.5–2.5). */
+  servings: number | null;
+  /** For the portion, from FatSecret on every read. Null when unknown, like RecipeDetailDto.macrosPerServing. */
+  macros: RecipeMacros | null;
+};
+
+export type MealPlanDayDto = {
+  /** YYYY-MM-DD */
+  date: string;
+  /** Sum of the day's meals; null when any planned meal's macros are unknown. */
+  totals: RecipeMacros | null;
+  meals: PlannedMealDto[];
+};
+
+export type MealPlanDto = { id: string; weekStart: string; days: MealPlanDayDto[] };
+
+/** The patient's daily target the plan aims at (energyTarget when READY). */
+export type MealPlanTargetDto = { kcal: number; proteinG: number; carbsG: number; fatG: number };
+
+/**
+ * GET /meal-plans/current and POST …/regenerate. CONSULT_NUTRITIONIST when the guardrails
+ * withhold an automatic target: no plan is generated then.
+ */
+export type MealPlanResponse =
+  | { status: 'READY'; plan: MealPlanDto; target: MealPlanTargetDto }
+  | { status: 'CONSULT_NUTRITIONIST'; reason: EnergyTargetHoldReason };
