@@ -105,11 +105,19 @@ describe('GET /meal-plans/current', () => {
     expect(body.plan.weekStart).toBe(week[0]);
     expect(body.plan.days.map((d) => d.date)).toEqual(week);
     expect(body.target.kcal).toBeGreaterThan(0);
+
+    // The plan may use any recipe of the tenant, not only this file's: the expected kcal per
+    // serving comes from each recipe's own grams (every food is 150 kcal per 100 g here).
+    const planned = await owner.controlPlane().recipe.findMany({
+      where: { id: { in: body.plan.days.flatMap((d) => d.meals.map((m) => m.recipe!.id)) } },
+      select: { id: true, servings: true, ingredients: { select: { grams: true } } },
+    });
+    const kcalPerServing = new Map(planned.map((r) => [r.id, Math.round((r.ingredients.reduce((s, i) => s + i.grams, 0) * 1.5) / r.servings)]));
+
     for (const day of body.plan.days) {
       expect(day.meals.map((m) => m.mealType)).toEqual(['BREAKFAST', 'LUNCH', 'SNACK', 'DINNER']);
       for (const meal of day.meals) {
-        // 225 kcal per serving × the portion.
-        expect(meal.macros?.calories).toBe(Math.round(225 * meal.servings!));
+        expect(meal.macros?.calories).toBe(Math.round(kcalPerServing.get(meal.recipe!.id)! * meal.servings!));
       }
       expect(day.totals?.calories).toBe(day.meals.reduce((s, m) => s + m.macros!.calories, 0));
       expect(Math.abs(day.totals!.calories - body.target.kcal) / body.target.kcal).toBeLessThanOrEqual(0.1);
