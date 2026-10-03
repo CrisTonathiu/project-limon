@@ -61,7 +61,8 @@ export const patientsRepository = {
   deleteAccount: async (tx: TenantTx, tenantId: string, patientId: string, userId: string) => {
     const now = new Date();
     await tx.patientProfile.deleteMany({ where: { tenantId, patientId } });
-    await tx.mealPlan.deleteMany({ where: { tenantId, patientId } });
+    await tx.mealPlan.deleteMany({ where: { tenantId, patientId } }); // meals cascade
+    await tx.mealFeedback.deleteMany({ where: { tenantId, patientId } });
     await tx.conversation.deleteMany({ where: { tenantId, patientId } }); // messages cascade
     await tx.tenantInviteCode.updateMany({ where: { tenantId, patientId }, data: { active: false } });
     await tx.patientConsent.updateMany({ where: { tenantId, patientId, revokedAt: null }, data: { revokedAt: now } });
