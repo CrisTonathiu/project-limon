@@ -25,4 +25,16 @@ export const recipesRepository = {
         },
       },
     }),
+
+  /** Every recipe with what the meal plan generator filters and portions on. */
+  listForPlanning: (tx: TenantTx, tenantId: string) =>
+    tx.recipe.findMany({
+      where: { tenantId },
+      select: {
+        id: true, title: true, mealTypes: true, servings: true,
+        ingredients: {
+          select: { grams: true, food: { select: { id: true, allergens: true, fatsecretFoodId: true, fatsecretServingId: true } } },
+        },
+      },
+    }),
 };

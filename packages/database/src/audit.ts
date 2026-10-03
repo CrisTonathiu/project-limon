@@ -19,7 +19,8 @@ export type AuditMetadata = Record<string, string | number | boolean | null | st
  */
 export async function writeAudit(
   tx: TenantTx,
-  ctx: Pick<TenantContext, 'tenantId' | 'userId' | 'requestId'>,
+  // userId is null for system work (jobs, admin commands) that no signed-in user started.
+  ctx: Pick<TenantContext, 'tenantId' | 'requestId'> & { userId: string | null },
   entry: { action: AuditAction; resourceType: string; resourceId?: string; metadata?: AuditMetadata },
 ): Promise<void> {
   await tx.auditLog.create({

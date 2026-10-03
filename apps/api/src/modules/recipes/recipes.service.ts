@@ -1,9 +1,10 @@
 import { withTenant } from '@limon/database';
 import type { TenantContext } from '@limon/tenant';
-import type { FoodDetail, RecipeDetailDto, RecipeListResponse } from '@limon/types';
+import type { MealType, RecipeDetailDto, RecipeListResponse } from '@limon/types';
 import type { RecipeListQuery } from '@limon/validation';
 import type { Container } from '../../infrastructure/container.js';
 import { Errors } from '../../lib/errors.js';
+import { createFoodsService } from '../foods/foods.service.js';
 import { macrosPerServing } from './recipe-nutrition.js';
 import { recipesRepository } from './recipes.repository.js';
 
@@ -12,28 +13,20 @@ type Logger = { warn: (obj: object, msg: string) => void };
 /** Spanish order: "Ñame" after "Nuez", accents ignored. */
 const byTitle = new Intl.Collator('es-MX').compare;
 
+/** A recipe as the meal plan generator sees it. Macros are null when FatSecret can't provide them. */
+export type PlanningRecipe = {
+  id: string;
+  title: string;
+  mealTypes: MealType[];
+  foodIds: string[];
+  allergens: string[];
+  perServing: { kcal: number; proteinG: number } | null;
+};
+
 export function createRecipesService(c: Container) {
+  const foods = createFoodsService(c);
   const scoped = async <T>(ctx: TenantContext, fn: Parameters<typeof withTenant<T>>[2]) =>
     withTenant(c.db, await c.registry.getPlacement(ctx.tenantId), fn);
-
-  /**
-   * The foods' FatSecret data, through the 24 h cache. A food that can't be fetched is
-   * left out, so the recipe still loads (without macros) while FatSecret is down.
-   */
-  const fetchFoods = async (fatsecretFoodIds: string[], log: Logger) => {
-    const foods = new Map<string, FoodDetail>();
-    if (!c.fatsecret) return foods;
-    await Promise.all(
-      [...new Set(fatsecretFoodIds)].map(async (id) => {
-        try {
-          foods.set(id, await c.fatsecret!.getFood(id));
-        } catch (err) {
-          log.warn({ fatsecretFoodId: id, reason: (err as { reason?: string }).reason }, 'FatSecret food.get failed; recipe shown without macros');
-        }
-      }),
-    );
-    return foods;
-  };
 
   return {
     list: (ctx: TenantContext, query: RecipeListQuery): Promise<RecipeListResponse> =>
@@ -47,7 +40,7 @@ export function createRecipesService(c: Container) {
       // Another tenant's recipe is indistinguishable from a non-existent one (no enumeration).
       if (!recipe) throw Errors.notFound('Recipe');
 
-      const foods = await fetchFoods(recipe.ingredients.map((i) => i.food.fatsecretFoodId), log);
+      const fatsecret = await foods.getMany(recipe.ingredients.map((i) => i.food.fatsecretFoodId), log);
       const { ingredients, ...rest } = recipe;
       return {
         ...rest,
@@ -55,9 +48,34 @@ export function createRecipesService(c: Container) {
         macrosPerServing: macrosPerServing(
           ingredients.map((i) => ({ grams: i.grams, fatsecretFoodId: i.food.fatsecretFoodId, fatsecretServingId: i.food.fatsecretServingId })),
           recipe.servings,
-          foods,
+          fatsecret,
         ),
       };
+    },
+
+    /**
+     * The tenant's recipes with their macros per serving, for the meal plan generator.
+     * Takes a tenant id rather than a TenantContext because the weekly job and the admin
+     * command generate plans with no user signed in.
+     */
+    forPlanning: async (tenantId: string, log: Logger): Promise<PlanningRecipe[]> => {
+      const recipes = await withTenant(c.db, await c.registry.getPlacement(tenantId), (tx) => recipesRepository.listForPlanning(tx, tenantId));
+      const fatsecret = await foods.getMany(recipes.flatMap((r) => r.ingredients.map((i) => i.food.fatsecretFoodId)), log);
+      return recipes.map((r) => {
+        const macros = macrosPerServing(
+          r.ingredients.map((i) => ({ grams: i.grams, fatsecretFoodId: i.food.fatsecretFoodId, fatsecretServingId: i.food.fatsecretServingId })),
+          r.servings,
+          fatsecret,
+        );
+        return {
+          id: r.id,
+          title: r.title,
+          mealTypes: r.mealTypes,
+          foodIds: [...new Set(r.ingredients.map((i) => i.food.id))],
+          allergens: [...new Set(r.ingredients.flatMap((i) => i.food.allergens))],
+          perServing: macros && { kcal: macros.calories, proteinG: macros.protein },
+        };
+      });
     },
   };
 }

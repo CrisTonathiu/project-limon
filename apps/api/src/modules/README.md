@@ -21,7 +21,7 @@ Rules:
 | apps/provisioning | boundary only |
 | foods | FatSecret lookups (search, food detail); no database yet |
 | recipes | tenant recipes for patients (list, detail with macros from FatSecret); no editing yet |
-| meal-plans | pure generator only (meal split, portion scaling, recipe picking); no storage, routes or job yet |
+| meal-plans | generator + `generateWeek` service (saves the week, replaces it on re-run); `meal-plans generate` script; no routes or weekly job yet |
 | users, nutritionists, protocols, progress, conversations, subscriptions, payments, ai, files, notifications | placeholder |
 
 Notes for placeholders:
