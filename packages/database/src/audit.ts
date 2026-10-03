@@ -6,7 +6,7 @@ export type AuditAction =
   | 'NutritionistRegistered'
   | 'PatientCreated' | 'PatientInvited' | 'PatientRegistered' | 'PatientDeleted' | 'PatientProfileSaved'
   | 'FeatureFlagsChanged'
-  | 'MealPlanCreated' | 'RecipeUpdated' | 'DefaultRecipesCopied'
+  | 'MealPlanCreated' | 'MealPlanDayRegenerated' | 'RecipeUpdated' | 'DefaultRecipesCopied'
   | 'SubscriptionCanceled'
   | 'BrandingUpdated';
 

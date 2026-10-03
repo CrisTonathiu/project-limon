@@ -2,8 +2,8 @@ import { DatabaseRouter } from '@limon/database';
 
 /**
  * Catalog foods for a test file, written with the owner role (foods is read-only for the
- * app role). Keys start with the file's prefix, so files running in parallel never share
- * rows. `cleanup` also removes the disliked-food rows that point at them.
+ * app role). Keys start with the file's prefix, so files never share
+ * rows. `cleanup` also removes the recipes and disliked-food rows that point at them.
  */
 export async function createTestFoods(prefix: string, names: string[]) {
   const owner = new DatabaseRouter({ url: process.env.DATABASE_MIGRATION_URL });
@@ -18,6 +18,12 @@ export async function createTestFoods(prefix: string, names: string[]) {
   return {
     foods,
     cleanup: async () => {
+      // Every recipe made from these foods, with the plan meals and favourites using it, including
+      // what an earlier run left behind when it crashed before its own cleanup.
+      const usesFoods = { ingredients: { some: { foodId: { in: ids } } } };
+      await db.mealPlanMeal.deleteMany({ where: { recipe: usesFoods } });
+      await db.mealFeedback.deleteMany({ where: { recipe: usesFoods } });
+      await db.recipe.deleteMany({ where: usesFoods });
       await db.patientDislikedFood.deleteMany({ where: { foodId: { in: ids } } });
       await db.food.deleteMany({ where: { id: { in: ids } } });
       await owner.disconnect();

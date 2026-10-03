@@ -125,4 +125,36 @@ describe('generateMealPlan', () => {
     expect(generateMealPlan(base)).toEqual(generateMealPlan({ ...base, recipes: [...catalog].reverse() }));
     expect(generateMealPlan(base)).not.toEqual(generateMealPlan({ ...base, seed: 'patient-1:2026-10-26' }));
   });
+
+  describe('regenerating one day', () => {
+    // 4 neighbour days × 1 snack would use up the 4 snacks of the base catalog.
+    const input = { ...base, recipes: [...catalog, recipe('snack-4', ['SNACK'], 160, 6), recipe('snack-5', ['SNACK'], 190, 8)] };
+    const week = generateMealPlan(input);
+    const thursday = 3;
+    const neighbours = [1, 2, 4, 5].map((day) => ({ day, recipeIds: week[day]!.flatMap((m) => (m.recipeId ? [m.recipeId] : [])) }));
+    const regenerate = (seed: string) =>
+      generateMealPlan({
+        ...input, seed, days: 1, startDay: thursday,
+        alreadyPlanned: neighbours,
+        avoidRecipeIds: week[thursday]!.flatMap((m) => (m.recipeId ? [m.recipeId] : [])),
+      })[0]!;
+
+    it('gives a full day within ±10% of the target', () => {
+      const day = regenerate('again-1');
+      expect(day.map((m) => m.mealType)).toEqual(week[thursday]!.map((m) => m.mealType));
+      expect(Math.abs(dayKcal(day) - 2000) / 2000).toBeLessThanOrEqual(0.1);
+    });
+
+    it('avoids the recipes of the days around it', () => {
+      const nearby = new Set(neighbours.flatMap((n) => n.recipeIds));
+      for (const seed of ['again-1', 'again-2', 'again-3']) {
+        expect(regenerate(seed).filter((m) => m.recipeId && nearby.has(m.recipeId))).toEqual([]);
+      }
+    });
+
+    it('changes the day when the catalog allows it', () => {
+      const before = week[thursday]!.map((m) => m.recipeId);
+      expect(regenerate('again-1').map((m) => m.recipeId)).not.toEqual(before);
+    });
+  });
 });

@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { appsRoutes } from './modules/apps/apps.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { foodsRoutes } from './modules/foods/foods.routes.js';
+import { mealPlansRoutes } from './modules/meal-plans/meal-plans.routes.js';
 import { patientsRoutes } from './modules/patients/patients.routes.js';
 import { recipesRoutes } from './modules/recipes/recipes.routes.js';
 import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes.js';
@@ -73,6 +74,7 @@ export async function buildApp(c: Container) {
       await subscriptionsRoutes(v1, c);
       await foodsRoutes(v1, c);
       await recipesRoutes(v1, c);
+      await mealPlansRoutes(v1, c);
     },
     { prefix: '/api/v1' },
   );

@@ -1,5 +1,5 @@
 import type {
-  ApiErrorBody, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, MealType, MeResponse, PatientDto, PatientEntitlement, PatientProfileResponse,
+  ApiErrorBody, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, MealPlanResponse, MealType, MeResponse, PatientDto, PatientEntitlement, PatientProfileResponse,
   RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, TenantAppConfig,
 } from '@limon/types';
 import type { CreatePatientInput, PatientProfileInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
@@ -91,6 +91,12 @@ export function createApiClient(opts: ApiClientOptions) {
       list: (mealType?: MealType) => request<RecipeListResponse>('GET', `/recipes${mealType ? `?${new URLSearchParams({ mealType })}` : ''}`),
       /** Ingredients, steps and macros per serving (null when FatSecret can't provide them). */
       get: (id: string) => request<RecipeDetailDto>('GET', `/recipes/${encodeURIComponent(id)}`),
+    },
+    mealPlans: {
+      /** This week's plan; the API generates it on the first visit of the week. */
+      current: () => request<MealPlanResponse>('GET', '/meal-plans/current'),
+      /** New recipes for one day (today or later) of this week; returns the whole week. */
+      regenerateDay: (date: string) => request<MealPlanResponse>('POST', `/meal-plans/current/days/${encodeURIComponent(date)}/regenerate`),
     },
     patients: {
       list: () => request<{ items: PatientDto[] }>('GET', '/patients'),

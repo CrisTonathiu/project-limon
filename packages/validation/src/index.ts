@@ -158,6 +158,12 @@ export const UuidParamSchema = z.object({ id: z.string().uuid() });
 export const RecipeListQuerySchema = z.object({ mealType: z.nativeEnum(MealType).optional() }).strict();
 export type RecipeListQuery = z.infer<typeof RecipeListQuerySchema>;
 
+/** POST /meal-plans/current/days/:date/regenerate */
+export const MealPlanDayParamSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
+}).strict();
+export type MealPlanDayParam = z.infer<typeof MealPlanDayParamSchema>;
+
 export const PaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   cursor: z.string().uuid().optional(),
