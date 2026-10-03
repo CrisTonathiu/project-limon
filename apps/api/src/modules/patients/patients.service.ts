@@ -88,6 +88,20 @@ export function createPatientsService(c: Container) {
         await writeAudit(tx, ctx, { action: 'PatientDeleted', resourceType: 'Patient', resourceId: p.id });
       }),
 
+    /**
+     * What the meal plan generator needs from a patient: null when the patient doesn't exist
+     * (or deleted their account) or hasn't finished onboarding. Takes a tenant id rather than
+     * a TenantContext because the weekly job and the admin command run with no user signed in.
+     */
+    planningProfile: async (tenantId: string, patientId: string) =>
+      withTenant(c.db, await c.registry.getPlacement(tenantId), async (tx) => {
+        const p = await patientsRepository.findById(tx, tenantId, patientId);
+        const profile = p && (await patientsRepository.findProfile(tx, tenantId, p.id));
+        if (!profile || !p.dateOfBirth) return null;
+        const dto = toProfileDto(profile, p.dateOfBirth);
+        return { mealsPerDay: dto.mealsPerDay, allergies: dto.allergies, dislikedFoodIds: dto.dislikedFoods.map((f) => f.id), energyTarget: dto.energyTarget };
+      }),
+
     create: (ctx: TenantContext, input: CreatePatientInput) =>
       scoped(ctx, async (tx) => {
         const p = await patientsRepository.create(tx, ctx.tenantId, input);

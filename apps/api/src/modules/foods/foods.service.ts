@@ -44,5 +44,30 @@ export function createFoodsService(c: Container) {
 
     get: (fatsecretFoodId: string, log: Logger): Promise<FoodDetail> =>
       provider('food.get', () => client().getFood(fatsecretFoodId), log),
+
+    /**
+     * Several foods' FatSecret data, through the 24 h cache. A food that can't be fetched is
+     * left out instead of failing the call, so callers can still answer without its macros.
+     */
+    getMany: async (fatsecretFoodIds: string[], log: Logger): Promise<Map<string, FoodDetail>> => {
+      const foods = new Map<string, FoodDetail>();
+      if (!c.fatsecret) return foods;
+      const failures: Record<string, string[]> = {};
+      await Promise.all(
+        [...new Set(fatsecretFoodIds)].map(async (id) => {
+          try {
+            foods.set(id, await c.fatsecret!.getFood(id));
+          } catch (err) {
+            (failures[(err as { reason?: string }).reason ?? 'unknown'] ??= []).push(id);
+          }
+        }),
+      );
+      // One line per call, not per food: an outage would otherwise log every food in the catalog.
+      if (Object.keys(failures).length) {
+        const failed = Object.fromEntries(Object.entries(failures).map(([reason, ids]) => [reason, ids.length]));
+        log.warn({ failed, fatsecretFoodIds: Object.values(failures).flat().slice(0, 10) }, 'FatSecret food.get failed; foods left out');
+      }
+      return foods;
+    },
   };
 }
