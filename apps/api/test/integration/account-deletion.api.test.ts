@@ -57,16 +57,29 @@ describe('account deletion', () => {
   it('erases the health data, anonymizes the patient and keeps the consent records', async () => {
     const sub = `dev|patient|delete|${Date.now()}`;
     const { headers, patientId } = await signUpPatient(sub, `delete-${Date.now()}@test.mx`);
+    // Until the meal plan endpoints exist, the plan and a favourite are written directly.
+    const weekStart = new Date('2026-10-19');
+    // Its own recipe: the seed only has recipes when the private default library was loaded.
+    const recipe = await scoped(async (tx) => {
+      const recipe = await tx.recipe.create({ data: { tenantId, title: 'deletion test', mealTypes: ['BREAKFAST'], servings: 1 } });
+      await tx.mealPlan.create({
+        data: { tenantId, patientId, weekStart, meals: { create: [{ date: weekStart, slot: 0, mealType: 'BREAKFAST', recipeId: recipe.id, servings: 1.25 }] } },
+      });
+      await tx.mealFeedback.create({ data: { tenantId, patientId, recipeId: recipe.id, rating: 1, weekStart } });
+      return recipe;
+    });
 
     const res = await app.inject({ method: 'DELETE', url: '/api/v1/patients/me', headers });
     expect(res.statusCode).toBe(204);
 
-    const { patient, profile, dislikedFoods, consents, user, audit } = await scoped(async (tx) => {
+    const { patient, profile, dislikedFoods, mealPlans, mealFeedback, consents, user, audit } = await scoped(async (tx) => {
       const patient = await tx.patient.findUniqueOrThrow({ where: { id: patientId } });
       return {
         patient,
         profile: await tx.patientProfile.findFirst({ where: { tenantId, patientId } }),
         dislikedFoods: await tx.patientDislikedFood.findMany({ where: { tenantId, patientId } }),
+        mealPlans: await tx.mealPlan.findMany({ where: { tenantId, patientId } }),
+        mealFeedback: await tx.mealFeedback.findMany({ where: { tenantId, patientId } }),
         consents: await tx.patientConsent.findMany({ where: { tenantId, patientId } }),
         user: await tx.user.findUniqueOrThrow({ where: { id: patient.userId! } }),
         audit: await tx.auditLog.findFirst({ where: { tenantId, action: 'PatientDeleted', resourceId: patientId } }),
@@ -74,6 +87,8 @@ describe('account deletion', () => {
     });
     expect(profile).toBeNull();
     expect(dislikedFoods).toEqual([]);
+    expect(mealPlans).toEqual([]);
+    expect(mealFeedback).toEqual([]);
     expect(patient).toMatchObject({ firstName: '', lastName: '', email: null, dateOfBirth: null });
     expect(patient.deletedAt).not.toBeNull();
     expect(user).toMatchObject({ status: 'DISABLED', email: `deleted+${user.id}@deleted.invalid` });
@@ -81,6 +96,8 @@ describe('account deletion', () => {
     expect(consents).toHaveLength(3);
     expect(consents.every((consent) => consent.revokedAt !== null)).toBe(true);
     expect(audit?.metadata).toEqual({});
+    // Deletable again now that no plan or favourite uses it.
+    await scoped((tx) => tx.recipe.delete({ where: { id: recipe.id } }));
   });
 
   it('signs the old login out of everything', async () => {

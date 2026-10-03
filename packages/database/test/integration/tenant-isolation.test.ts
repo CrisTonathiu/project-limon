@@ -38,6 +38,29 @@ describe('RLS tenant isolation', () => {
     ).rejects.toThrow(/row-level security/);
   });
 
+  it('tenant A cannot insert meal plans or meal feedback tagged with tenant B', async () => {
+    // Its own tenant B recipe: the seed only has recipes when the private default library was loaded.
+    const [bPatient, bRecipe] = await withTenant(router, await registry.getPlacement(B), (tx) =>
+      Promise.all([
+        tx.patient.findFirstOrThrow(),
+        tx.recipe.create({ data: { tenantId: B, title: 'isolation test', mealTypes: ['LUNCH'], servings: 1 } }),
+      ]),
+    );
+    try {
+      const weekStart = new Date('2026-10-19');
+      await expect(
+        withTenant(router, await registry.getPlacement(A), (tx) => tx.mealPlan.create({ data: { tenantId: B, patientId: bPatient.id, weekStart } })),
+      ).rejects.toThrow(/row-level security/);
+      await expect(
+        withTenant(router, await registry.getPlacement(A), (tx) =>
+          tx.mealFeedback.create({ data: { tenantId: B, patientId: bPatient.id, recipeId: bRecipe.id, rating: 1, weekStart } }),
+        ),
+      ).rejects.toThrow(/row-level security/);
+    } finally {
+      await withTenant(router, await registry.getPlacement(B), (tx) => tx.recipe.delete({ where: { id: bRecipe.id } }));
+    }
+  });
+
   it('tenant A cannot update tenant B rows', async () => {
     const count = await withTenant(router, await registry.getPlacement(A), (tx) =>
       tx.patient.updateMany({ where: { tenantId: B }, data: { firstName: 'pwned' } }),

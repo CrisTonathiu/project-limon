@@ -227,6 +227,8 @@ model Tenant {
   recipes               Recipe[]
   recipeIngredients     RecipeIngredient[]
   mealPlans             MealPlan[]
+  mealPlanMeals         MealPlanMeal[]
+  mealFeedback          MealFeedback[]
   protocols             Protocol[]
   conversations         Conversation[]
   messages              Message[]
@@ -429,6 +431,7 @@ model Patient {
   tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   user          User?                 @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Restrict)
   mealPlans     MealPlan[]
+  mealFeedback  MealFeedback[]
   conversations Conversation[]
   subscriptions PatientSubscription[]
   consents      PatientConsent[]
@@ -594,6 +597,8 @@ model Recipe {
   tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   sourceDefaultRecipe DefaultRecipe?     @relation(fields: [sourceDefaultRecipeId], references: [id], onDelete: SetNull)
   ingredients         RecipeIngredient[]
+  mealPlanMeals       MealPlanMeal[]
+  feedback            MealFeedback[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, sourceDefaultRecipeId])
@@ -623,24 +628,80 @@ model RecipeIngredient {
   @@map("recipe_ingredients")
 }
 
-// ── Placeholders (tables exist, no business logic yet) ───────────────────────
+// ── Meal plans ───────────────────────────────────────────────────────────────
+//
+// Built by the generator (apps/api/src/modules/meal-plans) from the tenant's recipes.
+// Like recipes, a plan stores no nutrient values: only recipe ids and servings. Day
+// totals are recomputed from fatsecret_food_cache when the plan is read.
 
+/// A patient's plan for one week (Monday to Sunday).
 model MealPlan {
-  id        String    @id @default(uuid()) @db.Uuid
-  tenantId  String    @map("tenant_id") @db.Uuid
-  patientId String    @map("patient_id") @db.Uuid
-  title     String
-  startsOn  DateTime? @map("starts_on") @db.Date
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  patientId String   @map("patient_id") @db.Uuid
+  /// The Monday the plan starts on, in the patient's time zone (es-MX).
+  weekStart DateTime @map("week_start") @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   // Operational data owned by the patient: deleting a patient removes their plans.
-  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+  patient Patient        @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+  meals   MealPlanMeal[]
 
-  @@index([tenantId, patientId])
+  @@unique([tenantId, id])
+  @@unique([tenantId, patientId, weekStart])
   @@map("meal_plans")
 }
+
+/// One meal slot of a plan day. Regenerating a day replaces that date's rows.
+model MealPlanMeal {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  mealPlanId String   @map("meal_plan_id") @db.Uuid
+  date       DateTime @db.Date
+  /// Order within the day (0 = first meal), from the patient's meals per day.
+  slot       Int
+  mealType   MealType @map("meal_type")
+  /// Null when no recipe passed the patient's filters for this slot. Set together with servings.
+  recipeId   String?  @map("recipe_id") @db.Uuid
+  /// Portion factor: recipe servings the patient eats in this meal (0.5–2.5, in 0.05 steps).
+  servings   Float?
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  mealPlan MealPlan @relation(fields: [tenantId, mealPlanId], references: [tenantId, id], onDelete: Cascade)
+  // A recipe used in a plan can't be deleted: the recipe editor (dashboard) will have to archive instead.
+  recipe   Recipe?  @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, mealPlanId, date, slot])
+  @@index([tenantId, recipeId])
+  @@map("meal_plan_meals")
+}
+
+/// A patient's rating of a recipe in a given week. For now only favourites (♥, rating 1),
+/// which the generator boosts. Kept as training data for a future preference model.
+model MealFeedback {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  patientId String   @map("patient_id") @db.Uuid
+  recipeId  String   @map("recipe_id") @db.Uuid
+  /// 1 = favourite. -1 is reserved for a later "don't show me this again"; the column is checked to -1..1.
+  rating    Int      @db.SmallInt
+  /// The week of the plan the patient rated it from (its Monday).
+  weekStart DateTime @map("week_start") @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+  recipe  Recipe  @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, patientId, recipeId, weekStart])
+  @@index([tenantId, recipeId])
+  @@map("meal_feedback")
+}
+
+// ── Placeholders (tables exist, no business logic yet) ───────────────────────
 
 model Protocol {
   id        String   @id @default(uuid()) @db.Uuid
