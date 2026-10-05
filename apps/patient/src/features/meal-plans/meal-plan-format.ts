@@ -1,3 +1,4 @@
+import type { MealPlanDto } from '@limon/types';
 import { t } from '../../i18n/es-MX';
 import { LOCALE, parseDateOnly } from '../../i18n/format';
 import { formatQuantity } from '../recipes/recipe-format';
@@ -21,4 +22,15 @@ const weekday = new Intl.DateTimeFormat(LOCALE, { weekday: 'short' });
 export function dayChip(date: string): { weekday: string; day: string } {
   const d = parseDateOnly(date);
   return { weekday: weekday.format(d).replace('.', ''), day: String(d.getDate()) };
+}
+
+/** ♥ belongs to the recipe, so every meal of the week with that recipe follows it. */
+export function withFavourite(plan: MealPlanDto, recipeId: string, favourite: boolean): MealPlanDto {
+  return {
+    ...plan,
+    days: plan.days.map((day) => ({
+      ...day,
+      meals: day.meals.map((m) => (m.recipe?.id === recipeId ? { ...m, favourite } : m)),
+    })),
+  };
 }

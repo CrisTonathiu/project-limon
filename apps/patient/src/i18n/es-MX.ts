@@ -124,6 +124,10 @@ export const es = {
     regenerate: 'Cambiar el menú de este día',
     regenerating: 'Buscando otras recetas…',
     regenerateFailed: 'No pudimos cambiar el menú. Inténtalo de nuevo.',
+    /** Accessibility labels of the ♥ button. */
+    favourite: (recipe: string) => `Marcar ${recipe} como favorita`,
+    unfavourite: (recipe: string) => `Quitar ${recipe} de favoritas`,
+    favouriteFailed: 'No pudimos guardar tu favorita. Inténtalo de nuevo.',
     consult: 'Tu plan de comidas estará listo cuando tu nutriólogo defina tu meta diaria.',
   },
 

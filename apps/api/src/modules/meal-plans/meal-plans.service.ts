@@ -158,6 +158,7 @@ export function createMealPlansService(c: Container) {
     if (target.status !== 'READY') return { status: 'CONSULT_NUTRITIONIST', reason: target.reason };
 
     const plan = await ensureWeek(ctx, patientId, weekStart, log);
+    const favourites = new Set(await scoped(ctx.tenantId, (tx) => mealPlansRepository.favouriteRecipeIds(tx, ctx.tenantId, patientId)));
 
     const summaries = await recipes.summariesWithMacros(ctx.tenantId, [...new Set(plan.meals.flatMap((m) => (m.recipeId ? [m.recipeId] : [])))], log);
     const days: MealPlanDayDto[] = weekDates(weekStart).map((date) => {
@@ -171,6 +172,7 @@ export function createMealPlansService(c: Container) {
             recipe: recipe ? { id: recipe.id, title: recipe.title, totalMinutes: recipe.totalMinutes } : null,
             servings: recipe ? m.servings : null,
             macros: recipe?.macrosPerServing && m.servings ? scale(recipe.macrosPerServing, m.servings) : null,
+            favourite: recipe ? favourites.has(recipe.id) : false,
           };
         });
       const planned = meals.filter((m) => m.recipe);
@@ -231,6 +233,24 @@ export function createMealPlansService(c: Container) {
         await writeAudit(tx, ctx, { action: 'MealPlanDayRegenerated', resourceType: 'MealPlan', resourceId: plan.id, metadata: { date } });
       });
       return readWeek(ctx, patientId, weekStart, log);
+    },
+
+    /**
+     * PUT /meal-plans/favourites/:recipeId: ♥ a recipe, recorded against the current week
+     * (training data for a future preference model). The generator prefers it from then on.
+     */
+    addFavourite: async (ctx: TenantContext, recipeId: string): Promise<void> => {
+      const { patientId, weekStart } = await me(ctx);
+      await scoped(ctx.tenantId, async (tx) => {
+        if (!(await mealPlansRepository.recipeExists(tx, ctx.tenantId, recipeId))) throw Errors.notFound('Recipe');
+        await mealPlansRepository.addFavourite(tx, ctx.tenantId, patientId, recipeId, new Date(weekStart));
+      });
+    },
+
+    /** DELETE /meal-plans/favourites/:recipeId: un-♥ a recipe. Idempotent. */
+    removeFavourite: async (ctx: TenantContext, recipeId: string): Promise<void> => {
+      const { patientId } = await me(ctx);
+      await scoped(ctx.tenantId, (tx) => mealPlansRepository.removeFavourite(tx, ctx.tenantId, patientId, recipeId));
     },
   };
 }

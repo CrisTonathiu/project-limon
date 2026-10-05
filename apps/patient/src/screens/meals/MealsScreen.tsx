@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
-import { canRegenerate, dayChip, formatPortion, initialDayIndex } from '../../features/meal-plans/meal-plan-format';
+import { canRegenerate, dayChip, formatPortion, initialDayIndex, withFavourite } from '../../features/meal-plans/meal-plan-format';
 import { formatMinutes } from '../../features/recipes/recipe-format';
 import { t } from '../../i18n/es-MX';
 import { formatDate, formatGrams, formatKcal, toDateOnly } from '../../i18n/format';
@@ -15,7 +15,8 @@ type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; w
 
 /**
  * This week's meal plan: a strip of the 7 days, then the selected day's meals with its
- * totals against the daily target. Today and later days can get new recipes.
+ * totals against the daily target. Today and later days can get new recipes, and any
+ * meal's recipe can be marked ♥ (the generator prefers favourites in later plans).
  */
 export function MealsScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Meals'>) {
   const { theme } = useTenantTheme();
@@ -23,6 +24,7 @@ export function MealsScreen({ navigation }: NativeStackScreenProps<AppStackParam
   const [dayIndex, setDayIndex] = useState(0);
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateFailed, setRegenerateFailed] = useState(false);
+  const [favouriteFailed, setFavouriteFailed] = useState(false);
   const today = toDateOnly(new Date());
 
   const fetchPlan = useCallback(() => {
@@ -51,6 +53,23 @@ export function MealsScreen({ navigation }: NativeStackScreenProps<AppStackParam
         setRegenerateFailed(true);
       })
       .finally(() => setRegenerating(false));
+  };
+
+  /** Optimistic: the heart flips at once and flips back if the API call fails. */
+  const toggleFavourite = (recipeId: string, favourite: boolean) => {
+    const apply = (value: boolean) =>
+      setLoad((prev) =>
+        prev.status === 'loaded' && prev.week.status === 'READY'
+          ? { ...prev, week: { ...prev.week, plan: withFavourite(prev.week.plan, recipeId, value) } }
+          : prev,
+      );
+    apply(favourite);
+    setFavouriteFailed(false);
+    (favourite ? api.mealPlans.addFavourite(recipeId) : api.mealPlans.removeFavourite(recipeId)).catch((err) => {
+      console.error('[meals] saving the favourite failed', err);
+      apply(!favourite);
+      setFavouriteFailed(true);
+    });
   };
 
   const Muted = ({ children }: { children: string }) => <Text style={{ color: theme.colors.textMuted }}>{children}</Text>;
@@ -107,7 +126,20 @@ export function MealsScreen({ navigation }: NativeStackScreenProps<AppStackParam
         onPress={() => navigation.navigate('RecipeDetail', { recipeId: recipe.id, title: recipe.title })}
         style={style}
       >
-        {label}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          {label}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: meal.favourite }}
+            accessibilityLabel={meal.favourite ? t.meals.unfavourite(recipe.title) : t.meals.favourite(recipe.title)}
+            hitSlop={12}
+            onPress={() => toggleFavourite(recipe.id, !meal.favourite)}
+          >
+            <Text style={{ color: meal.favourite ? theme.colors.primary : theme.colors.textMuted, fontSize: theme.typography.fontSize.xl }}>
+              {meal.favourite ? '♥' : '♡'}
+            </Text>
+          </Pressable>
+        </View>
         <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: theme.typography.fontSize.lg }}>{recipe.title}</Text>
         <Muted>
           {[
@@ -144,6 +176,7 @@ export function MealsScreen({ navigation }: NativeStackScreenProps<AppStackParam
         </View>
 
         {day.meals.map(mealCard)}
+        {favouriteFailed ? <Text style={{ color: theme.colors.danger }}>{t.meals.favouriteFailed}</Text> : null}
 
         {canRegenerate(day.date, today) ? (
           <View style={{ gap: theme.spacing.sm }}>

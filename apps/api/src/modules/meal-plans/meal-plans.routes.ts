@@ -1,6 +1,6 @@
 import { Permission } from '@limon/auth';
 import { FeatureKey } from '@limon/types';
-import { MealPlanDayParamSchema } from '@limon/validation';
+import { MealPlanDayParamSchema, MealPlanFavouriteParamSchema } from '@limon/validation';
 import type { FastifyInstance } from 'fastify';
 import type { Container } from '../../infrastructure/container.js';
 import { ctxOf, requireFeature, requireTenant } from '../../middleware/auth.js';
@@ -27,4 +27,18 @@ export async function mealPlansRoutes(app: FastifyInstance, c: Container) {
       return reply.header('Cache-Control', 'no-store').send(await service.regenerateDay(ctxOf(req), date, req.log));
     },
   );
+
+  const writeOwn = [requireTenant(c, Permission.SELF_MEAL_PLANS_WRITE), feature];
+
+  app.put('/meal-plans/favourites/:recipeId', { preHandler: writeOwn }, async (req, reply) => {
+    const { recipeId } = MealPlanFavouriteParamSchema.parse(req.params);
+    await service.addFavourite(ctxOf(req), recipeId);
+    return reply.status(204).send();
+  });
+
+  app.delete('/meal-plans/favourites/:recipeId', { preHandler: writeOwn }, async (req, reply) => {
+    const { recipeId } = MealPlanFavouriteParamSchema.parse(req.params);
+    await service.removeFavourite(ctxOf(req), recipeId);
+    return reply.status(204).send();
+  });
 }
