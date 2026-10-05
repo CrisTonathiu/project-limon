@@ -13,6 +13,22 @@ export const mealPlansRepository = {
       await tx.mealFeedback.findMany({ where: { tenantId, patientId, rating: 1 }, select: { recipeId: true }, distinct: ['recipeId'] })
     ).map((f) => f.recipeId),
 
+  recipeExists: async (tx: TenantTx, tenantId: string, recipeId: string) =>
+    (await tx.recipe.count({ where: { tenantId, id: recipeId } })) > 0,
+
+  /** ♥ from this week's plan. Favouriting the same recipe again in the same week is a no-op. */
+  addFavourite: (tx: TenantTx, tenantId: string, patientId: string, recipeId: string, weekStart: Date) =>
+    tx.mealFeedback.upsert({
+      where: { tenantId_patientId_recipeId_weekStart: { tenantId, patientId, recipeId, weekStart } },
+      create: { tenantId, patientId, recipeId, weekStart, rating: 1 },
+      update: { rating: 1 },
+      select: { id: true },
+    }),
+
+  /** Un-♥ removes the favourite from every week, so the generator stops preferring the recipe. */
+  removeFavourite: (tx: TenantTx, tenantId: string, patientId: string, recipeId: string) =>
+    tx.mealFeedback.deleteMany({ where: { tenantId, patientId, recipeId, rating: 1 } }),
+
   /** Creates the week's plan, or replaces all its meals if it exists. */
   saveWeek: async (tx: TenantTx, tenantId: string, patientId: string, weekStart: Date, meals: MealRow[]) => {
     const plan = await tx.mealPlan.upsert({

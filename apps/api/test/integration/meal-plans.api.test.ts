@@ -84,8 +84,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const db = owner.controlPlane();
-  // Plans first: a recipe used in a plan can't be deleted.
+  // Plans and favourites first: a recipe they use can't be deleted.
   await db.mealPlan.deleteMany({ where: { tenantId, patient: { email: { startsWith: tag } } } });
+  await db.mealFeedback.deleteMany({ where: { tenantId, patient: { email: { startsWith: tag } } } });
   await db.recipe.deleteMany({ where: { id: { in: recipeIds } } });
   await db.patientSubscription.deleteMany({ where: { id: { in: subscriptionIds } } });
   await testFoods.cleanup();
@@ -169,5 +170,41 @@ describe('POST /meal-plans/current/days/:date/regenerate', () => {
     expect((await regenerate(headers, '2020-01-06')).statusCode).toBe(400);
     expect((await regenerate(headers, 'mañana')).statusCode).toBe(400);
     if (today !== week[0]) expect((await regenerate(headers, week[0]!)).statusCode).toBe(400);
+  });
+});
+
+describe('PUT and DELETE /meal-plans/favourites/:recipeId', () => {
+  const favourite = (method: 'PUT' | 'DELETE', headers: Record<string, string>, recipeId: string) =>
+    app.inject({ method, url: `/api/v1/meal-plans/favourites/${recipeId}`, headers });
+  const read = async (headers: Record<string, string>) => {
+    const body = (await app.inject({ url: '/api/v1/meal-plans/current', headers })).json() as MealPlanResponse;
+    if (body.status !== 'READY') throw new Error(body.status);
+    return body.plan.days.flatMap((d) => d.meals);
+  };
+
+  it('marks every meal with the recipe, records the week, and unmarks it again', async () => {
+    const headers = await signUp('fav', { profile: true, subscribed: true });
+    const meals = await read(headers);
+    expect(meals.every((m) => !m.favourite)).toBe(true);
+    const recipeId = meals[0]!.recipe!.id;
+
+    expect((await favourite('PUT', headers, recipeId)).statusCode).toBe(204);
+    // Again is a no-op, not a duplicate row.
+    expect((await favourite('PUT', headers, recipeId)).statusCode).toBe(204);
+    for (const m of await read(headers)) expect(m.favourite).toBe(m.recipe?.id === recipeId);
+    const rows = await owner.controlPlane().mealFeedback.findMany({ where: { tenantId, recipeId, patient: { email: `${tag}-fav@test.mx` } } });
+    expect(rows.map((r) => [r.rating, r.weekStart.toISOString().slice(0, 10)])).toEqual([[1, week[0]]]);
+
+    expect((await favourite('DELETE', headers, recipeId)).statusCode).toBe(204);
+    expect((await favourite('DELETE', headers, recipeId)).statusCode).toBe(204);
+    expect((await read(headers)).every((m) => !m.favourite)).toBe(true);
+  });
+
+  it('refuses unknown recipes and bad ids, and is paywalled', async () => {
+    const headers = await signUp('fav-bad', { profile: true, subscribed: true });
+    expect((await favourite('PUT', headers, '00000000-0000-4000-8000-000000000000')).statusCode).toBe(404);
+    expect((await favourite('PUT', headers, 'tacos')).statusCode).toBe(400);
+    const unpaid = await signUp('fav-unpaid', { profile: true, subscribed: false });
+    expect((await favourite('PUT', unpaid, recipeIds[0]!)).statusCode).toBe(402);
   });
 });

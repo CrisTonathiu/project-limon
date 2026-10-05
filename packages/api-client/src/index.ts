@@ -97,6 +97,9 @@ export function createApiClient(opts: ApiClientOptions) {
       current: () => request<MealPlanResponse>('GET', '/meal-plans/current'),
       /** New recipes for one day (today or later) of this week; returns the whole week. */
       regenerateDay: (date: string) => request<MealPlanResponse>('POST', `/meal-plans/current/days/${encodeURIComponent(date)}/regenerate`),
+      /** ♥ a recipe; the generator prefers it in later plans. */
+      addFavourite: (recipeId: string) => request<void>('PUT', `/meal-plans/favourites/${encodeURIComponent(recipeId)}`),
+      removeFavourite: (recipeId: string) => request<void>('DELETE', `/meal-plans/favourites/${encodeURIComponent(recipeId)}`),
     },
     patients: {
       list: () => request<{ items: PatientDto[] }>('GET', '/patients'),

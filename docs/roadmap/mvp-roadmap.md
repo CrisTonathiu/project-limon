@@ -129,7 +129,7 @@ Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s
   - [x] On demand: `GET /meal-plans/current` generates the current week on its first read (patients who join mid-week get a plan), `POST /meal-plans/current/days/:date/regenerate` replaces today or a later day, avoiding the recipes of the days around it. `pnpm --filter @limon/api meal-plans generate <slug>` generates plans from the terminal.
   - [ ] The Sunday job.
 - [x] Plans store recipe ids and portion factors only; the day totals shown in the app are recomputed from the cache (migration `0012_meal_plans`).
-- [ ] ♥ Favourite a meal → `meal_feedback` (patient, recipe, rating, week). This is the training data for future AI. The table exists and the generator boosts favourites; the endpoint and the ♥ button are still to do.
+- [x] ♥ Favourite a meal → `meal_feedback` (patient, recipe, rating, week). This is the training data for future AI. `PUT /meal-plans/favourites/:recipeId` records it against the current week; `DELETE` removes the recipe's favourites from every week so the generator stops preferring it. Each planned meal returns `favourite`, and the meal cards have a ♥ button (optimistic, every meal with that recipe follows).
 - [x] App: week view → day view → meal detail, with daily totals against the target. The Meals tab shows a 7-day strip, the day's meals with portion and kcal, opens the recipe, and has "Cambiar el menú de este día" for today and later days.
 
 **Done when:** a patient with any valid profile gets a full 7-day plan within ±10% of their daily kcal, respecting allergies. Unit tests cover the generator.
@@ -334,7 +334,7 @@ The original full setup is kept as the disabled `production-scale` profile. Depl
 | Production environment | Before onboarding nutritionists beyond the pilot | Separate AWS account, `production` profile (Multi-AZ database, 2+ tasks, load balancer + WAF, NAT gateway), a `staging` environment, data migrated from `preproduction` (new NAT IPs whitelisted at FatSecret), then `preproduction` torn down |
 | Nutritionist dashboard | Jan – Feb 2027 | Recipe editor, patient list and progress, meal plan review/override, invite codes, Stripe Connect self-onboarding, feature/add-on self-upgrade |
 | Build automation | Feb – Mar 2027 | Automated per-tenant build and submit pipeline (the MVP pilots are built by hand), OTA updates per tenant, guided store-account onboarding, CFDI invoicing (e.g. Facturapi) |
-| AI add-on (`ai_assistant`) | Q2 2027 | Preference-aware plan generation trained on `meal_feedback`; patient assistant (recipe Q&A, swaps); nutritionist plan drafting; usage-metered billing |
+| AI add-on (`ai_assistant`) | Q2 2027 | Preference-aware plan generation trained on `meal_feedback`; patient assistant (recipe Q&A, swaps); nutritionist plan drafting; usage-metered billing. See [AI add-on](ai-addon.md), including data to start collecting before the pilot |
 | Booking add-on (`booking`) | Q2 2027 | Calendar, availability, video-call links, reminders |
 
 ## Definition of MVP done

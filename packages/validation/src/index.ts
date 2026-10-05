@@ -164,6 +164,10 @@ export const MealPlanDayParamSchema = z.object({
 }).strict();
 export type MealPlanDayParam = z.infer<typeof MealPlanDayParamSchema>;
 
+/** PUT and DELETE /meal-plans/favourites/:recipeId */
+export const MealPlanFavouriteParamSchema = z.object({ recipeId: z.string().uuid() }).strict();
+export type MealPlanFavouriteParam = z.infer<typeof MealPlanFavouriteParamSchema>;
+
 export const PaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   cursor: z.string().uuid().optional(),

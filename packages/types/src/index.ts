@@ -410,6 +410,8 @@ export type PlannedMealDto = {
   servings: number | null;
   /** For the portion, from FatSecret on every read. Null when unknown, like RecipeDetailDto.macrosPerServing. */
   macros: RecipeMacros | null;
+  /** The patient ♥ this recipe (in any week). False when there's no recipe. */
+  favourite: boolean;
 };
 
 export type MealPlanDayDto = {
