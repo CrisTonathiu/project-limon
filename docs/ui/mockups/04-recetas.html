@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Recetas</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&amp;family=Nunito:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#3173BD}a:hover{color:#245A96}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.tab{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:600;color:#5F6B63;text-decoration:none;min-width:56px;min-height:44px;justify-content:center}
+.ico{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chip{min-height:40px;padding:0 14px;border-radius:999px;border:none;font-family:Nunito,sans-serif;font-size:14px;font-weight:700;white-space:nowrap}
+.card{display:flex;flex-direction:column;background:#FFFFFF;border-radius:22px;overflow:hidden;text-decoration:none;color:#1B1F1C}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; background: #FBF8F2; color: #1B1F1C; font-family: Nunito, system-ui, sans-serif;">
+<div style="padding: 56px 24px 0; display: flex; flex-direction: column; gap: 12px;">
+<h1 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 30px; animation: rise 500ms ease-out both;">Recetas</h1>
+<label style="display: flex; align-items: center; gap: 10px; background: #FFFFFF; border-radius: 999px; padding: 0 16px; min-height: 48px; color: #5F6B63; animation: rise 500ms ease-out 60ms both;">
+<svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Buscar recetas</span>
+<input type="search" placeholder="Buscar recetas" style="border: none; outline: none; background: transparent; font-family: Nunito, sans-serif; font-size: 15px; flex-grow: 1; color: #1B1F1C;">
+</label>
+<div style="display: flex; gap: 8px; overflow-x: auto; animation: rise 500ms ease-out 120ms both;">
+<sc-for list="{{chips}}" as="c" hint-placeholder-count="5">
+<button class="chip" aria-pressed="{{c.pressed}}" style="{{c.style}}">{{c.label}}</button>
+</sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+<sc-for list="{{recipes}}" as="r" hint-placeholder-count="6">
+<a class="card" href="RecetaDetalle.dc.html" style="{{r.anim}}">
+<span style="height: 96px; display: flex; align-items: center; justify-content: center; {{r.block}}"><svg class="ico" viewBox="0 0 24 24" style="width: 36px; height: 36px; stroke-width: 1.6;"><path d="M4 12h16a8 8 0 0 1-16 0z"></path><path d="M9 8c0-2 1-3 3-4M13 8c0-1.5.8-2.5 2.5-3"></path></svg></span>
+<span style="padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 2px;"><span style="font-weight: 700; font-size: 15px; line-height: 1.25;">{{r.name}}</span><span style="font-size: 12px; color: #5F6B63;">{{r.meta}}</span></span>
+</a>
+</sc-for>
+</div>
+</div>
+
+<nav aria-label="Principal" style="position: absolute; left: 0; right: 0; bottom: 0; height: 84px; background: #FFFFFF; border-top: 1px solid #ECE7DC; display: flex; justify-content: space-around; align-items: flex-start; padding-top: 10px; box-sizing: border-box;">
+<a class="tab" href="Main.dc.html"><svg class="ico" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z"></path></svg>Inicio</a>
+<a class="tab" href="Comidas.dc.html"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="4"></circle></svg>Comidas</a>
+<a class="tab" href="#" style="color: {{brand}};"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M5 17a3 3 0 0 1 3-3h11"></path></svg>Recetas</a>
+<a class="tab" href="Progreso.dc.html"><svg class="ico" viewBox="0 0 24 24"><path d="M4 19h16M7 16v-5M12 16V7M17 16v-8"></path></svg>Progreso</a>
+<a class="tab" href="Perfil.dc.html"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg>Perfil</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"brand":{"editor":"color","default":"#3173BD","options":["#3173BD","#2E7D32","#C2410C"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const brand = this.props.brand ?? '#3173BD';
+const tint = 'color-mix(in srgb, ' + brand + ' 16%, #FFFFFF)';
+const chips = ['Todas', 'Desayuno', 'Comida', 'Cena', 'Colación'].map((label, i) => ({
+label: label, pressed: i === 0 ? 'true' : 'false',
+style: i === 0 ? 'background: ' + brand + '; color: #FFFFFF;' : 'background: #FFFFFF; color: #1B1F1C;',
+}));
+const blocks = [
+'background: ' + tint + '; color: ' + brand + ';',
+'background: #FBEFC4; color: #8A6A00;',
+'background: #ECE7DC; color: #5F6B63;',
+];
+const list = [
+['Avena con fresas', '10 min · 380 kcal'],
+['Ensalada de quinoa con pollo', '20 min · 520 kcal'],
+['Tacos de pescado', '25 min · 580 kcal'],
+['Yogur con nuez', '5 min · 180 kcal'],
+['Sopa de verduras', '30 min · 240 kcal'],
+['Molletes integrales', '15 min · 410 kcal'],
+];
+const recipes = list.map((r, i) => ({ name: r[0], meta: r[1], block: blocks[i % 3], anim: 'animation: rise 500ms ease-out ' + (180 + i * 70) + 'ms both;' }));
+return { brand: brand, chips: chips, recipes: recipes };
+}
+}
+</script>
+</body>
+</html>
