@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Detalle de receta</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&amp;family=Nunito:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#3173BD}a:hover{color:#245A96}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes fillbar{from{transform:scaleX(0)}}
+.ico{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.round{width:44px;height:44px;border-radius:99px;background:#FFFFFF;border:none;display:flex;align-items:center;justify-content:center;color:#1B1F1C}
+h2{margin:0;font-family:Fredoka,sans-serif;font-weight:600;font-size:19px}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; background: #FBF8F2; color: #1B1F1C; font-family: Nunito, system-ui, sans-serif;">
+<div style="background: {{tint}}; border-radius: 0 0 32px 32px; padding: 52px 24px 22px; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; justify-content: space-between;">
+<a class="round" href="Recetas.dc.html" aria-label="Volver"><svg class="ico" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"></path></svg></a>
+<button class="round" aria-label="Quitar de favoritos" style="color: #D9480F;"><svg class="ico" viewBox="0 0 24 24" style="fill: #D9480F;"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; animation: rise 500ms ease-out both;">
+<h1 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 28px;">Avena con fresas</h1>
+<div style="display: flex; gap: 8px; font-size: 13px; font-weight: 700;">
+<span style="background: #FFFFFF; border-radius: 99px; padding: 5px 10px;">Desayuno</span>
+<span style="background: #FFFFFF; border-radius: 99px; padding: 5px 10px;">10 min</span>
+<span style="background: #FFFFFF; border-radius: 99px; padding: 5px 10px;">1 porción</span>
+</div>
+</div>
+</div>
+
+<div style="padding: 16px 24px 0; display: flex; flex-direction: column; gap: 14px;">
+<div style="background: #FFFFFF; border-radius: 24px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; animation: rise 500ms ease-out 80ms both;">
+<div style="display: flex; justify-content: space-between; align-items: baseline;"><span style="font-size: 13px; color: #5F6B63;">Por porción</span><span style="font-family: Fredoka, sans-serif; font-size: 22px; font-weight: 600;">380 kcal</span></div>
+<sc-for list="{{macros}}" as="m" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 76px minmax(0, 1fr) 44px; align-items: center; gap: 10px; font-size: 13px;">
+<span style="color: #44504A;">{{m.name}}</span>
+<span style="height: 10px; border-radius: 99px; background: #F0EBE1; overflow: hidden;"><span style="display: block; height: 100%; border-radius: 99px; transform-origin: left; {{m.bar}}"></span></span>
+<span style="font-weight: 700; text-align: right;">{{m.g}}</span>
+</div>
+</sc-for>
+<span style="font-size: 11px; color: #5F6B63;">Información nutricional de FatSecret</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; animation: rise 500ms ease-out 160ms both;">
+<h2>Ingredientes</h2>
+<sc-for list="{{ingredients}}" as="i" hint-placeholder-count="5">
+<div style="display: flex; justify-content: space-between; font-size: 15px; padding: 4px 0; border-bottom: 1px solid #ECE7DC;"><span>{{i.name}}</span><span style="color: #5F6B63;">{{i.qty}}</span></div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px; animation: rise 500ms ease-out 240ms both;">
+<h2>Preparación</h2>
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="3">
+<div style="display: flex; gap: 12px; align-items: flex-start; font-size: 15px; line-height: 1.4;">
+<span style="width: 28px; height: 28px; border-radius: 99px; background: {{tint}}; color: {{brand}}; display: flex; align-items: center; justify-content: center; font-family: Fredoka, sans-serif; font-weight: 600; flex-shrink: 0;">{{s.n}}</span>
+<span>{{s.text}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"brand":{"editor":"color","default":"#3173BD","options":["#3173BD","#2E7D32","#C2410C"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const brand = this.props.brand ?? '#3173BD';
+const tint = 'color-mix(in srgb, ' + brand + ' 16%, #FFFFFF)';
+const m = [['Proteína', '14 g', 0.35, brand], ['Carbs', '58 g', 0.8, '#E9B308'], ['Grasa', '10 g', 0.25, '#8C8576']];
+const macros = m.map((x, i) => ({ name: x[0], g: x[1], bar: 'width: ' + Math.round(x[2] * 100) + '%; background: ' + x[3] + '; animation: fillbar 800ms cubic-bezier(.3,.7,.2,1) ' + (300 + i * 120) + 'ms both;' }));
+const ingredients = [['Avena en hojuelas', '½ taza'], ['Leche descremada', '1 taza'], ['Fresas', '1 taza'], ['Canela', '1 pizca'], ['Almendras', '6 piezas']].map((x) => ({ name: x[0], qty: x[1] }));
+const steps = ['Calienta la leche con la canela sin que hierva.', 'Agrega la avena y cocina 5 minutos, moviendo.', 'Sirve con las fresas en rodajas y las almendras.'].map((t, i) => ({ n: String(i + 1), text: t }));
+return { brand: brand, tint: tint, macros: macros, ingredients: ingredients, steps: steps };
+}
+}
+</script>
+</body>
+</html>

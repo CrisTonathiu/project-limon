@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Detalle de comida</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&amp;family=Nunito:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#3173BD}a:hover{color:#245A96}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes sheet{0%{transform:translateY(100%)}70%{transform:translateY(-6px)}100%{transform:none}}
+@keyframes dim{from{opacity:0}}
+.ico{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.row{display:flex;align-items:center;gap:12px;min-height:52px;border-bottom:1px solid #F0EBE1}
+.swap{min-height:36px;min-width:44px;padding:0 12px;border-radius:999px;border:none;font-family:Nunito,sans-serif;font-weight:700;font-size:13px}
+.opt{display:flex;align-items:center;gap:12px;min-height:52px;width:100%;border:none;background:none;padding:0 4px;font-family:Nunito,sans-serif;font-size:15px;color:#1B1F1C;text-align:left;border-radius:14px}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; box-sizing: border-box; background: #FBF8F2; color: #1B1F1C; font-family: Nunito, system-ui, sans-serif;">
+<div style="height: 210px; background: {{tint}}; border-radius: 0 0 32px 32px; padding: 52px 24px 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px;">
+<a href="Comidas.dc.html" aria-label="Volver" style="width: 44px; height: 44px; border-radius: 99px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #1B1F1C;"><svg class="ico" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"></path></svg></a>
+<div style="display: flex; flex-direction: column; gap: 4px; animation: rise 500ms ease-out both;">
+<span style="font-size: 13px; color: #44504A;">Comida · 14:00 · 520 kcal</span>
+<h1 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 26px; line-height: 1.15;">Ensalada de quinoa con pollo</h1>
+</div>
+</div>
+
+<div style="padding: 16px 24px 0; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; gap: 8px; font-size: 13px; font-weight: 700; animation: rise 500ms ease-out 80ms both;">
+<span style="background: #FFFFFF; border-radius: 99px; padding: 6px 12px;">Proteína 38 g</span>
+<span style="background: #FFFFFF; border-radius: 99px; padding: 6px 12px;">Carbs 52 g</span>
+<span style="background: #FFFFFF; border-radius: 99px; padding: 6px 12px;">Grasa 17 g</span>
+</div>
+<div style="background: #FFFFFF; border-radius: 24px; padding: 4px 16px; display: flex; flex-direction: column; animation: rise 500ms ease-out 160ms both;">
+<sc-for list="{{items}}" as="it" hint-placeholder-count="6">
+<div class="row">
+<span style="display: flex; flex-direction: column; flex-grow: 1;"><span style="font-weight: 700; font-size: 15px;">{{it.name}}</span><span style="font-size: 12px; color: #5F6B63;">{{it.qty}}</span></span>
+<button class="swap" style="{{it.btn}}">Cambiar</button>
+</div>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: #5F6B63;">Información nutricional de FatSecret</span>
+</div>
+
+<div style="position: absolute; inset: 0; background: rgba(27,31,28,.38); animation: dim 300ms ease-out 600ms both;"></div>
+<div role="dialog" aria-label="Cambiar pechuga de pollo" style="position: absolute; left: 0; right: 0; bottom: 0; background: #FFFFFF; border-radius: 28px 28px 0 0; padding: 12px 24px 32px; display: flex; flex-direction: column; gap: 10px; animation: sheet 520ms cubic-bezier(.3,.7,.2,1) 650ms both;">
+<span style="align-self: center; width: 40px; height: 5px; border-radius: 99px; background: #DDD6C8;"></span>
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<h2 style="margin: 0; font-family: Fredoka, sans-serif; font-weight: 600; font-size: 20px;">Cambiar pechuga de pollo</h2>
+<span style="font-size: 13px; color: #5F6B63;">Equivalentes del mismo grupo: alimentos de origen animal</span>
+</div>
+<sc-for list="{{opts}}" as="o" hint-placeholder-count="4">
+<button class="opt" style="{{o.style}}" aria-pressed="{{o.pressed}}">
+<span style="width: 22px; height: 22px; border-radius: 99px; box-sizing: border-box; flex-shrink: 0; {{o.dot}}"></span>
+<span style="flex-grow: 1; font-weight: 700;">{{o.name}}</span>
+<span style="font-size: 14px; color: #5F6B63;">{{o.qty}}</span>
+</button>
+</sc-for>
+<button style="min-height: 52px; border-radius: 999px; border: none; background: {{brand}}; color: #FFFFFF; font-family: Nunito, sans-serif; font-size: 16px; font-weight: 700; margin-top: 4px;">Usar atún en agua</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"brand":{"editor":"color","default":"#3173BD","options":["#3173BD","#2E7D32","#C2410C"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const brand = this.props.brand ?? '#3173BD';
+const tint = 'color-mix(in srgb, ' + brand + ' 16%, #FFFFFF)';
+const list = [['Quinoa cocida', '1 taza'], ['Pechuga de pollo', '120 g'], ['Jitomate cherry', '1 taza'], ['Pepino', '½ pieza'], ['Aguacate', '⅓ pieza'], ['Aceite de oliva', '1 cdita.']];
+const items = list.map((x) => ({ name: x[0], qty: x[1], btn: 'background: ' + tint + '; color: ' + brand + ';' }));
+const o = [['Atún en agua', '90 g'], ['Pescado blanco', '120 g'], ['Huevo', '2 piezas'], ['Queso panela', '80 g']];
+const opts = o.map((x, i) => ({
+name: x[0], qty: x[1], pressed: i === 0 ? 'true' : 'false',
+style: i === 0 ? 'background: ' + tint + ';' : '',
+dot: i === 0 ? 'border: 7px solid ' + brand + ';' : 'border: 2px solid #C9C2B4;',
+}));
+return { brand: brand, tint: tint, items: items, opts: opts };
+}
+}
+</script>
+</body>
+</html>
