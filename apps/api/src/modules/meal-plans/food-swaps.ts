@@ -26,10 +26,10 @@ export function equivalentGrams(grams: number, from: SwapFood, to: SwapFood): nu
  * instead). A swap that no longer holds, because the catalog moved a food to another group or
  * dropped its equivalent, is ignored and the recipe's food shows again.
  */
-export function applySwaps<I extends { id: string; grams: number; food: SwapFood }>(
+export function applySwaps<F extends SwapFood, I extends { id: string; grams: number; food: F }>(
   ingredients: I[],
-  swaps: ReadonlyMap<string, SwapFood>,
-): (I & { swappedFrom: SwapFood | null })[] {
+  swaps: ReadonlyMap<string, F>,
+): (I & { swappedFrom: F | null })[] {
   return ingredients.map((i) => {
     const to = swaps.get(i.id);
     if (!to || !canSwap(i.food, to)) return { ...i, swappedFrom: null };

@@ -12,7 +12,7 @@ import { Errors } from '../../lib/errors.js';
 type Logger = { warn: (obj: object, msg: string) => void };
 
 const swapFoodSelect = {
-  id: true, name: true, smaeGroup: true, gramsPerEquivalent: true, allergens: true, fatsecretFoodId: true, fatsecretServingId: true,
+  id: true, name: true, smaeGroup: true, gramsPerEquivalent: true, allergens: true, shoppingCategory: true, fatsecretFoodId: true, fatsecretServingId: true,
 } as const;
 
 export function createFoodsService(c: Container) {

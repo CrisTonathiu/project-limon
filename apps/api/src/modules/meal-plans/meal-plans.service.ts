@@ -245,16 +245,21 @@ export function createMealPlansService(c: Container) {
     return plan;
   };
 
+  /** The patient's energy target, which decides whether they have a plan at all. */
+  const weekTarget = async (tenantId: string, patientId: string) => {
+    const profile = await patients.planningProfile(tenantId, patientId);
+    // The app only shows the plan after onboarding, so this is a client bug or a race with account deletion.
+    if (!profile) throw Errors.conflict('Finish the onboarding questionnaire first.');
+    return profile.energyTarget;
+  };
+
   /**
    * The saved week with each meal's macros, recomputed from the FatSecret cache on every
    * read (nothing nutritional is stored). Generates the week first if it doesn't exist yet:
    * a patient who joins mid-week, or a week the weekly job hasn't reached, still gets a plan.
    */
   const readWeek = async (ctx: TenantContext, patientId: string, weekStart: string, log: Logger): Promise<MealPlanResponse> => {
-    const profile = await patients.planningProfile(ctx.tenantId, patientId);
-    // The app only shows the plan after onboarding, so this is a client bug or a race with account deletion.
-    if (!profile) throw Errors.conflict('Finish the onboarding questionnaire first.');
-    const target = profile.energyTarget;
+    const target = await weekTarget(ctx.tenantId, patientId);
     if (target.status !== 'READY') return { status: 'CONSULT_NUTRITIONIST', reason: target.reason };
 
     const plan = await ensureWeek(ctx, patientId, weekStart, log);
@@ -295,6 +300,31 @@ export function createMealPlansService(c: Container) {
     current: async (ctx: TenantContext, log: Logger): Promise<MealPlanResponse> => {
       const { patientId, weekStart } = await me(ctx);
       return readWeek(ctx, patientId, weekStart, log);
+    },
+
+    /**
+     * Every ingredient of the current week's meals for the patient's portions, after swaps:
+     * what the shopping list adds up. Generates the week first if needed, like `current`.
+     * A swapped ingredient has no household amount, only grams.
+     */
+    currentWeekIngredients: async (ctx: TenantContext, log: Logger) => {
+      const { patientId, weekStart } = await me(ctx);
+      const target = await weekTarget(ctx.tenantId, patientId);
+      if (target.status !== 'READY') return { status: 'CONSULT_NUTRITIONIST' as const, reason: target.reason };
+
+      const plan = await ensureWeek(ctx, patientId, weekStart, log);
+      const view = await mealViews(ctx.tenantId, plan.meals, null);
+      const ingredients = plan.meals.flatMap((m) => {
+        const v = view(m);
+        if (!v) return [];
+        return v.ingredients.map((i) => ({
+          food: { id: i.food.id, name: i.food.name, shoppingCategory: i.food.shoppingCategory },
+          grams: i.grams * v.portion,
+          quantity: i.swappedFrom ? null : i.quantity * v.portion,
+          unit: i.swappedFrom ? null : i.unit,
+        }));
+      });
+      return { status: 'READY' as const, patientId, weekStart, ingredients };
     },
 
     /**

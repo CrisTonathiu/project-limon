@@ -200,6 +200,13 @@ enum IngredientUnit {
   TSP
 }
 
+/// How a shopping list item is counted: grams, millilitres or whole pieces.
+enum ShoppingUnit {
+  G
+  ML
+  PIECE
+}
+
 // ── Platform / tenancy ───────────────────────────────────────────────────────
 
 model Tenant {
@@ -230,6 +237,7 @@ model Tenant {
   mealPlanMeals         MealPlanMeal[]
   mealFeedback          MealFeedback[]
   mealPlanMealSwaps     MealPlanMealSwap[]
+  shoppingListChecks    ShoppingListCheck[]
   protocols             Protocol[]
   conversations         Conversation[]
   messages              Message[]
@@ -429,15 +437,16 @@ model Patient {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  user          User?                 @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Restrict)
-  mealPlans     MealPlan[]
-  mealFeedback  MealFeedback[]
-  conversations Conversation[]
-  subscriptions PatientSubscription[]
-  consents      PatientConsent[]
-  inviteCodes   TenantInviteCode[]
-  profile       PatientProfile?
+  tenant             Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user               User?                 @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Restrict)
+  mealPlans          MealPlan[]
+  mealFeedback       MealFeedback[]
+  conversations      Conversation[]
+  subscriptions      PatientSubscription[]
+  consents           PatientConsent[]
+  inviteCodes        TenantInviteCode[]
+  profile            PatientProfile?
+  shoppingListChecks ShoppingListCheck[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, userId])
@@ -527,6 +536,7 @@ model Food {
   defaultRecipeIngredients DefaultRecipeIngredient[]
   dislikedBy               PatientDislikedFood[]
   mealSwaps                MealPlanMealSwap[]
+  shoppingListChecks       ShoppingListCheck[]
 
   @@index([fatsecretFoodId])
   @@index([smaeGroup])
@@ -621,9 +631,9 @@ model RecipeIngredient {
   /// e.g. "picado", "sin semillas".
   note     String?
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  recipe Recipe @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Cascade)
-  food   Food   @relation(fields: [foodId], references: [id], onDelete: Restrict)
+  tenant Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  recipe Recipe             @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Cascade)
+  food   Food               @relation(fields: [foodId], references: [id], onDelete: Restrict)
   swaps  MealPlanMealSwap[]
 
   @@unique([tenantId, id])
@@ -672,10 +682,10 @@ model MealPlanMeal {
   /// Portion factor: recipe servings the patient eats in this meal (0.5–2.5, in 0.05 steps).
   servings   Float?
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  mealPlan MealPlan @relation(fields: [tenantId, mealPlanId], references: [tenantId, id], onDelete: Cascade)
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  mealPlan MealPlan           @relation(fields: [tenantId, mealPlanId], references: [tenantId, id], onDelete: Cascade)
   // A recipe used in a plan can't be deleted: the recipe editor (dashboard) will have to archive instead.
-  recipe   Recipe?  @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Restrict)
+  recipe   Recipe?            @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Restrict)
   swaps    MealPlanMealSwap[]
 
   @@unique([tenantId, id])
@@ -728,6 +738,30 @@ model MealFeedback {
   @@unique([tenantId, patientId, recipeId, weekStart])
   @@index([tenantId, recipeId])
   @@map("meal_feedback")
+}
+
+/// An item the patient checked off their shopping list for a week. The list itself isn't
+/// stored: it is worked out from the week's plan on every read. `amount` is what the list
+/// asked for when it was checked, so an item shows unchecked again if a plan change raises it.
+model ShoppingListCheck {
+  id        String       @id @default(uuid()) @db.Uuid
+  tenantId  String       @map("tenant_id") @db.Uuid
+  patientId String       @map("patient_id") @db.Uuid
+  /// The plan's Monday.
+  weekStart DateTime     @map("week_start") @db.Date
+  foodId    String       @map("food_id") @db.Uuid
+  unit      ShoppingUnit
+  amount    Float
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+  food    Food    @relation(fields: [foodId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, patientId, weekStart, foodId])
+  @@index([foodId])
+  @@map("shopping_list_checks")
 }
 
 // ── Placeholders (tables exist, no business logic yet) ───────────────────────

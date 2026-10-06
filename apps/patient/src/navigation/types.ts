@@ -12,6 +12,7 @@ export type AppStackParamList = {
   Meals: undefined;
   /** One meal of this week's plan. `title` (the recipe's) shows in the header while it loads. */
   MealDetail: { mealId: string; title: string };
+  ShoppingList: undefined;
   Recipes: undefined;
   /** `title` shows in the header while the recipe loads. */
   RecipeDetail: { recipeId: string; title: string };
@@ -26,6 +27,7 @@ export type AppStackParamList = {
 export const SCREEN_FEATURE: Partial<Record<keyof AppStackParamList, FeatureKey>> = {
   Meals: FeatureKey.MEAL_PLAN,
   MealDetail: FeatureKey.MEAL_PLAN,
+  ShoppingList: FeatureKey.SHOPPING_LIST,
   Recipes: FeatureKey.RECIPES,
   RecipeDetail: FeatureKey.RECIPES,
   Progress: FeatureKey.GOAL_TRACKER,

@@ -180,6 +180,13 @@ export type MealPlanIngredientParam = z.infer<typeof MealPlanIngredientParamSche
 export const FoodSwapSchema = z.object({ foodId: z.string().uuid() }).strict();
 export type FoodSwapInput = z.infer<typeof FoodSwapSchema>;
 
+/** PUT /shopping-list/current/items/:foodId */
+export const ShoppingListItemParamSchema = z.object({ foodId: z.string().uuid() }).strict();
+export type ShoppingListItemParam = z.infer<typeof ShoppingListItemParamSchema>;
+
+export const ShoppingListCheckSchema = z.object({ checked: z.boolean() }).strict();
+export type ShoppingListCheckInput = z.infer<typeof ShoppingListCheckSchema>;
+
 export const PaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   cursor: z.string().uuid().optional(),

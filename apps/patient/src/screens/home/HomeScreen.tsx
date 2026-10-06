@@ -11,6 +11,7 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<AppStackParamL
   if (session.status !== 'signedIn') return null;
   const links: [Exclude<keyof AppStackParamList, 'ProfileEdit' | 'RecipeDetail' | 'MealDetail'>, string][] = [
     ['Meals', t.nav.meals],
+    ['ShoppingList', t.nav.shoppingList],
     ['Recipes', t.nav.recipes],
     ['Progress', t.nav.progress],
     ['AiChat', t.nav.ai],

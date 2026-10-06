@@ -141,8 +141,13 @@ Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s
   - `GET /meal-plans/current/meals/:mealId` returns one meal for the patient's portion, after swaps. `GET …/ingredients/:ingredientId/swaps` lists the equivalents, leaving out the patient's allergens and disliked foods, and `PUT …/ingredients/:ingredientId/swap` saves one (today or later; the recipe's own food undoes it). Swaps are behind `food_swaps`, which now depends on `meal_plan`.
   - The meal's macros, and the day totals in the week view, are computed from the swapped ingredients.
   - App: a meal card opens a meal screen (your portion, ingredients, steps) with "Cambiar" on each ingredient that can be swapped.
-- [ ] **Shopping list:** aggregate the week's ingredients (after swaps and portion scaling), normalize units, and group by category (produce, protein, dairy, grains, pantry). Round to shoppable quantities.
-- [ ] Check off items (state kept per week); regenerate the list when the plan changes.
+- [x] **Shopping list:** aggregate the week's ingredients (after swaps and portion scaling), normalize units, and group by category (produce, protein, dairy, grains, pantry). Round to shoppable quantities.
+  - `GET /shopping-list/current` adds up the whole current week, worked out from the plan on every read (nothing is stored but the checks), so it always follows the plan.
+  - A food is counted in pieces when every recipe writes it in pieces (eggs, limes), in millilitres when every recipe uses ml, and otherwise in grams (a swapped-in food is always in grams). Pieces round up to whole ones; grams and ml round up to 10 up to 100, to 50 up to 1,000 and to 100 above.
+  - Grouped by the foods' six store sections, in a fixed order.
+- [x] Check off items (state kept per week); regenerate the list when the plan changes.
+  - `PUT /shopping-list/current/items/:foodId` with `{ checked }`. `shopping_list_checks` (migration `0014_shopping_list_checks`) keeps the amount that was checked, so an item becomes unchecked again when a plan change (a regenerated day, a swap) asks for more. Account deletion erases the checks.
+  - App: "Lista del súper" from the home screen, by section, with optimistic check-off; it reloads when shown again.
 
 **Done when:** swapping an ingredient updates the meal's macros and the shopping list totals.
 

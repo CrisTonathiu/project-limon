@@ -11,6 +11,7 @@ import { foodsRoutes } from './modules/foods/foods.routes.js';
 import { mealPlansRoutes } from './modules/meal-plans/meal-plans.routes.js';
 import { patientsRoutes } from './modules/patients/patients.routes.js';
 import { recipesRoutes } from './modules/recipes/recipes.routes.js';
+import { shoppingListRoutes } from './modules/shopping-list/shopping-list.routes.js';
 import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes.js';
 import { tenantsRoutes } from './modules/tenants/tenants.routes.js';
 
@@ -75,6 +76,7 @@ export async function buildApp(c: Container) {
       await foodsRoutes(v1, c);
       await recipesRoutes(v1, c);
       await mealPlansRoutes(v1, c);
+      await shoppingListRoutes(v1, c);
     },
     { prefix: '/api/v1' },
   );

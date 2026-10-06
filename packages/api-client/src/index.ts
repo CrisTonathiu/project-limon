@@ -1,6 +1,6 @@
 import type {
   ApiErrorBody, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, FoodSwapOptionsResponse, MealPlanResponse, MealType, MeResponse, PatientDto, PatientEntitlement, PatientProfileResponse,
-  PlannedMealDetailDto, RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, TenantAppConfig,
+  PlannedMealDetailDto, RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, ShoppingListResponse, TenantAppConfig,
 } from '@limon/types';
 import type { CreatePatientInput, PatientProfileInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
 
@@ -108,6 +108,13 @@ export function createApiClient(opts: ApiClientOptions) {
       /** Eat `foodId` instead (today or later); the recipe's own food undoes the swap. Returns the updated meal. */
       swap: (mealId: string, ingredientId: string, foodId: string) =>
         request<PlannedMealDetailDto>('PUT', `/meal-plans/current/meals/${encodeURIComponent(mealId)}/ingredients/${encodeURIComponent(ingredientId)}/swap`, { foodId }),
+    },
+    shoppingList: {
+      /** This week's list, from the plan (generated on the first visit of the week, like `mealPlans.current`). */
+      current: () => request<ShoppingListResponse>('GET', '/shopping-list/current'),
+      /** Check or uncheck a food for this week. */
+      setChecked: (foodId: string, checked: boolean) =>
+        request<void>('PUT', `/shopping-list/current/items/${encodeURIComponent(foodId)}`, { checked }),
     },
     patients: {
       list: () => request<{ items: PatientDto[] }>('GET', '/patients'),
