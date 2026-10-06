@@ -13,7 +13,10 @@ export const canRegenerate = (date: string, today: string) => date >= today;
 
 /** 1 → "1 porción", 1.25 → "1 ¼ porciones", 0.5 → "½ porción". */
 export function formatPortion(servings: number): string {
-  return t.meals.portion(formatQuantity(servings), servings > 1 ? t.recipes.servingOther : t.recipes.servingOne);
+  return t.meals.portion(
+    formatQuantity(servings),
+    servings > 1 ? t.recipes.servingOther : t.recipes.servingOne,
+  );
 }
 
 const weekday = new Intl.DateTimeFormat(LOCALE, { weekday: 'short' });
@@ -25,7 +28,11 @@ export function dayChip(date: string): { weekday: string; day: string } {
 }
 
 /** ♥ belongs to the recipe, so every meal of the week with that recipe follows it. */
-export function withFavourite(plan: MealPlanDto, recipeId: string, favourite: boolean): MealPlanDto {
+export function withFavourite(
+  plan: MealPlanDto,
+  recipeId: string,
+  favourite: boolean,
+): MealPlanDto {
   return {
     ...plan,
     days: plan.days.map((day) => ({
@@ -41,7 +48,12 @@ export function withFavourite(plan: MealPlanDto, recipeId: string, favourite: bo
  */
 export function formatMealIngredient(i: PlannedMealIngredientDto): string {
   const grams = formatGrams(i.grams);
-  const amount = i.quantity !== null && i.unit && !i.swappedFrom ? formatAmount(i.quantity, i.unit) : null;
-  const name = !amount ? `${grams} ${i.name}` : i.unit === 'G' ? `${amount} ${i.name}` : `${amount} ${i.name} (${grams})`;
+  const amount =
+    i.quantity !== null && i.unit && !i.swappedFrom ? formatAmount(i.quantity, i.unit) : null;
+  const name = !amount
+    ? `${grams} ${i.name}`
+    : i.unit === 'G'
+      ? `${amount} ${i.name}`
+      : `${amount} ${i.name} (${grams})`;
   return i.note ? `${name}, ${i.note}` : name;
 }

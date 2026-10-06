@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ageInYears, CreatePatientSchema, PatientProfileSchema, RegisterNutritionistSchema } from './index.js';
+import { ageInYears, CreatePatientSchema, GoalRulesSchema, PatientProfileSchema, RegisterNutritionistSchema, SetGoalSchema } from './index.js';
 
 describe('validation schemas', () => {
   it('rejects client-supplied tenantId (never trusted from clients)', () => {
@@ -56,5 +56,36 @@ describe('ageInYears', () => {
   it('counts whole years, turning over on the birthday', () => {
     expect(ageInYears('2008-09-30', today)).toBe(18);
     expect(ageInYears('2008-10-01', today)).toBe(17);
+  });
+});
+
+describe('SetGoalSchema', () => {
+  it('needs a pace to lose or gain, and refuses one otherwise', () => {
+    expect(SetGoalSchema.safeParse({ intention: 'LOSE_WEIGHT', recentWeightChange: 'STABLE' }).success).toBe(false);
+    expect(SetGoalSchema.safeParse({ intention: 'LOSE_WEIGHT', pace: 'GENTLE', desiredChangeKg: 10, recentWeightChange: 'STABLE' }).success).toBe(true);
+    expect(SetGoalSchema.safeParse({ intention: 'MAINTAIN_WEIGHT', pace: 'GENTLE', recentWeightChange: 'STABLE' }).success).toBe(false);
+    expect(SetGoalSchema.safeParse({ intention: 'NUTRITION_QUALITY', desiredChangeKg: 3, recentWeightChange: 'STABLE' }).success).toBe(false);
+  });
+
+  it('only takes free text for OTHER, and never a calorie number', () => {
+    expect(SetGoalSchema.safeParse({ intention: 'OTHER', otherText: 'Dormir mejor', recentWeightChange: 'UNSURE' }).success).toBe(true);
+    expect(SetGoalSchema.safeParse({ intention: 'BUILD_MUSCLE', otherText: 'x', recentWeightChange: 'STABLE' }).success).toBe(false);
+    expect(SetGoalSchema.safeParse({ intention: 'LOSE_WEIGHT', pace: 'GENTLE', recentWeightChange: 'STABLE', targetKcal: 1200 }).success).toBe(false);
+  });
+});
+
+describe('GoalRulesSchema', () => {
+  it('accepts rules stricter than the platform', () => {
+    expect(
+      GoalRulesSchema.safeParse({ paces: { lose: ['GENTLE'], gain: ['GENTLE'] }, floorKcal: { FEMALE: 1400 }, maxWeeklyLossShare: 0.0075, minAge: 21 })
+        .success,
+    ).toBe(true);
+  });
+
+  it('refuses anything looser than the platform', () => {
+    for (const looser of [{ floorKcal: { MALE: 1400 } }, { maxWeeklyLossShare: 0.015 }, { minBmiToLose: 17 }, { minAge: 16 }]) {
+      expect(GoalRulesSchema.safeParse(looser).success).toBe(false);
+    }
+    expect(GoalRulesSchema.safeParse({ paces: { lose: [], gain: ['GENTLE'] } }).success).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View } from 'react-native';
 import { AiChatScreen } from '../screens/ai/AiChatScreen';
+import { GoalSetupScreen } from '../screens/goals/GoalSetupScreen';
 import { ConfirmSignUpScreen } from '../screens/auth/ConfirmSignUpScreen';
 import { SignInScreen } from '../screens/auth/SignInScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
@@ -67,6 +68,7 @@ export function RootNavigator() {
           {canOpen('RecipeDetail') && (
             <AppStack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={({ route }) => ({ title: route.params.title, headerShown: false })} />
           )}
+          {canOpen('GoalSetup') && <AppStack.Screen name="GoalSetup" component={GoalSetupScreen} options={{ headerShown: false }} />}
           {canOpen('AiChat') && <AppStack.Screen name="AiChat" component={AiChatScreen} options={{ title: t.nav.aiShort }} />}
           <AppStack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ title: t.profile.edit }} />
           <AppStack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: t.subscription.title }} />

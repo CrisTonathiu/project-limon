@@ -25,6 +25,73 @@ export const es = {
     fatLabel: 'Grasa',
   },
 
+  goals: {
+    cardTitle: 'Tu meta',
+    setTitle: 'Define tu meta',
+    setBody: 'Cuéntanos hacia dónde quieres avanzar y ajustamos tu plan.',
+    setButton: 'Definir mi meta',
+    change: 'Cambiar mi meta',
+    /** Step titles. */
+    intentionQuestion: '¿Hacia dónde te gustaría avanzar?',
+    loseDetails: '¿A qué ritmo te gustaría bajar?',
+    gainDetails: '¿A qué ritmo te gustaría subir?',
+    otherDetails: '¿Qué te gustaría lograr?',
+    screeningQuestion: 'En los últimos 3 meses, ¿tu peso cambió?',
+    resultTitle: 'Tu plan',
+    step: (n: number, total: number) => `Paso ${n} de ${total}`,
+    next: 'Continuar',
+    save: 'Guardar mi meta',
+    saving: 'Guardando…',
+    done: 'Listo',
+    saveFailed: 'No pudimos guardar tu meta. Inténtalo de nuevo.',
+    loadFailed: 'No pudimos cargar tu meta. Revisa tu conexión.',
+    retry: 'Reintentar',
+    intentions: {
+      LOSE_WEIGHT: { label: 'Bajar de peso', hint: 'Con un plan gradual y seguro.' },
+      MAINTAIN_WEIGHT: { label: 'Mantener mi peso', hint: 'Seguir como estás, comiendo bien.' },
+      GAIN_WEIGHT: { label: 'Subir de peso', hint: 'Aumentar poco a poco.' },
+      NUTRITION_QUALITY: { label: 'Comer mejor', hint: 'Mejorar la calidad de lo que comes.' },
+      BUILD_MUSCLE: { label: 'Ganar músculo', hint: 'Con más proteína y ejercicio de fuerza.' },
+      OTHER: { label: 'Otra cosa', hint: 'Cuéntanos y lo platicas con tu nutriólogo.' },
+    },
+    paces: {
+      GENTLE: { label: 'Gradual', hint: 'Poco a poco: más fácil de sostener.' },
+      MODERATE: { label: 'Moderado', hint: 'Un ritmo constante.' },
+      FAST: { label: 'Más rápido', hint: 'Pide más constancia.' },
+    },
+    desiredLose: '¿Cuántos kilos te gustaría bajar? (opcional)',
+    desiredGain: '¿Cuántos kilos te gustaría subir? (opcional)',
+    desiredPlaceholder: 'Por ejemplo, 5',
+    desiredInvalid: 'Escribe un número entre 0.5 y 150.',
+    otherPlaceholder: 'Por ejemplo, tener más energía en el día',
+    otherRequired: 'Cuéntanos en pocas palabras.',
+    recentChanges: {
+      STABLE: 'Se mantuvo',
+      LOST: 'Bajé más de 5 kg',
+      GAINED: 'Subí más de 5 kg',
+      UNSURE: 'No estoy seguro',
+    },
+    medicalNote: 'Si tienes una condición médica o tomas medicamentos, consulta a tu nutriólogo antes de empezar.',
+    /** The explanation after saving. `kcal` is "1,740 kcal". */
+    explain: {
+      wantsLose: (kg: string) => `Te gustaría bajar ${kg}.`,
+      wantsGain: (kg: string) => `Te gustaría subir ${kg}.`,
+      lose: (pace: string, kcal: string) => `Con tu perfil empezaremos con una meta ${pace} para bajar de peso: ${kcal} al día.`,
+      gain: (pace: string, kcal: string) => `Con tu perfil empezaremos con una meta ${pace} para subir de peso: ${kcal} al día.`,
+      paceAdjectives: { GENTLE: 'gradual', MODERATE: 'moderada', FAST: 'más rápida' },
+      maintain: (kcal: string) => `Tu meta es mantener tu peso: ${kcal} al día.`,
+      quality: (kcal: string) => `Nos enfocaremos en la calidad de lo que comes, con ${kcal} al día para mantener tu peso.`,
+      leanGain: (kcal: string) =>
+        `Para ganar músculo empezaremos con un aumento pequeño: ${kcal} al día, con más proteína. Combínalo con ejercicio de fuerza.`,
+      other: (kcal: string) => `Por ahora tu plan mantiene tu peso (${kcal} al día). Platica con tu nutriólogo sobre lo que te gustaría lograr.`,
+      recentLoss: (kcal: string) =>
+        `Como bajaste de peso hace poco, empezaremos manteniendo tu peso (${kcal} al día). Platica con tu nutriólogo antes de bajar más.`,
+      tooLow: (kcal: string) =>
+        `El peso que te gustaría alcanzar está por debajo de un rango saludable, así que empezaremos manteniendo tu peso (${kcal} al día). Platica con tu nutriólogo.`,
+      nextWeek: 'Tu plan de comidas se ajustará a partir de la próxima semana.',
+    },
+  },
+
   progress: {
     title: 'Tu progreso',
     goal: (kg: string) => `Meta: ${kg}`,
@@ -44,7 +111,7 @@ export const es = {
     addWater: '+250 ml',
     addWaterA11y: 'Agregar un vaso de 250 ml',
     soonTitle: 'Muy pronto',
-    soonBody: 'Aquí verás tu peso, tu meta y el agua que tomas. Estamos terminando esta sección.',
+    soonBody: 'Aquí verás tu peso, tus medidas y el agua que tomas. Estamos terminando esta sección.',
   },
 
   common: {

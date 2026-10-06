@@ -28,6 +28,8 @@ export type AppStackParamList = {
   /** `title` shows in the header while the recipe loads. */
   RecipeDetail: { recipeId: string; title: string };
   AiChat: undefined;
+  /** Goal setting: intention, pace, screening, then the explanation. */
+  GoalSetup: undefined;
   /** On the paywall only; in the paid app, Profile is a tab. */
   Profile: undefined;
   ProfileEdit: { profile: PatientProfileDto };
@@ -50,6 +52,7 @@ export const SCREEN_FEATURE: Partial<Record<ScreenName, FeatureKey>> = {
   Recipes: FeatureKey.RECIPES,
   RecipeDetail: FeatureKey.RECIPES,
   Progress: FeatureKey.GOAL_TRACKER,
+  GoalSetup: FeatureKey.GOAL_TRACKER,
   AiChat: FeatureKey.AI_ASSISTANT,
 };
 

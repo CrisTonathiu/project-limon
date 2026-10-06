@@ -1,9 +1,13 @@
 import type { Prisma, TenantTx } from '@limon/database';
-import type { CreatePatientInput, PatientProfile } from '@limon/validation';
+import type { GoalDecisionReason, GoalPace, WeightGoal } from '@limon/types';
+import type { CreatePatientInput, PatientProfile, SetGoalInput } from '@limon/validation';
 
 /** Disliked foods come with their names, sorted by name. */
 const profileInclude = {
-  dislikedFoods: { select: { food: { select: { id: true, name: true } } }, orderBy: { food: { name: 'asc' } } },
+  dislikedFoods: {
+    select: { food: { select: { id: true, name: true } } },
+    orderBy: { food: { name: 'asc' } },
+  },
 } satisfies Prisma.PatientProfileInclude;
 
 /**
@@ -11,7 +15,11 @@ const profileInclude = {
  */
 export const patientsRepository = {
   list: (tx: TenantTx, tenantId: string, limit = 50) =>
-    tx.patient.findMany({ where: { tenantId, deletedAt: null }, orderBy: { createdAt: 'desc' }, take: limit }),
+    tx.patient.findMany({
+      where: { tenantId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    }),
 
   findById: (tx: TenantTx, tenantId: string, id: string) =>
     tx.patient.findFirst({ where: { id, tenantId, deletedAt: null } }),
@@ -33,6 +41,49 @@ export const patientsRepository = {
   findProfile: (tx: TenantTx, tenantId: string, patientId: string) =>
     tx.patientProfile.findFirst({ where: { patientId, tenantId }, include: profileInclude }),
 
+  findGoal: (tx: TenantTx, tenantId: string, patientId: string) =>
+    tx.patientGoal.findFirst({ where: { tenantId, patientId } }),
+
+  /** The clinic's latest goal rules, or null when it hasn't set any. */
+  latestGoalRules: (tx: TenantTx, tenantId: string) =>
+    tx.tenantGoalRules.findFirst({
+      where: { tenantId },
+      orderBy: { version: 'desc' },
+      select: { version: true, rules: true },
+    }),
+
+  /** One goal per patient: a new one replaces the old (the audit log keeps the history). */
+  saveGoal: (
+    tx: TenantTx,
+    tenantId: string,
+    patientId: string,
+    input: SetGoalInput,
+    decision: {
+      goal: WeightGoal;
+      pace: GoalPace | null;
+      reason: GoalDecisionReason;
+      rulesVersion: string;
+    },
+  ) => {
+    const data = {
+      intention: input.intention,
+      pace: input.pace ?? null,
+      desiredChangeKg: input.desiredChangeKg ?? null,
+      otherText: input.otherText ?? null,
+      recentWeightChange: input.recentWeightChange,
+      decidedGoal: decision.goal,
+      decidedPace: decision.pace,
+      reason: decision.reason,
+      rulesVersion: decision.rulesVersion,
+      decidedAt: new Date(),
+    };
+    return tx.patientGoal.upsert({
+      where: { tenantId_patientId: { tenantId, patientId } },
+      create: { tenantId, patientId, ...data },
+      update: data,
+    });
+  },
+
   /** How many of these ids are foods in the catalog. */
   countFoods: (tx: TenantTx, ids: string[]) => tx.food.count({ where: { id: { in: ids } } }),
 
@@ -42,15 +93,23 @@ export const patientsRepository = {
    */
   saveProfile: async (tx: TenantTx, tenantId: string, patientId: string, input: PatientProfile) => {
     const { dateOfBirth, dislikedFoodIds, ...fields } = input;
-    await tx.patient.update({ where: { tenantId_id: { tenantId, id: patientId } }, data: { dateOfBirth: new Date(dateOfBirth) } });
+    await tx.patient.update({
+      where: { tenantId_id: { tenantId, id: patientId } },
+      data: { dateOfBirth: new Date(dateOfBirth) },
+    });
     await tx.patientProfile.upsert({
       where: { tenantId_patientId: { tenantId, patientId } },
       create: { tenantId, patientId, ...fields },
       update: fields,
     });
     await tx.patientDislikedFood.deleteMany({ where: { tenantId, patientId } });
-    await tx.patientDislikedFood.createMany({ data: dislikedFoodIds.map((foodId) => ({ tenantId, patientId, foodId })) });
-    return tx.patientProfile.findFirstOrThrow({ where: { patientId, tenantId }, include: profileInclude });
+    await tx.patientDislikedFood.createMany({
+      data: dislikedFoodIds.map((foodId) => ({ tenantId, patientId, foodId })),
+    });
+    return tx.patientProfile.findFirstOrThrow({
+      where: { patientId, tenantId },
+      include: profileInclude,
+    });
   },
 
   /**
@@ -61,19 +120,31 @@ export const patientsRepository = {
   deleteAccount: async (tx: TenantTx, tenantId: string, patientId: string, userId: string) => {
     const now = new Date();
     await tx.patientProfile.deleteMany({ where: { tenantId, patientId } });
+    await tx.patientGoal.deleteMany({ where: { tenantId, patientId } });
     await tx.mealPlan.deleteMany({ where: { tenantId, patientId } }); // meals cascade
     await tx.mealFeedback.deleteMany({ where: { tenantId, patientId } });
     await tx.shoppingListCheck.deleteMany({ where: { tenantId, patientId } });
     await tx.conversation.deleteMany({ where: { tenantId, patientId } }); // messages cascade
-    await tx.tenantInviteCode.updateMany({ where: { tenantId, patientId }, data: { active: false } });
-    await tx.patientConsent.updateMany({ where: { tenantId, patientId, revokedAt: null }, data: { revokedAt: now } });
+    await tx.tenantInviteCode.updateMany({
+      where: { tenantId, patientId },
+      data: { active: false },
+    });
+    await tx.patientConsent.updateMany({
+      where: { tenantId, patientId, revokedAt: null },
+      data: { revokedAt: now },
+    });
     await tx.patient.update({
       where: { tenantId_id: { tenantId, id: patientId } },
       data: { firstName: '', lastName: '', email: null, dateOfBirth: null, deletedAt: now },
     });
     await tx.user.update({
       where: { tenantId_id: { tenantId, id: userId } },
-      data: { email: `deleted+${userId}@deleted.invalid`, cognitoUserId: `deleted:${userId}`, status: 'DISABLED', deletedAt: now },
+      data: {
+        email: `deleted+${userId}@deleted.invalid`,
+        cognitoUserId: `deleted:${userId}`,
+        status: 'DISABLED',
+        deletedAt: now,
+      },
     });
   },
 };

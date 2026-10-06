@@ -1,8 +1,8 @@
 import type {
-  ApiErrorBody, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, FoodSwapOptionsResponse, MealPlanResponse, MealType, MeResponse, PatientDto, PatientEntitlement, PatientProfileResponse,
+  ApiErrorBody, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, FoodSwapOptionsResponse, MealPlanResponse, MealType, MeResponse, MyGoalResponse, PatientDto, PatientEntitlement, PatientProfileResponse, SetGoalResponse,
   PlannedMealDetailDto, RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, ShoppingListResponse, TenantAppConfig,
 } from '@limon/types';
-import type { CreatePatientInput, PatientProfileInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
+import type { CreatePatientInput, PatientProfileInput, SetGoalInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
 
 /**
  * Typed client shared by the dashboard (web) and patient apps (React Native).
@@ -125,6 +125,10 @@ export function createApiClient(opts: ApiClientOptions) {
       myProfile: () => request<PatientProfileResponse>('GET', '/patients/me/profile'),
       /** Onboarding and profile edits: always the whole questionnaire. */
       saveMyProfile: (input: PatientProfileInput) => request<PatientProfileResponse>('PUT', '/patients/me/profile', input),
+      /** The patient's goal and the paces their clinic offers (goal_tracker module). */
+      myGoal: () => request<MyGoalResponse>('GET', '/patients/me/goal'),
+      /** Intention, pace and screening; the clinic's rules decide the starting target. */
+      setMyGoal: (input: SetGoalInput) => request<SetGoalResponse>('PUT', '/patients/me/goal', input),
       /** Erases the patient's data. The Cognito login is deleted separately by the app. */
       deleteMyAccount: () => request<void>('DELETE', '/patients/me'),
     },

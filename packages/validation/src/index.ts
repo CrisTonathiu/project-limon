@@ -1,4 +1,4 @@
-import { ActivityLevel, Allergen, BiologicalSex, MealType } from '@limon/types';
+import { ActivityLevel, Allergen, BiologicalSex, GoalIntention, GoalPace, MealType, RecentWeightChange } from '@limon/types';
 import { z } from 'zod';
 
 /**
@@ -136,6 +136,83 @@ export const PatientProfileSchema = z
   });
 export type PatientProfileInput = z.input<typeof PatientProfileSchema>;
 export type PatientProfile = z.output<typeof PatientProfileSchema>;
+
+/**
+ * The platform's energy guardrails. Plans are generated without a nutritionist reviewing them,
+ * so a clinic's own rules (GoalRulesSchema) may only be stricter than these, never looser.
+ */
+export const PLATFORM_GUARDRAILS = {
+  /** Bumped whenever a value here changes; stored with every goal decision. */
+  version: 1,
+  minAge: 18,
+  floorKcal: { [BiologicalSex.FEMALE]: 1200, [BiologicalSex.MALE]: 1500 } as Record<BiologicalSex, number>,
+  /** Share of body weight that may be lost per week. */
+  maxWeeklyLossShare: 0.01,
+  /** Weight loss is refused below this BMI, and so is a desired weight under it. */
+  minBmiToLose: 18.5,
+  /** Paces a patient may pick when the clinic hasn't set its own. FAST is opt-in. */
+  paces: { lose: [GoalPace.GENTLE, GoalPace.MODERATE], gain: [GoalPace.GENTLE, GoalPace.MODERATE] } as {
+    lose: GoalPace[];
+    gain: GoalPace[];
+  },
+} as const;
+const P = PLATFORM_GUARDRAILS;
+
+const paceList = z
+  .array(z.nativeEnum(GoalPace))
+  .min(1)
+  .transform((paces) => Object.values(GoalPace).filter((p) => paces.includes(p)));
+
+/**
+ * A clinic's goal rules, written by its nutritionist at onboarding and loaded by our team
+ * (`admin goal-rules`). Every limit is optional and falls back to the platform's; one that is
+ * looser than the platform's is refused.
+ */
+export const GoalRulesSchema = z
+  .object({
+    paces: z.object({ lose: paceList, gain: paceList }).strict().optional(),
+    minAge: z.number().int().min(P.minAge, `can't be under ${P.minAge}`).max(120).optional(),
+    floorKcal: z
+      .object({
+        FEMALE: z.number().int().min(P.floorKcal.FEMALE, `can't be under ${P.floorKcal.FEMALE}`).max(4000).optional(),
+        MALE: z.number().int().min(P.floorKcal.MALE, `can't be under ${P.floorKcal.MALE}`).max(4000).optional(),
+      })
+      .strict()
+      .optional(),
+    maxWeeklyLossShare: z.number().positive().max(P.maxWeeklyLossShare, `can't be over ${P.maxWeeklyLossShare}`).optional(),
+    minBmiToLose: z.number().min(P.minBmiToLose, `can't be under ${P.minBmiToLose}`).max(40).optional(),
+  })
+  .strict();
+export type GoalRules = z.output<typeof GoalRulesSchema>;
+
+const WEIGHT_GOALS: GoalIntention[] = [GoalIntention.LOSE_WEIGHT, GoalIntention.GAIN_WEIGHT];
+
+/**
+ * PUT /patients/me/goal. The patient picks an intention and, to lose or gain, a pace; never
+ * a calorie number. The API checks the pace against the clinic's rules and decides the target.
+ */
+export const SetGoalSchema = z
+  .object({
+    intention: z.nativeEnum(GoalIntention),
+    pace: z.nativeEnum(GoalPace).optional(),
+    /** How many kg they'd like to lose or gain. Only for those two intentions. */
+    desiredChangeKg: z.number().min(0.5).max(150).transform((kg) => Math.round(kg * 10) / 10).optional(),
+    otherText: z.string().trim().min(1).max(300).optional(),
+    recentWeightChange: z.nativeEnum(RecentWeightChange),
+  })
+  .strict()
+  .superRefine((g, ctx) => {
+    const weight = WEIGHT_GOALS.includes(g.intention);
+    if (weight && !g.pace) ctx.addIssue({ code: 'custom', path: ['pace'], message: 'required to lose or gain weight' });
+    if (!weight && g.pace) ctx.addIssue({ code: 'custom', path: ['pace'], message: 'only to lose or gain weight' });
+    if (!weight && g.desiredChangeKg !== undefined) {
+      ctx.addIssue({ code: 'custom', path: ['desiredChangeKg'], message: 'only to lose or gain weight' });
+    }
+    if (g.intention !== GoalIntention.OTHER && g.otherText !== undefined) {
+      ctx.addIssue({ code: 'custom', path: ['otherText'], message: 'only for OTHER' });
+    }
+  });
+export type SetGoalInput = z.output<typeof SetGoalSchema>;
 
 /** Placeholders — shape will grow with the nutrition domain. */
 export const CreateRecipeSchema = z

@@ -3,7 +3,13 @@ import { t } from '../../i18n/es-MX';
 import { formatNumber } from '../../i18n/format';
 
 /** Fractions people write in Mexican recipes. Anything else falls back to decimals. */
-const FRACTIONS: [number, string][] = [[1 / 4, '¼'], [1 / 3, '⅓'], [1 / 2, '½'], [2 / 3, '⅔'], [3 / 4, '¾']];
+const FRACTIONS: [number, string][] = [
+  [1 / 4, '¼'],
+  [1 / 3, '⅓'],
+  [1 / 2, '½'],
+  [2 / 3, '⅔'],
+  [3 / 4, '¾'],
+];
 
 /** 0.5 → "½", 1.25 → "1 ¼", 2 → "2", 0.15 → "0.15". */
 export function formatQuantity(quantity: number): string {
