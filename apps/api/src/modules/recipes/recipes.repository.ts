@@ -1,9 +1,9 @@
 import type { TenantTx } from '@limon/database';
 import type { MealType } from '@limon/types';
 
-/** A catalog food with what swaps, filters and macros need (`SwapFood` in meal-plans). */
+/** A catalog food with what swaps, filters, macros and the shopping list need (`SwapFood` in meal-plans). */
 const foodSelect = {
-  id: true, name: true, smaeGroup: true, gramsPerEquivalent: true, allergens: true, fatsecretFoodId: true, fatsecretServingId: true,
+  id: true, name: true, smaeGroup: true, gramsPerEquivalent: true, allergens: true, shoppingCategory: true, fatsecretFoodId: true, fatsecretServingId: true,
 } as const;
 
 const summarySelect = { id: true, title: true, mealTypes: true, servings: true, totalMinutes: true } as const;

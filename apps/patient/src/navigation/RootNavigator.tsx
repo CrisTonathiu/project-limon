@@ -15,6 +15,7 @@ import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { ProgressScreen } from '../screens/progress/ProgressScreen';
 import { RecipeDetailScreen } from '../screens/recipes/RecipeDetailScreen';
 import { RecipesScreen } from '../screens/recipes/RecipesScreen';
+import { ShoppingListScreen } from '../screens/shopping-list/ShoppingListScreen';
 import { SubscriptionScreen } from '../screens/subscription/SubscriptionScreen';
 import { UnavailableScreen } from '../screens/UnavailableScreen';
 import { useSession } from '../state/session-context';
@@ -65,6 +66,7 @@ export function RootNavigator() {
           {canOpen('MealDetail') && (
             <AppStack.Screen name="MealDetail" component={MealDetailScreen} options={({ route }) => ({ title: route.params.title })} />
           )}
+          {canOpen('ShoppingList') && <AppStack.Screen name="ShoppingList" component={ShoppingListScreen} options={{ title: t.nav.shoppingList }} />}
           {canOpen('Recipes') && <AppStack.Screen name="Recipes" component={RecipesScreen} options={{ title: t.nav.recipes }} />}
           {canOpen('RecipeDetail') && (
             <AppStack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={({ route }) => ({ title: route.params.title })} />

@@ -83,6 +83,7 @@ export const es = {
 
   nav: {
     meals: 'Comidas',
+    shoppingList: 'Lista del súper',
     recipes: 'Recetas',
     progress: 'Progreso',
     ai: 'Pregúntale a la IA',
@@ -147,6 +148,25 @@ export const es = {
     none: 'No hay equivalentes que puedas comer para este alimento.',
     optionsFailed: 'No pudimos cargar los equivalentes. Inténtalo de nuevo.',
     saveFailed: 'No pudimos cambiar el alimento. Inténtalo de nuevo.',
+  },
+
+  shoppingList: {
+    intro: 'Todo lo que necesitas para las comidas de esta semana, ya con tus porciones y cambios.',
+    /** "3 de 12 en el carrito" */
+    progress: (checked: string, total: string) => `${checked} de ${total} en el carrito`,
+    empty: 'Tu plan de esta semana todavía no tiene ingredientes.',
+    loadFailed: 'No pudimos cargar tu lista. Revisa tu conexión.',
+    retry: 'Reintentar',
+    checkFailed: 'No pudimos guardar el cambio. Inténtalo de nuevo.',
+    consult: 'Tu lista estará lista cuando tu nutriólogo defina tu meta diaria.',
+    sections: {
+      PRODUCE: 'Frutas y verduras',
+      MEAT_FISH: 'Carnes y pescados',
+      DAIRY_EGGS: 'Lácteos y huevo',
+      BAKERY: 'Panadería y tortillería',
+      GROCERY: 'Abarrotes',
+      NUTS_SEEDS: 'Semillas',
+    },
   },
 
   profile: {

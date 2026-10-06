@@ -38,7 +38,7 @@ describe('RLS tenant isolation', () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it('tenant A cannot insert meal plans, meal feedback or swaps tagged with tenant B', async () => {
+  it('tenant A cannot insert meal plans, meal feedback, swaps or shopping list checks tagged with tenant B', async () => {
     // Its own tenant B recipe: the seed only has recipes when the private default library was loaded.
     const [bPatient, bRecipe] = await withTenant(router, await registry.getPlacement(B), (tx) =>
       Promise.all([
@@ -61,6 +61,11 @@ describe('RLS tenant isolation', () => {
       await expect(
         withTenant(router, await registry.getPlacement(A), (tx) =>
           tx.mealPlanMealSwap.create({ data: { tenantId: B, mealPlanMealId: id, recipeIngredientId: id, foodId: id } }),
+        ),
+      ).rejects.toThrow(/row-level security/);
+      await expect(
+        withTenant(router, await registry.getPlacement(A), (tx) =>
+          tx.shoppingListCheck.create({ data: { tenantId: B, patientId: bPatient.id, weekStart, foodId: id, unit: 'G', amount: 100 } }),
         ),
       ).rejects.toThrow(/row-level security/);
     } finally {

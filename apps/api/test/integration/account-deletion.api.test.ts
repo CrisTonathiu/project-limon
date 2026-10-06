@@ -66,13 +66,14 @@ describe('account deletion', () => {
         data: { tenantId, patientId, weekStart, meals: { create: [{ date: weekStart, slot: 0, mealType: 'BREAKFAST', recipeId: recipe.id, servings: 1.25 }] } },
       });
       await tx.mealFeedback.create({ data: { tenantId, patientId, recipeId: recipe.id, rating: 1, weekStart } });
+      await tx.shoppingListCheck.create({ data: { tenantId, patientId, weekStart, foodId: testFoods.foods[0]!.id, unit: 'G', amount: 100 } });
       return recipe;
     });
 
     const res = await app.inject({ method: 'DELETE', url: '/api/v1/patients/me', headers });
     expect(res.statusCode).toBe(204);
 
-    const { patient, profile, dislikedFoods, mealPlans, mealFeedback, consents, user, audit } = await scoped(async (tx) => {
+    const { patient, profile, dislikedFoods, mealPlans, mealFeedback, shoppingListChecks, consents, user, audit } = await scoped(async (tx) => {
       const patient = await tx.patient.findUniqueOrThrow({ where: { id: patientId } });
       return {
         patient,
@@ -80,6 +81,7 @@ describe('account deletion', () => {
         dislikedFoods: await tx.patientDislikedFood.findMany({ where: { tenantId, patientId } }),
         mealPlans: await tx.mealPlan.findMany({ where: { tenantId, patientId } }),
         mealFeedback: await tx.mealFeedback.findMany({ where: { tenantId, patientId } }),
+        shoppingListChecks: await tx.shoppingListCheck.findMany({ where: { tenantId, patientId } }),
         consents: await tx.patientConsent.findMany({ where: { tenantId, patientId } }),
         user: await tx.user.findUniqueOrThrow({ where: { id: patient.userId! } }),
         audit: await tx.auditLog.findFirst({ where: { tenantId, action: 'PatientDeleted', resourceId: patientId } }),
@@ -89,6 +91,7 @@ describe('account deletion', () => {
     expect(dislikedFoods).toEqual([]);
     expect(mealPlans).toEqual([]);
     expect(mealFeedback).toEqual([]);
+    expect(shoppingListChecks).toEqual([]);
     expect(patient).toMatchObject({ firstName: '', lastName: '', email: null, dateOfBirth: null });
     expect(patient.deletedAt).not.toBeNull();
     expect(user).toMatchObject({ status: 'DISABLED', email: `deleted+${user.id}@deleted.invalid` });

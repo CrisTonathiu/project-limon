@@ -247,6 +247,10 @@ export const ShoppingCategory = {
 } as const;
 export type ShoppingCategory = (typeof ShoppingCategory)[keyof typeof ShoppingCategory];
 
+/** How a shopping list item is counted: grams, millilitres, or whole pieces (eggs, limes, tortillas). */
+export const ShoppingUnit = { G: 'G', ML: 'ML', PIECE: 'PIECE' } as const;
+export type ShoppingUnit = (typeof ShoppingUnit)[keyof typeof ShoppingUnit];
+
 /** Display unit of an ingredient quantity. Every ingredient also has its weight in grams. */
 export const IngredientUnit = { G: 'G', ML: 'ML', PIECE: 'PIECE', CUP: 'CUP', TBSP: 'TBSP', TSP: 'TSP' } as const;
 export type IngredientUnit = (typeof IngredientUnit)[keyof typeof IngredientUnit];
@@ -482,3 +486,26 @@ export type FoodSwapOptionDto = {
 
 /** GET /meal-plans/current/meals/:mealId/ingredients/:ingredientId/swaps, sorted by name. */
 export type FoodSwapOptionsResponse = { items: FoodSwapOptionDto[] };
+
+/** One food to buy for the week, rounded up to a quantity you can buy. */
+export type ShoppingListItemDto = {
+  foodId: string;
+  /** Our Spanish food name. */
+  name: string;
+  unit: ShoppingUnit;
+  amount: number;
+  /** Checked for at least this amount. A plan change that raises the amount unchecks it. */
+  checked: boolean;
+};
+
+/** One store section of the list. Sections come in a fixed order and items by name; empty sections are left out. */
+export type ShoppingListSectionDto = { category: ShoppingCategory; items: ShoppingListItemDto[] };
+
+/**
+ * GET /shopping-list/current: the current week's plan (after swaps and portions) added up by food.
+ * Worked out on every read, so it follows the plan. CONSULT_NUTRITIONIST when there's no plan.
+ */
+export type ShoppingListResponse =
+  | { status: 'READY'; weekStart: string; sections: ShoppingListSectionDto[] }
+  | { status: 'CONSULT_NUTRITIONIST'; reason: EnergyTargetHoldReason };
+
