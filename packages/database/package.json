@@ -24,6 +24,7 @@
     "@limon/config": "workspace:*",
     "@limon/tenant": "workspace:*",
     "@limon/types": "workspace:*",
+    "@limon/validation": "workspace:*",
     "@prisma/client": "^5.22.0"
   },
   "devDependencies": {

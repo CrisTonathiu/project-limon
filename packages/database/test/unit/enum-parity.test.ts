@@ -2,8 +2,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  ActivityLevel, AppPlatform, BiologicalSex, DatabaseMode, IngredientUnit, MealType, ShoppingCategory, SmaeGroup, TenantAppStatus,
-  TenantStatus, UserRole,
+  ActivityLevel, AppPlatform, BiologicalSex, DatabaseMode, GoalDecisionReason, GoalIntention, GoalPace, IngredientUnit, MealType,
+  RecentWeightChange, ShoppingCategory, SmaeGroup, TenantAppStatus, TenantStatus, UserRole, WeightGoal,
 } from '@limon/types';
 
 const schema = readFileSync(fileURLToPath(new URL('../../prisma/schema.prisma', import.meta.url)), 'utf8');
@@ -27,6 +27,11 @@ describe('@limon/types ↔ Prisma enum parity', () => {
     ['SmaeGroup', SmaeGroup],
     ['ShoppingCategory', ShoppingCategory],
     ['IngredientUnit', IngredientUnit],
+    ['GoalIntention', GoalIntention],
+    ['WeightGoal', WeightGoal],
+    ['GoalPace', GoalPace],
+    ['RecentWeightChange', RecentWeightChange],
+    ['GoalDecisionReason', GoalDecisionReason],
   ])('%s matches', (name, values) => {
     expect(prismaEnum(name)).toEqual(Object.values(values).sort());
   });

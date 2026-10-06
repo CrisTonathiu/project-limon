@@ -120,6 +120,47 @@ enum ActivityLevel {
   VERY_ACTIVE
 }
 
+/// What the patient wants to work toward (@limon/types GoalIntention).
+enum GoalIntention {
+  LOSE_WEIGHT
+  MAINTAIN_WEIGHT
+  GAIN_WEIGHT
+  NUTRITION_QUALITY
+  BUILD_MUSCLE
+  OTHER
+}
+
+/// The direction of the energy target an intention turns into.
+enum WeightGoal {
+  LOSE
+  MAINTAIN
+  GAIN
+}
+
+enum GoalPace {
+  GENTLE
+  MODERATE
+  FAST
+}
+
+/// Screening: weight change in the last 3 months (more than 5 kg counts).
+enum RecentWeightChange {
+  STABLE
+  LOST
+  GAINED
+  UNSURE
+}
+
+/// Why the starting target came out as it did (@limon/types GoalDecisionReason).
+enum GoalDecisionReason {
+  AS_CHOSEN
+  MAINTAIN
+  LEAN_GAIN
+  OTHER
+  RECENT_WEIGHT_LOSS
+  DESIRED_WEIGHT_TOO_LOW
+}
+
 enum StoreAccountType {
   INDIVIDUAL
   ORGANIZATION
@@ -252,6 +293,8 @@ model Tenant {
   features              TenantFeature[]
   patientProfiles       PatientProfile[]
   patientDislikedFoods  PatientDislikedFood[]
+  goalRules             TenantGoalRules[]
+  patientGoals          PatientGoal[]
 
   @@map("tenants")
 }
@@ -446,6 +489,7 @@ model Patient {
   consents           PatientConsent[]
   inviteCodes        TenantInviteCode[]
   profile            PatientProfile?
+  goal               PatientGoal?
   shoppingListChecks ShoppingListCheck[]
 
   @@unique([tenantId, id])
@@ -481,6 +525,54 @@ model PatientProfile {
 
   @@unique([tenantId, patientId])
   @@map("patient_profiles")
+}
+
+/// A clinic's goal rules, written by its nutritionist at onboarding and loaded by our team
+/// (`admin goal-rules`). Never edited in place: each change is a new version, and the latest
+/// one applies. `rules` is @limon/validation GoalRules, which may only be stricter than the
+/// platform's guardrails.
+model TenantGoalRules {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  version   Int
+  rules     Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, version])
+  @@map("tenant_goal_rules")
+}
+
+/// The patient's goal: what they asked for and the starting target the rules chose. One row
+/// per patient, replaced when they change it (each change is in the audit log). The target's
+/// kcal follow profile edits; the decision (direction, pace, reason) only changes here.
+model PatientGoal {
+  id                 String             @id @default(uuid()) @db.Uuid
+  tenantId           String             @map("tenant_id") @db.Uuid
+  patientId          String             @map("patient_id") @db.Uuid
+  intention          GoalIntention
+  /// The pace the patient picked (lose and gain only).
+  pace               GoalPace?
+  /// How many kg they'd like to lose or gain, if they said. Always positive.
+  desiredChangeKg    Float?             @map("desired_change_kg")
+  otherText          String?            @map("other_text")
+  recentWeightChange RecentWeightChange @map("recent_weight_change")
+  decidedGoal        WeightGoal         @map("decided_goal")
+  decidedPace        GoalPace?          @map("decided_pace")
+  reason             GoalDecisionReason
+  /// The rules the decision used: "platform-1" or "clinic-3".
+  rulesVersion       String             @map("rules_version")
+  decidedAt          DateTime           @default(now()) @map("decided_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Operational data owned by the patient: deleting a patient removes their goal.
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, patientId])
+  @@map("patient_goals")
 }
 
 /// A catalog food the patient doesn't want in their meal plans (onboarding / profile).

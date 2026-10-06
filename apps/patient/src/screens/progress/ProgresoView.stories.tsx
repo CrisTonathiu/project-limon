@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-native';
 import { useState } from 'react';
 import { PhoneFrame } from '../../design-system/stories/PhoneFrame';
-import { ProgresoView, type Period, type ProgresoData } from './ProgresoView';
+import {
+  ProgresoView,
+  type Period,
+  type ProgresoData,
+  type ProgresoViewProps,
+} from './ProgresoView';
 
 const series: Record<Period, NonNullable<ProgresoData['weight']>> = {
   weeks8: {
@@ -34,7 +39,7 @@ const full: ProgresoData = {
 };
 
 /** The period switch and "+250 ml" work. */
-function Phone(props: ProgresoData) {
+function Phone(props: ProgresoData & Pick<ProgresoViewProps, 'plan'>) {
   const [period, setPeriod] = useState<Period>('weeks8');
   const [water, setWater] = useState(props.water);
   return (
@@ -63,9 +68,33 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
-/** What the app shows today: no goal, weigh-in or water tracker in the API yet. */
+/** What the app shows today with a goal set: the plan card; weigh-ins and water have no API yet. */
 export const ComingSoon: Story = {
-  args: { goal: null, weight: null, measurements: null, water: null },
+  args: {
+    goal: null,
+    weight: null,
+    measurements: null,
+    water: null,
+    plan: {
+      status: 'set',
+      intention: 'Bajar de peso',
+      paragraphs: [
+        'Te gustaría bajar 10 kg. Con tu perfil empezaremos con una meta gradual para bajar de peso: 1,740 kcal al día.',
+        'Tu plan de comidas se ajustará a partir de la próxima semana.',
+      ],
+      onChange: () => {},
+    },
+  },
+};
+/** No goal yet. */
+export const NoGoal: Story = {
+  args: {
+    goal: null,
+    weight: null,
+    measurements: null,
+    water: null,
+    plan: { status: 'unset', onSet: () => {} },
+  },
 };
 /** A gain goal that is already met. */
 export const GoalReached: Story = {

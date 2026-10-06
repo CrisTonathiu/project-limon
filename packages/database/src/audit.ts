@@ -4,8 +4,8 @@ import type { TenantTx } from './tenant-client.js';
 export type AuditAction =
   | 'TenantCreated' | 'TenantSuspended' | 'TenantDeletionScheduled' | 'TenantDeleted'
   | 'NutritionistRegistered'
-  | 'PatientCreated' | 'PatientInvited' | 'PatientRegistered' | 'PatientDeleted' | 'PatientProfileSaved'
-  | 'FeatureFlagsChanged'
+  | 'PatientCreated' | 'PatientInvited' | 'PatientRegistered' | 'PatientDeleted' | 'PatientProfileSaved' | 'PatientGoalSaved'
+  | 'FeatureFlagsChanged' | 'GoalRulesChanged'
   | 'MealPlanCreated' | 'MealPlanDayRegenerated' | 'MealIngredientSwapped' | 'RecipeUpdated' | 'DefaultRecipesCopied'
   | 'SubscriptionCanceled'
   | 'BrandingUpdated';

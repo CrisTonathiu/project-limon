@@ -255,6 +255,70 @@ export type ShoppingUnit = (typeof ShoppingUnit)[keyof typeof ShoppingUnit];
 export const IngredientUnit = { G: 'G', ML: 'ML', PIECE: 'PIECE', CUP: 'CUP', TBSP: 'TBSP', TSP: 'TSP' } as const;
 export type IngredientUnit = (typeof IngredientUnit)[keyof typeof IngredientUnit];
 
+/** What the patient wants to work toward. They choose an intention; the clinic's rules decide the target. */
+export const GoalIntention = {
+  LOSE_WEIGHT: 'LOSE_WEIGHT',
+  MAINTAIN_WEIGHT: 'MAINTAIN_WEIGHT',
+  GAIN_WEIGHT: 'GAIN_WEIGHT',
+  NUTRITION_QUALITY: 'NUTRITION_QUALITY',
+  BUILD_MUSCLE: 'BUILD_MUSCLE',
+  OTHER: 'OTHER',
+} as const;
+export type GoalIntention = (typeof GoalIntention)[keyof typeof GoalIntention];
+
+/** The direction the energy target takes: what an intention turns into. */
+export const WeightGoal = { LOSE: 'LOSE', MAINTAIN: 'MAINTAIN', GAIN: 'GAIN' } as const;
+export type WeightGoal = (typeof WeightGoal)[keyof typeof WeightGoal];
+
+/** How fast to lose or gain. For gains these are lean gain / steady / bulk. Which ones a patient may pick is the clinic's call. */
+export const GoalPace = { GENTLE: 'GENTLE', MODERATE: 'MODERATE', FAST: 'FAST' } as const;
+export type GoalPace = (typeof GoalPace)[keyof typeof GoalPace];
+
+/** Screening: how the patient's weight moved in the last 3 months (more than 5 kg counts as lost or gained). */
+export const RecentWeightChange = { STABLE: 'STABLE', LOST: 'LOST', GAINED: 'GAINED', UNSURE: 'UNSURE' } as const;
+export type RecentWeightChange = (typeof RecentWeightChange)[keyof typeof RecentWeightChange];
+
+/** Why the starting target came out as it did. The app turns it into the explanation the patient reads. */
+export const GoalDecisionReason = {
+  /** Lose or gain at the pace the patient chose (one the clinic allows). */
+  AS_CHOSEN: 'AS_CHOSEN',
+  /** Maintain weight or improve nutrition quality: maintenance. */
+  MAINTAIN: 'MAINTAIN',
+  /** Build muscle: a lean gain (gentle surplus, more protein). */
+  LEAN_GAIN: 'LEAN_GAIN',
+  /** "Other": maintenance until they talk to their nutritionist. */
+  OTHER: 'OTHER',
+  /** Lost more than 5 kg recently and wants to lose more: maintenance, talk to the nutritionist. */
+  RECENT_WEIGHT_LOSS: 'RECENT_WEIGHT_LOSS',
+  /** The weight they'd like to reach is below a healthy BMI: maintenance, talk to the nutritionist. */
+  DESIRED_WEIGHT_TOO_LOW: 'DESIRED_WEIGHT_TOO_LOW',
+} as const;
+export type GoalDecisionReason = (typeof GoalDecisionReason)[keyof typeof GoalDecisionReason];
+
+/** The patient's goal: what they asked for, and the starting target the rules chose. */
+export type PatientGoalDto = {
+  intention: GoalIntention;
+  /** The pace they picked (lose and gain only). */
+  pace: GoalPace | null;
+  /** How many kg they'd like to lose or gain, if they said. Always positive. */
+  desiredChangeKg: number | null;
+  otherText: string | null;
+  recentWeightChange: RecentWeightChange;
+  decision: { goal: WeightGoal; pace: GoalPace | null; reason: GoalDecisionReason };
+  /** The rules the decision used: "platform-1" or "clinic-3". */
+  rulesVersion: string;
+  decidedAt: string;
+};
+
+/** GET /patients/me/goal. `options` are the paces this clinic lets patients pick. */
+export type MyGoalResponse = {
+  goal: PatientGoalDto | null;
+  options: { lose: GoalPace[]; gain: GoalPace[] };
+};
+
+/** PUT /patients/me/goal: the saved goal, and the energy target it leads to. */
+export type SetGoalResponse = MyGoalResponse & { goal: PatientGoalDto; energyTarget: EnergyTargetDto };
+
 /** Why a patient gets no automatic energy target and is sent to their nutritionist instead. */
 export const EnergyTargetHoldReason = {
   MINOR: 'MINOR',

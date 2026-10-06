@@ -40,6 +40,14 @@ export type ProgresoViewProps = ProgresoData & {
   /** Leave out until weigh-ins can be saved. */
   onLogWeight?: () => void;
   onAddWater?: () => void;
+  /**
+   * The patient's goal (goal setting): what they're working toward and the starting target,
+   * explained. Leave out when the clinic has no goal tracker or while it loads.
+   */
+  plan?:
+    | { status: 'unset'; onSet: () => void }
+    | { status: 'set'; intention: string; paragraphs: string[]; onChange: () => void }
+    | null;
 };
 
 /**
@@ -50,10 +58,12 @@ export type ProgresoViewProps = ProgresoData & {
 export function ProgresoView(props: ProgresoViewProps) {
   let order = 1;
   const next = () => order++ * 80;
+  // Weigh-ins, measurements and water have no API yet; the goal (plan) does.
   const empty = !props.goal && !props.weight && !props.measurements && !props.water;
   return (
     <ScreenScroll>
       <ScreenHeader title={t.progress.title} delay={0} />
+      {props.plan ? <PlanCard plan={props.plan} delay={next()} /> : null}
       {empty ? (
         <Card variant="tint" delay={next()} gap="s">
           <Icon name="progress" color="primary" />
@@ -226,6 +236,40 @@ function WaterCard({
           </Box>
         </Pressable>
       ) : null}
+    </Card>
+  );
+}
+
+function PlanCard({
+  plan,
+  delay,
+}: {
+  plan: NonNullable<ProgresoViewProps['plan']>;
+  delay: number;
+}) {
+  if (plan.status === 'unset') {
+    return (
+      <Card variant="hero" padding="l" delay={delay} gap="m">
+        <Text variant="h2">{t.goals.setTitle}</Text>
+        <Text variant="body" color="textMuted">
+          {t.goals.setBody}
+        </Text>
+        <Button label={t.goals.setButton} onPress={plan.onSet} />
+      </Card>
+    );
+  }
+  return (
+    <Card variant="hero" padding="l" delay={delay} gap="m">
+      <Box gap="xs">
+        <Text variant="caption">{t.goals.cardTitle}</Text>
+        <Text variant="h2">{plan.intention}</Text>
+      </Box>
+      {plan.paragraphs.map((p) => (
+        <Text key={p} variant="body" color="textMuted">
+          {p}
+        </Text>
+      ))}
+      <Button variant="outline" label={t.goals.change} onPress={plan.onChange} />
     </Card>
   );
 }

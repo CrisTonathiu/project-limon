@@ -11,12 +11,15 @@
  *   pnpm --filter @limon/database admin recipes --all   (the same for every tenant)
  *   pnpm --filter @limon/database admin foods [csv]   (load the food catalog, default ../../private/foods.csv)
  *   pnpm --filter @limon/database admin default-recipes [dir]   (load the default recipe library from recipes.csv and recipe-ingredients.csv, default ../../private)
+ *   pnpm --filter @limon/database admin goal-rules <tenant-slug>   (show the clinic's goal rules)
+ *   pnpm --filter @limon/database admin goal-rules <tenant-slug> --file rules.json   (store the nutritionist's rules as the next version)
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { effectiveFeatures, generateInviteCode } from '@limon/tenant';
 import { FEATURE_DEPENDENCIES, FeatureKey } from '@limon/types';
+import { GoalRulesSchema, PLATFORM_GUARDRAILS } from '@limon/validation';
 import { PrismaClient } from '../generated/client/index.js';
 import { copyDefaultRecipes } from '../src/recipes.js';
 import { parseCsv } from './csv.js';
@@ -225,8 +228,44 @@ async function defaultRecipes(args: string[]) {
   if (updated.length) console.log('  ⚠ tenants that already have a copy of an updated recipe keep their copy as it was');
 }
 
+/**
+ * A clinic's goal rules, written by its nutritionist at onboarding. Each change is stored as a
+ * new version (the latest applies) and must be stricter than the platform's guardrails; the
+ * schema refuses anything looser. Patients keep their current goal until they set a new one.
+ */
+async function goalRules(args: string[]) {
+  const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { file: { type: 'string' } } });
+  const tenant = await tenantBySlug(positionals[0]);
+  const latest = await prisma.tenantGoalRules.findFirst({ where: { tenantId: tenant.id }, orderBy: { version: 'desc' } });
+
+  if (!values.file) {
+    console.log(`${tenant.name}: ${latest ? `clinic rules, version ${latest.version}` : `no clinic rules, platform-${PLATFORM_GUARDRAILS.version} applies`}`);
+    console.log(JSON.stringify(latest?.rules ?? PLATFORM_GUARDRAILS, null, 2));
+    return;
+  }
+
+  const parsed = GoalRulesSchema.safeParse(JSON.parse(readFileSync(resolve(values.file), 'utf8')));
+  if (!parsed.success) {
+    fail(`Rules refused:\n${parsed.error.issues.map((i) => `  ${i.path.join('.') || '(root)'}: ${i.message}`).join('\n')}`);
+  }
+  const version = (latest?.version ?? 0) + 1;
+  await prisma.$transaction(async (tx) => {
+    const row = await tx.tenantGoalRules.create({ data: { tenantId: tenant.id, version, rules: parsed.data } });
+    await tx.auditLog.create({
+      data: {
+        tenantId: tenant.id, userId: null, requestId: `admin-cli-${Date.now()}`, action: 'GoalRulesChanged',
+        resourceType: 'TenantGoalRules', resourceId: row.id, metadata: { version, via: 'admin-cli' },
+      },
+    });
+  });
+  console.log(`✔ ${tenant.name}: goal rules version ${version} stored`);
+  console.log(JSON.stringify(parsed.data, null, 2));
+}
+
 const [command, ...rest] = process.argv.slice(2);
-const commands: Record<string, (args: string[]) => Promise<void>> = { features, invite, recipes, foods, 'default-recipes': defaultRecipes };
+const commands: Record<string, (args: string[]) => Promise<void>> = {
+  features, invite, recipes, foods, 'default-recipes': defaultRecipes, 'goal-rules': goalRules,
+};
 const run = command ? commands[command] : undefined;
 if (!run) fail(`Usage: admin <${Object.keys(commands).join('|')}> <tenant-slug | csv> [options]`);
 run(rest)
