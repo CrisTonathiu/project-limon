@@ -1,7 +1,7 @@
-import type { MealPlanDto } from '@limon/types';
+import type { MealPlanDto, PlannedMealIngredientDto } from '@limon/types';
 import { t } from '../../i18n/es-MX';
-import { LOCALE, parseDateOnly } from '../../i18n/format';
-import { formatQuantity } from '../recipes/recipe-format';
+import { formatGrams, LOCALE, parseDateOnly } from '../../i18n/format';
+import { formatAmount, formatQuantity } from '../recipes/recipe-format';
 
 /** The day shown first: today when it's in the plan's week, otherwise its Monday. */
 export function initialDayIndex(dates: string[], today: string): number {
@@ -33,4 +33,15 @@ export function withFavourite(plan: MealPlanDto, recipeId: string, favourite: bo
       meals: day.meals.map((m) => (m.recipe?.id === recipeId ? { ...m, favourite } : m)),
     })),
   };
+}
+
+/**
+ * One ingredient of the patient's portion: "½ taza Pulque (150 g), frío", "150 g Arroz".
+ * A swapped ingredient only has grams ("100 g Cerveza"): the recipe's household amount was for its own food.
+ */
+export function formatMealIngredient(i: PlannedMealIngredientDto): string {
+  const grams = formatGrams(i.grams);
+  const amount = i.quantity !== null && i.unit && !i.swappedFrom ? formatAmount(i.quantity, i.unit) : null;
+  const name = !amount ? `${grams} ${i.name}` : i.unit === 'G' ? `${amount} ${i.name}` : `${amount} ${i.name} (${grams})`;
+  return i.note ? `${name}, ${i.note}` : name;
 }

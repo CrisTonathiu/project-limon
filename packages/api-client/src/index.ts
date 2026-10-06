@@ -1,6 +1,6 @@
 import type {
-  ApiErrorBody, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, MealPlanResponse, MealType, MeResponse, PatientDto, PatientEntitlement, PatientProfileResponse,
-  RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, TenantAppConfig,
+  ApiErrorBody, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, FoodSwapOptionsResponse, MealPlanResponse, MealType, MeResponse, PatientDto, PatientEntitlement, PatientProfileResponse,
+  PlannedMealDetailDto, RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, TenantAppConfig,
 } from '@limon/types';
 import type { CreatePatientInput, PatientProfileInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
 
@@ -100,6 +100,14 @@ export function createApiClient(opts: ApiClientOptions) {
       /** ♥ a recipe; the generator prefers it in later plans. */
       addFavourite: (recipeId: string) => request<void>('PUT', `/meal-plans/favourites/${encodeURIComponent(recipeId)}`),
       removeFavourite: (recipeId: string) => request<void>('DELETE', `/meal-plans/favourites/${encodeURIComponent(recipeId)}`),
+      /** One meal of this week with its ingredients for the patient's portion, after swaps. */
+      meal: (mealId: string) => request<PlannedMealDetailDto>('GET', `/meal-plans/current/meals/${encodeURIComponent(mealId)}`),
+      /** Foods of the same SMAE group the ingredient can be swapped for. */
+      swapOptions: (mealId: string, ingredientId: string) =>
+        request<FoodSwapOptionsResponse>('GET', `/meal-plans/current/meals/${encodeURIComponent(mealId)}/ingredients/${encodeURIComponent(ingredientId)}/swaps`),
+      /** Eat `foodId` instead (today or later); the recipe's own food undoes the swap. Returns the updated meal. */
+      swap: (mealId: string, ingredientId: string, foodId: string) =>
+        request<PlannedMealDetailDto>('PUT', `/meal-plans/current/meals/${encodeURIComponent(mealId)}/ingredients/${encodeURIComponent(ingredientId)}/swap`, { foodId }),
     },
     patients: {
       list: () => request<{ items: PatientDto[] }>('GET', '/patients'),

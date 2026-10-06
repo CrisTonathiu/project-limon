@@ -4,7 +4,7 @@
  */
 import { loadServerEnv } from '@limon/config';
 import { DatabaseRouter } from '@limon/database';
-import type { MealPlanResponse } from '@limon/types';
+import type { FoodSwapOptionsResponse, MealPlanResponse, PlannedMealDetailDto } from '@limon/types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { createContainer } from '../../src/infrastructure/container.js';
@@ -40,7 +40,7 @@ let ip = 0;
 const week = weekDates(weekStartOf(new Date()));
 const today = localToday(new Date());
 
-async function signUp(name: string, opts: { profile: boolean; subscribed: boolean }) {
+async function signUp(name: string, opts: { profile: boolean; subscribed: boolean; allergies?: string[] }) {
   const headers = { authorization: `Bearer ${await c.devVerifier!.issue(`dev|patient|${tag}-${name}`)}`, 'x-app-key': 'maria-nutrition-ios' };
   const signup = await app.inject({
     method: 'POST', url: '/api/v1/auth/register/patient', remoteAddress: `10.0.11.${++ip}`, headers,
@@ -53,7 +53,7 @@ async function signUp(name: string, opts: { profile: boolean; subscribed: boolea
   if (opts.profile) {
     const res = await app.inject({
       method: 'PUT', url: '/api/v1/patients/me/profile', headers,
-      payload: { sex: 'FEMALE', dateOfBirth: '1990-05-20', heightCm: 162, weightKg: 68.4, activityLevel: 'LIGHT', mealsPerDay: 4, allergies: [], dislikedFoodIds: [] },
+      payload: { sex: 'FEMALE', dateOfBirth: '1990-05-20', heightCm: 162, weightKg: 68.4, activityLevel: 'LIGHT', mealsPerDay: 4, allergies: opts.allergies ?? [], dislikedFoodIds: [] },
     });
     expect(res.statusCode).toBe(200);
   }
@@ -70,7 +70,13 @@ async function signUp(name: string, opts: { profile: boolean; subscribed: boolea
 
 beforeAll(async () => {
   app = await buildApp(c);
-  testFoods = await createTestFoods('test-meal-plans-api', ['Arroz (prueba)']);
+  testFoods = await createTestFoods('test-meal-plans-api', [
+    'Arroz (prueba)',
+    // For swaps: a group no real catalog food uses, so the options are only these.
+    { name: 'Pulque (prueba)', smaeGroup: 'ALCOHOLIC_BEVERAGES', gramsPerEquivalent: 30 },
+    { name: 'Cerveza (prueba)', smaeGroup: 'ALCOHOLIC_BEVERAGES', gramsPerEquivalent: 20 },
+    { name: 'Rompope (prueba)', smaeGroup: 'ALCOHOLIC_BEVERAGES', gramsPerEquivalent: 20, allergens: ['milk'] },
+  ]);
   // Enough recipes for every slot whatever else the tenant has: 300 g = 450 kcal for 2 servings.
   const db = owner.controlPlane();
   for (const type of ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'] as const) {
@@ -206,5 +212,116 @@ describe('PUT and DELETE /meal-plans/favourites/:recipeId', () => {
     expect((await favourite('PUT', headers, 'tacos')).statusCode).toBe(400);
     const unpaid = await signUp('fav-unpaid', { profile: true, subscribed: false });
     expect((await favourite('PUT', unpaid, recipeIds[0]!)).statusCode).toBe(402);
+  });
+});
+
+describe('meal detail and SMAE swaps', () => {
+  let swapRecipeId: string;
+  const [, pulque, cerveza, rompope] = [0, 1, 2, 3].map((i) => () => testFoods.foods[i]!);
+  const meal = (headers: Record<string, string>, mealId: string) => app.inject({ url: `/api/v1/meal-plans/current/meals/${mealId}`, headers });
+  const options = (headers: Record<string, string>, mealId: string, ingredientId: string) =>
+    app.inject({ url: `/api/v1/meal-plans/current/meals/${mealId}/ingredients/${ingredientId}/swaps`, headers });
+  const swap = (headers: Record<string, string>, mealId: string, ingredientId: string, foodId: string) =>
+    app.inject({ method: 'PUT', url: `/api/v1/meal-plans/current/meals/${mealId}/ingredients/${ingredientId}/swap`, headers, payload: { foodId } });
+
+  /** The patient's plan, with the first meal of `date` set to the swap recipe at 1 serving (half the recipe). */
+  async function planWithSwapMeal(headers: Record<string, string>, date: string) {
+    const body = (await app.inject({ url: '/api/v1/meal-plans/current', headers })).json() as MealPlanResponse;
+    if (body.status !== 'READY') throw new Error(body.status);
+    const mealId = body.plan.days.find((d) => d.date === date)!.meals[0]!.id;
+    await owner.controlPlane().mealPlanMeal.update({ where: { id: mealId }, data: { recipeId: swapRecipeId, servings: 1 } });
+    return mealId;
+  }
+
+  beforeAll(async () => {
+    // 300 g pulque (10 equivalents) and 10 g rice (no SMAE data) for 2 servings.
+    const db = owner.controlPlane();
+    const recipe = await db.recipe.create({ data: { tenantId, title: 'Pulque con arroz (prueba)', mealTypes: ['SNACK'], servings: 2, tags: [tag], steps: ['Servir.'] } });
+    await db.recipeIngredient.create({ data: { tenantId, recipeId: recipe.id, foodId: pulque().id, position: 1, quantity: 1, unit: 'CUP', grams: 300, note: 'frío' } });
+    await db.recipeIngredient.create({ data: { tenantId, recipeId: recipe.id, foodId: testFoods.foods[0]!.id, position: 2, quantity: 10, unit: 'G', grams: 10 } });
+    recipeIds.push(recipe.id);
+    swapRecipeId = recipe.id;
+  });
+
+  it('shows the meal for the patient’s portion, swaps an ingredient for its equivalent, and undoes it', async () => {
+    const headers = await signUp('swap', { profile: true, subscribed: true, allergies: ['milk'] });
+    const sunday = week[6]!;
+    const mealId = await planWithSwapMeal(headers, sunday);
+
+    const before = await meal(headers, mealId);
+    expect(before.statusCode).toBe(200);
+    const detail = before.json() as PlannedMealDetailDto;
+    expect(detail).toMatchObject({ id: mealId, date: sunday, servings: 1, recipe: { id: swapRecipeId, steps: ['Servir.'] }, macros: { calories: 233 } });
+    const [drink, rice] = detail.ingredients;
+    expect(drink).toEqual({
+      id: expect.any(String), foodId: pulque().id, name: 'Pulque (prueba)', grams: 150, quantity: 0.5, unit: 'CUP', note: 'frío', swappedFrom: null, swappable: true,
+    });
+    expect(rice).toMatchObject({ foodId: testFoods.foods[0]!.id, grams: 5, swappable: false });
+
+    // Same equivalents in beer: 150 g / 30 × 20 = 100 g. Rompope has milk, which the patient is allergic to.
+    const testFoodIds = new Set(testFoods.foods.map((f) => f.id));
+    const offered = (await options(headers, mealId, drink!.id)).json() as FoodSwapOptionsResponse;
+    expect(offered.items.filter((o) => testFoodIds.has(o.foodId))).toEqual([{ foodId: cerveza().id, name: 'Cerveza (prueba)', grams: 100, original: false }]);
+    expect(((await options(headers, mealId, rice!.id)).json() as FoodSwapOptionsResponse).items).toEqual([]);
+
+    const swapped = await swap(headers, mealId, drink!.id, cerveza().id);
+    expect(swapped.statusCode).toBe(200);
+    const after = swapped.json() as PlannedMealDetailDto;
+    expect(after.ingredients[0]).toMatchObject({
+      foodId: cerveza().id, grams: 100, quantity: null, unit: null, swappedFrom: { foodId: pulque().id, name: 'Pulque (prueba)' }, swappable: true,
+    });
+    // (200 g beer + 10 g rice) × 1.5 kcal/g / 2 servings.
+    expect(after.macros?.calories).toBe(158);
+
+    // The week view and its day total follow the swap.
+    const plan = (await app.inject({ url: '/api/v1/meal-plans/current', headers })).json() as MealPlanResponse;
+    if (plan.status !== 'READY') throw new Error(plan.status);
+    const day = plan.plan.days.find((d) => d.date === sunday)!;
+    expect(day.meals.find((m) => m.id === mealId)?.macros?.calories).toBe(158);
+    expect(day.totals?.calories).toBe(day.meals.reduce((s, m) => s + m.macros!.calories, 0));
+
+    // Once swapped, the recipe's own food is offered back.
+    const back = (await options(headers, mealId, drink!.id)).json() as FoodSwapOptionsResponse;
+    expect(back.items.filter((o) => testFoodIds.has(o.foodId))).toEqual([{ foodId: pulque().id, name: 'Pulque (prueba)', grams: 150, original: true }]);
+
+    const undone = (await swap(headers, mealId, drink!.id, pulque().id)).json() as PlannedMealDetailDto;
+    expect(undone.ingredients[0]).toEqual(drink);
+    expect(undone.macros?.calories).toBe(233);
+    expect(await owner.controlPlane().mealPlanMealSwap.count({ where: { mealPlanMealId: mealId } })).toBe(0);
+    const audits = await owner.controlPlane().auditLog.findMany({ where: { tenantId, action: 'MealIngredientSwapped', resourceId: mealId } });
+    expect(audits).toHaveLength(2);
+  });
+
+  it('refuses foods that aren’t equivalents or that the patient can’t eat, past meals and other patients’ meals', async () => {
+    const headers = await signUp('swap-bad', { profile: true, subscribed: true, allergies: ['milk'] });
+    const mealId = await planWithSwapMeal(headers, week[6]!);
+    const [drink, rice] = ((await meal(headers, mealId)).json() as PlannedMealDetailDto).ingredients;
+
+    expect((await swap(headers, mealId, drink!.id, rompope().id)).statusCode).toBe(400);
+    expect((await swap(headers, mealId, drink!.id, testFoods.foods[0]!.id)).statusCode).toBe(400);
+    expect((await swap(headers, mealId, rice!.id, cerveza().id)).statusCode).toBe(400);
+    expect((await swap(headers, mealId, drink!.id, '00000000-0000-4000-8000-000000000000')).statusCode).toBe(404);
+    expect((await swap(headers, mealId, '00000000-0000-4000-8000-000000000000', cerveza().id)).statusCode).toBe(404);
+
+    const other = await signUp('swap-other', { profile: true, subscribed: true });
+    expect((await meal(other, mealId)).statusCode).toBe(404);
+    expect((await swap(other, mealId, drink!.id, cerveza().id)).statusCode).toBe(404);
+
+    if (today !== week[0]) {
+      const pastMealId = await planWithSwapMeal(headers, week[0]!);
+      expect((await swap(headers, pastMealId, drink!.id, cerveza().id)).statusCode).toBe(400);
+    }
+  });
+
+  it('removes the swaps of a regenerated day', async () => {
+    const headers = await signUp('swap-regen', { profile: true, subscribed: true });
+    const sunday = week[6]!;
+    const mealId = await planWithSwapMeal(headers, sunday);
+    const [drink] = ((await meal(headers, mealId)).json() as PlannedMealDetailDto).ingredients;
+    expect((await swap(headers, mealId, drink!.id, cerveza().id)).statusCode).toBe(200);
+
+    expect((await app.inject({ method: 'POST', url: `/api/v1/meal-plans/current/days/${sunday}/regenerate`, headers })).statusCode).toBe(200);
+    expect((await meal(headers, mealId)).statusCode).toBe(404);
+    expect(await owner.controlPlane().mealPlanMealSwap.count({ where: { mealPlanMealId: mealId } })).toBe(0);
   });
 });

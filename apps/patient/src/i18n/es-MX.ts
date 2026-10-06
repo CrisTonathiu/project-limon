@@ -129,6 +129,24 @@ export const es = {
     unfavourite: (recipe: string) => `Quitar ${recipe} de favoritas`,
     favouriteFailed: 'No pudimos guardar tu favorita. Inténtalo de nuevo.',
     consult: 'Tu plan de comidas estará listo cuando tu nutriólogo defina tu meta diaria.',
+    mealFailed: 'No pudimos cargar esta comida. Revisa tu conexión.',
+    yourPortion: 'Tu porción',
+  },
+
+  swaps: {
+    hint: 'Puedes cambiar un ingrediente por otro del mismo grupo del SMAE. La cantidad se ajusta para que aporte lo mismo.',
+    open: 'Cambiar',
+    close: 'Cerrar',
+    /** Accessibility label of the "Cambiar" button. */
+    openLabel: (food: string) => `Cambiar ${food} por un equivalente`,
+    insteadOf: (food: string) => `En lugar de ${food}`,
+    /** "Cerveza · 100 g" */
+    option: (food: string, amount: string) => `${food} · ${amount}`,
+    undo: (food: string, amount: string) => `Volver a ${food} · ${amount}`,
+    loading: 'Buscando equivalentes…',
+    none: 'No hay equivalentes que puedas comer para este alimento.',
+    optionsFailed: 'No pudimos cargar los equivalentes. Inténtalo de nuevo.',
+    saveFailed: 'No pudimos cambiar el alimento. Inténtalo de nuevo.',
   },
 
   profile: {

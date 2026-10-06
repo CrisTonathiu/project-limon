@@ -38,7 +38,7 @@ describe('RLS tenant isolation', () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it('tenant A cannot insert meal plans or meal feedback tagged with tenant B', async () => {
+  it('tenant A cannot insert meal plans, meal feedback or swaps tagged with tenant B', async () => {
     // Its own tenant B recipe: the seed only has recipes when the private default library was loaded.
     const [bPatient, bRecipe] = await withTenant(router, await registry.getPlacement(B), (tx) =>
       Promise.all([
@@ -54,6 +54,13 @@ describe('RLS tenant isolation', () => {
       await expect(
         withTenant(router, await registry.getPlacement(A), (tx) =>
           tx.mealFeedback.create({ data: { tenantId: B, patientId: bPatient.id, recipeId: bRecipe.id, rating: 1, weekStart } }),
+        ),
+      ).rejects.toThrow(/row-level security/);
+      // The policy rejects the row before its foreign keys are checked, so made-up ids are enough.
+      const id = '00000000-0000-4000-8000-000000000000';
+      await expect(
+        withTenant(router, await registry.getPlacement(A), (tx) =>
+          tx.mealPlanMealSwap.create({ data: { tenantId: B, mealPlanMealId: id, recipeIngredientId: id, foodId: id } }),
         ),
       ).rejects.toThrow(/row-level security/);
     } finally {

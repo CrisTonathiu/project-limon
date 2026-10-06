@@ -136,7 +136,11 @@ Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s
 
 ### Week 5 · Oct 26 – 30 — SMAE food swaps and shopping list
 
-- [ ] **Swaps:** on a meal ingredient, list foods from the same SMAE group. Convert the portion by equivalents: `new grams = (old grams / old grams per equivalent) × new grams per equivalent`. Store the swap on that plan meal only, never on the recipe.
+- [x] **Swaps:** on a meal ingredient, list foods from the same SMAE group. Convert the portion by equivalents: `new grams = (old grams / old grams per equivalent) × new grams per equivalent`. Store the swap on that plan meal only, never on the recipe.
+  - `meal_plan_meal_swaps` (migration `0013_meal_plan_swaps`) stores only the chosen food per meal and recipe ingredient. The grams are recomputed from the equivalents on every read, and regenerating a day removes its swaps with its meals.
+  - `GET /meal-plans/current/meals/:mealId` returns one meal for the patient's portion, after swaps. `GET …/ingredients/:ingredientId/swaps` lists the equivalents, leaving out the patient's allergens and disliked foods, and `PUT …/ingredients/:ingredientId/swap` saves one (today or later; the recipe's own food undoes it). Swaps are behind `food_swaps`, which now depends on `meal_plan`.
+  - The meal's macros, and the day totals in the week view, are computed from the swapped ingredients.
+  - App: a meal card opens a meal screen (your portion, ingredients, steps) with "Cambiar" on each ingredient that can be swapped.
 - [ ] **Shopping list:** aggregate the week's ingredients (after swaps and portion scaling), normalize units, and group by category (produce, protein, dairy, grains, pantry). Round to shoppable quantities.
 - [ ] Check off items (state kept per week); regenerate the list when the plan changes.
 

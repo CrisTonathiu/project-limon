@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { MealPlanDto, PlannedMealDto } from '@limon/types';
-import { canRegenerate, dayChip, formatPortion, initialDayIndex, withFavourite } from './meal-plan-format';
+import type { MealPlanDto, PlannedMealDto, PlannedMealIngredientDto } from '@limon/types';
+import { canRegenerate, dayChip, formatMealIngredient, formatPortion, initialDayIndex, withFavourite } from './meal-plan-format';
 
 const week = ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25'];
 
@@ -54,4 +54,18 @@ describe('withFavourite', () => {
     const back = withFavourite(withFavourite(plan, 'tacos', true), 'tacos', false);
     expect(back).toEqual(plan);
   });
+});
+
+describe('formatMealIngredient', () => {
+  const base: PlannedMealIngredientDto = {
+    id: 'i1', foodId: 'f1', name: 'Pulque', grams: 150, quantity: 0.5, unit: 'CUP', note: null, swappedFrom: null, swappable: true,
+  };
+
+  it('shows the household amount with its grams', () => expect(formatMealIngredient(base)).toBe('½ taza Pulque (150 g)'));
+  it('shows grams once when the unit is grams', () =>
+    expect(formatMealIngredient({ ...base, name: 'Arroz', quantity: 150, unit: 'G', note: 'cocido' })).toBe('150 g Arroz, cocido'));
+  it('shows only grams once swapped', () =>
+    expect(formatMealIngredient({ ...base, name: 'Cerveza', grams: 100, quantity: null, unit: null, swappedFrom: { foodId: 'f1', name: 'Pulque' } })).toBe(
+      '100 g Cerveza',
+    ));
 });
