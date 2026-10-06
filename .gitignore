@@ -5,6 +5,7 @@ packages/database/generated
 .turbo
 .expo
 coverage
+storybook-static
 cdk.out
 *.log
 .env

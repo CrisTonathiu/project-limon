@@ -40,6 +40,15 @@ export function onColor(hex: string): '#FFFFFF' | '#000000' {
   return L > 0.179 ? '#000000' : '#FFFFFF';
 }
 
+/** Mixes `amount` (0–1) of `hex` into `base`, e.g. a 16% brand tint on white. Both are #rrggbb. */
+export function mixHex(hex: string, base: string, amount: number): string {
+  const channel = (h: string, i: number) => parseInt(h.replace('#', '').slice(i, i + 2), 16);
+  const out = [0, 2, 4].map((i) =>
+    Math.round(channel(hex, i) * amount + channel(base, i) * (1 - amount)),
+  );
+  return `#${out.map((v) => v.toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+}
+
 /** Builds a theme from runtime tenant branding. */
 export function createTheme(branding?: Pick<TenantAppConfig, 'primaryColor' | 'secondaryColor'> | null): Theme {
   const primary = branding?.primaryColor ?? PLATFORM_DEFAULT_PRIMARY;
