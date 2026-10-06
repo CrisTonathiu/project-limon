@@ -1,5 +1,4 @@
 import type { MealPlanDayDto, MealPlanResponse, PlannedMealDto } from '@limon/types';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
@@ -7,7 +6,7 @@ import { canRegenerate, dayChip, formatPortion, initialDayIndex, withFavourite }
 import { formatMinutes } from '../../features/recipes/recipe-format';
 import { t } from '../../i18n/es-MX';
 import { formatDate, formatGrams, formatKcal, toDateOnly } from '../../i18n/format';
-import type { AppStackParamList } from '../../navigation/types';
+import type { TabScreenProps } from '../../navigation/types';
 import { api } from '../../services/api';
 import { useTenantTheme } from '../../theme/theme-context';
 
@@ -19,7 +18,7 @@ type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; w
  * meal's recipe can be marked ♥ (the generator prefers favourites in later plans). A meal
  * opens its detail, where ingredients can be swapped.
  */
-export function MealsScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Meals'>) {
+export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
   const { theme } = useTenantTheme();
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [dayIndex, setDayIndex] = useState(0);

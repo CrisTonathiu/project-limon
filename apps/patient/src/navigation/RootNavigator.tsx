@@ -5,21 +5,18 @@ import { AiChatScreen } from '../screens/ai/AiChatScreen';
 import { ConfirmSignUpScreen } from '../screens/auth/ConfirmSignUpScreen';
 import { SignInScreen } from '../screens/auth/SignInScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
-import { HomeScreen } from '../screens/home/HomeScreen';
 import { InviteCodeScreen } from '../screens/invite/InviteCodeScreen';
 import { MealDetailScreen } from '../screens/meals/MealDetailScreen';
-import { MealsScreen } from '../screens/meals/MealsScreen';
 import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 import { ProfileEditScreen } from '../screens/profile/ProfileEditScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
-import { ProgressScreen } from '../screens/progress/ProgressScreen';
 import { RecipeDetailScreen } from '../screens/recipes/RecipeDetailScreen';
-import { RecipesScreen } from '../screens/recipes/RecipesScreen';
 import { ShoppingListScreen } from '../screens/shopping-list/ShoppingListScreen';
 import { SubscriptionScreen } from '../screens/subscription/SubscriptionScreen';
 import { UnavailableScreen } from '../screens/UnavailableScreen';
 import { useSession } from '../state/session-context';
 import { useTenantTheme } from '../theme/theme-context';
+import { AppTabs } from './AppTabs';
 import { t } from '../i18n/es-MX';
 import { isScreenEnabled, type AppStackParamList, type AuthStackParamList } from './types';
 
@@ -60,20 +57,16 @@ export function RootNavigator() {
         </AppStack.Navigator>
       ) : session.status === 'signedIn' ? (
         <AppStack.Navigator screenOptions={appScreenOptions}>
-          <AppStack.Screen name="Home" component={HomeScreen} options={{ title: '' }} />
+          <AppStack.Screen name="Tabs" component={AppTabs} options={{ headerShown: false, title: t.nav.home }} />
           {/* Modules switched off for this tenant are not registered at all. */}
-          {canOpen('Meals') && <AppStack.Screen name="Meals" component={MealsScreen} options={{ title: t.nav.meals }} />}
           {canOpen('MealDetail') && (
             <AppStack.Screen name="MealDetail" component={MealDetailScreen} options={({ route }) => ({ title: route.params.title })} />
           )}
           {canOpen('ShoppingList') && <AppStack.Screen name="ShoppingList" component={ShoppingListScreen} options={{ title: t.nav.shoppingList }} />}
-          {canOpen('Recipes') && <AppStack.Screen name="Recipes" component={RecipesScreen} options={{ title: t.nav.recipes }} />}
           {canOpen('RecipeDetail') && (
             <AppStack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={({ route }) => ({ title: route.params.title })} />
           )}
-          {canOpen('Progress') && <AppStack.Screen name="Progress" component={ProgressScreen} options={{ title: t.nav.progress }} />}
           {canOpen('AiChat') && <AppStack.Screen name="AiChat" component={AiChatScreen} options={{ title: t.nav.aiShort }} />}
-          <AppStack.Screen name="Profile" component={ProfileScreen} options={{ title: t.nav.profile }} />
           <AppStack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ title: t.profile.edit }} />
           <AppStack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: t.subscription.title }} />
         </AppStack.Navigator>

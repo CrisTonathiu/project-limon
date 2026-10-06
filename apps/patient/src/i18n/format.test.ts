@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  compareText, formatDate, formatKcal, formatKg, formatNumber, formatPercent, parseDateOnly, plural, toDateOnly,
+  compareText, formatDate, formatDayHeading, formatKcal, formatKg, formatNumber, formatPercent, formatSigned, parseDateOnly, plural, toDateOnly,
 } from './format';
 
 describe('es-MX formatting', () => {
@@ -11,6 +11,9 @@ describe('es-MX formatting', () => {
     expect(formatKg(72)).toBe('72 kg');
     expect(formatKg(72.46)).toBe('72.5 kg');
     expect(formatPercent(0.235)).toBe('23.5 %');
+    expect(formatSigned(-4.2, 1)).toBe('−4.2');
+    expect(formatSigned(1.5, 1)).toBe('+1.5');
+    expect(formatSigned(0)).toBe('0');
   });
 
   it('pluralizes in Spanish', () => {
@@ -24,6 +27,7 @@ describe('es-MX formatting', () => {
     expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 9, 5]);
     expect(toDateOnly(d)).toBe('2026-10-05');
     expect(formatDate('2026-10-05')).toBe('lunes, 5 de octubre');
+    expect(formatDayHeading(d)).toBe('Lunes 5 de octubre');
     expect(formatDate('2026-10-05', 'full')).toBe('5 de octubre de 2026');
     expect(() => parseDateOnly('octubre')).toThrow();
   });
