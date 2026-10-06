@@ -82,13 +82,10 @@ export function createRecipesService(c: Container) {
         perServing: r.macrosPerServing && { kcal: r.macrosPerServing.calories, proteinG: r.macrosPerServing.protein },
       })),
 
-    /** Title, time and macros per serving of these recipes, by id: for showing a meal plan. */
-    summariesWithMacros: async (tenantId: string, ids: string[], log: Logger) =>
+    /** These recipes with their steps and ordered ingredients (no macros), by id: for a planned meal and its swaps. */
+    forMeals: async (tenantId: string, ids: string[]) =>
       new Map(
-        (await withMacros(tenantId, ids, log)).map((r) => [
-          r.id,
-          { id: r.id, title: r.title, totalMinutes: r.totalMinutes, macrosPerServing: r.macrosPerServing },
-        ]),
+        (await withTenant(c.db, await c.registry.getPlacement(tenantId), (tx) => recipesRepository.listForMeals(tx, tenantId, ids))).map((r) => [r.id, r]),
       ),
   };
 }

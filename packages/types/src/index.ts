@@ -85,6 +85,8 @@ export type FeatureKey = (typeof FeatureKey)[keyof typeof FeatureKey];
 /** A feature only takes effect when every feature it depends on is enabled too. */
 export const FEATURE_DEPENDENCIES: Partial<Record<FeatureKey, readonly FeatureKey[]>> = {
   [FeatureKey.SHOPPING_LIST]: [FeatureKey.MEAL_PLAN],
+  // Swaps are made on the meals of a plan.
+  [FeatureKey.FOOD_SWAPS]: [FeatureKey.MEAL_PLAN],
 };
 
 /** Stable error codes. Clients switch on `code`, never on `message`. */
@@ -434,3 +436,49 @@ export type MealPlanTargetDto = { kcal: number; proteinG: number; carbsG: number
 export type MealPlanResponse =
   | { status: 'READY'; plan: MealPlanDto; target: MealPlanTargetDto }
   | { status: 'CONSULT_NUTRITIONIST'; reason: EnergyTargetHoldReason };
+
+/** One ingredient of a planned meal, for the patient's portion, after any swap. */
+export type PlannedMealIngredientDto = {
+  /** The recipe ingredient: what a swap refers to. */
+  id: string;
+  foodId: string;
+  /** Our Spanish food name. */
+  name: string;
+  /** Grams the patient eats in this meal (the recipe's grams × the portion, converted by SMAE equivalents when swapped). */
+  grams: number;
+  /** The recipe's household amount for the patient's portion. Null when swapped: only grams carry over. */
+  quantity: number | null;
+  unit: IngredientUnit | null;
+  note: string | null;
+  /** The recipe's own food when this ingredient was swapped, otherwise null. */
+  swappedFrom: { foodId: string; name: string } | null;
+  /** The food has an SMAE group and equivalent, so it can be swapped. */
+  swappable: boolean;
+};
+
+/** GET /meal-plans/current/meals/:mealId and the swap endpoints: one planned meal with its ingredients. */
+export type PlannedMealDetailDto = {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  mealType: MealType;
+  recipe: { id: string; title: string; totalMinutes: number | null; description: string | null; steps: string[] };
+  servings: number;
+  /** For the portion, after swaps. Null when unknown, like PlannedMealDto.macros. */
+  macros: RecipeMacros | null;
+  favourite: boolean;
+  ingredients: PlannedMealIngredientDto[];
+};
+
+/** A food the ingredient can be swapped for: same SMAE group, none of the patient's allergens or disliked foods. */
+export type FoodSwapOptionDto = {
+  foodId: string;
+  name: string;
+  /** Grams for the patient's portion that give the same equivalents. */
+  grams: number;
+  /** The recipe's own food: choosing it undoes the swap. */
+  original: boolean;
+};
+
+/** GET /meal-plans/current/meals/:mealId/ingredients/:ingredientId/swaps, sorted by name. */
+export type FoodSwapOptionsResponse = { items: FoodSwapOptionDto[] };

@@ -1,11 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { withTenant, writeAudit, type TenantTx } from '@limon/database';
 import type { TenantContext } from '@limon/tenant';
-import type { EnergyTargetHoldReason, MealPlanDayDto, MealPlanResponse, MealType, RecipeMacros } from '@limon/types';
+import type {
+  EnergyTargetHoldReason, FoodSwapOptionsResponse, MealPlanDayDto, MealPlanResponse, MealType, PlannedMealDetailDto, RecipeMacros,
+} from '@limon/types';
 import type { Container } from '../../infrastructure/container.js';
 import { Errors } from '../../lib/errors.js';
+import { createFoodsService } from '../foods/foods.service.js';
 import { createPatientsService } from '../patients/patients.service.js';
+import { macrosPerServing } from '../recipes/recipe-nutrition.js';
 import { createRecipesService } from '../recipes/recipes.service.js';
+import { applySwaps, canSwap, equivalentGrams, swapOptions } from './food-swaps.js';
 import { generateMealPlan, type GeneratorInput } from './meal-plan-generator.js';
 import { mealPlansRepository } from './meal-plans.repository.js';
 import { isIsoDate, isMonday, localToday, weekDates, weekStartOf } from './week.js';
@@ -53,9 +58,23 @@ const sum = (all: RecipeMacros[]): RecipeMacros => {
   };
 };
 
+/** A saved meal slot, as the repository returns it. */
+type SavedMeal = {
+  id: string;
+  date: Date;
+  mealType: MealType;
+  recipeId: string | null;
+  servings: number | null;
+  swaps: { recipeIngredientId: string; foodId: string }[];
+};
+
+const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+const round = (n: number, decimals: number) => Math.round(n * 10 ** decimals) / 10 ** decimals;
+
 export function createMealPlansService(c: Container) {
   const patients = createPatientsService(c);
   const recipes = createRecipesService(c);
+  const foods = createFoodsService(c);
   const scoped = async <T>(tenantId: string, fn: (tx: TenantTx) => Promise<T>) =>
     withTenant(c.db, await c.registry.getPlacement(tenantId), fn);
 
@@ -86,6 +105,87 @@ export function createMealPlansService(c: Container) {
       } satisfies Omit<GeneratorInput, 'seed'>,
     };
   };
+
+  /**
+   * Loads what these meals need (recipes, swapped-in foods and, with `log`, their FatSecret
+   * data) and returns a function that views one of them: its ingredients after swaps, the
+   * share of the recipe the patient eats, and the meal's macros (null without `log`, or when
+   * FatSecret can't give them). Undefined for an empty slot.
+   */
+  const mealViews = async (tenantId: string, meals: SavedMeal[], log: Logger | null) => {
+    const recipeById = await recipes.forMeals(tenantId, [...new Set(meals.flatMap((m) => (m.recipeId ? [m.recipeId] : [])))]);
+    const swapFoods = await foods.byIds([...new Set(meals.flatMap((m) => m.swaps.map((s) => s.foodId)))]);
+    const fatsecret = log
+      ? await foods.getMany(
+          [...[...recipeById.values()].flatMap((r) => r.ingredients.map((i) => i.food.fatsecretFoodId)), ...[...swapFoods.values()].map((f) => f.fatsecretFoodId)],
+          log,
+        )
+      : null;
+
+    return (meal: SavedMeal) => {
+      const recipe = meal.recipeId ? recipeById.get(meal.recipeId) : undefined;
+      if (!recipe || !meal.servings) return undefined;
+      const swaps = new Map(meal.swaps.flatMap((s) => (swapFoods.has(s.foodId) ? [[s.recipeIngredientId, swapFoods.get(s.foodId)!] as const] : [])));
+      const ingredients = applySwaps(recipe.ingredients, swaps);
+      const perServing =
+        fatsecret &&
+        macrosPerServing(
+          ingredients.map((i) => ({ grams: i.grams, fatsecretFoodId: i.food.fatsecretFoodId, fatsecretServingId: i.food.fatsecretServingId })),
+          recipe.servings,
+          fatsecret,
+        );
+      return { recipe, ingredients, portion: meal.servings / recipe.servings, macros: perServing ? scale(perServing, meal.servings) : null };
+    };
+  };
+
+  /** One meal of the patient's current week with its view (without macros unless `log` is given), or 404. */
+  const findMeal = async (ctx: TenantContext, mealId: string, log: Logger | null) => {
+    const { patientId, weekStart } = await me(ctx);
+    const meal = await scoped(ctx.tenantId, (tx) => mealPlansRepository.findMeal(tx, ctx.tenantId, patientId, new Date(weekStart), mealId));
+    // An empty slot has nothing to show or swap.
+    const view = meal && (await mealViews(ctx.tenantId, [meal], log))(meal);
+    if (!meal || !view) throw Errors.notFound('Meal');
+    return { patientId, weekStart, meal, view };
+  };
+
+  const toDetail = (
+    meal: SavedMeal,
+    { recipe, ingredients, portion, macros }: NonNullable<ReturnType<Awaited<ReturnType<typeof mealViews>>>>,
+    favourite: boolean,
+  ): PlannedMealDetailDto => ({
+    id: meal.id,
+    date: isoDate(meal.date),
+    mealType: meal.mealType,
+    recipe: { id: recipe.id, title: recipe.title, totalMinutes: recipe.totalMinutes, description: recipe.description, steps: recipe.steps },
+    servings: meal.servings!,
+    macros,
+    favourite,
+    ingredients: ingredients.map((i) => {
+      const original = i.swappedFrom ?? i.food;
+      return {
+        id: i.id,
+        foodId: i.food.id,
+        name: i.food.name,
+        grams: round(i.grams * portion, 1),
+        // A household amount ("2 piezas") only describes the recipe's own food.
+        quantity: i.swappedFrom ? null : round(i.quantity * portion, 2),
+        unit: i.swappedFrom ? null : i.unit,
+        note: i.note,
+        swappedFrom: i.swappedFrom && { foodId: i.swappedFrom.id, name: i.swappedFrom.name },
+        swappable: original.smaeGroup !== null && !!original.gramsPerEquivalent,
+      };
+    }),
+  });
+
+  /** The patient's allergies and disliked foods, which swaps must respect like the generator does. */
+  const swapFilters = async (tenantId: string, patientId: string) => {
+    const profile = await patients.planningProfile(tenantId, patientId);
+    if (!profile) throw Errors.conflict('Finish the onboarding questionnaire first.');
+    return { allergies: profile.allergies, dislikedFoodIds: profile.dislikedFoodIds };
+  };
+
+  const isFavourite = async (tenantId: string, patientId: string, recipeId: string) =>
+    (await scoped(tenantId, (tx) => mealPlansRepository.favouriteRecipeIds(tx, tenantId, patientId))).includes(recipeId);
 
   const generateWeek = async (input: GenerateWeekInput, log: Logger): Promise<GenerateWeekResult> => {
     const { tenantId, patientId, weekStart } = input;
@@ -160,19 +260,19 @@ export function createMealPlansService(c: Container) {
     const plan = await ensureWeek(ctx, patientId, weekStart, log);
     const favourites = new Set(await scoped(ctx.tenantId, (tx) => mealPlansRepository.favouriteRecipeIds(tx, ctx.tenantId, patientId)));
 
-    const summaries = await recipes.summariesWithMacros(ctx.tenantId, [...new Set(plan.meals.flatMap((m) => (m.recipeId ? [m.recipeId] : [])))], log);
+    const view = await mealViews(ctx.tenantId, plan.meals, log);
     const days: MealPlanDayDto[] = weekDates(weekStart).map((date) => {
       const meals = plan.meals
-        .filter((m) => m.date.toISOString().slice(0, 10) === date)
+        .filter((m) => isoDate(m.date) === date)
         .map((m) => {
-          const recipe = m.recipeId ? summaries.get(m.recipeId) : undefined;
+          const v = view(m);
           return {
             id: m.id,
             mealType: m.mealType,
-            recipe: recipe ? { id: recipe.id, title: recipe.title, totalMinutes: recipe.totalMinutes } : null,
-            servings: recipe ? m.servings : null,
-            macros: recipe?.macrosPerServing && m.servings ? scale(recipe.macrosPerServing, m.servings) : null,
-            favourite: recipe ? favourites.has(recipe.id) : false,
+            recipe: v ? { id: v.recipe.id, title: v.recipe.title, totalMinutes: v.recipe.totalMinutes } : null,
+            servings: v ? m.servings : null,
+            macros: v?.macros ?? null,
+            favourite: v ? favourites.has(v.recipe.id) : false,
           };
         });
       const planned = meals.filter((m) => m.recipe);
@@ -251,6 +351,75 @@ export function createMealPlansService(c: Container) {
     removeFavourite: async (ctx: TenantContext, recipeId: string): Promise<void> => {
       const { patientId } = await me(ctx);
       await scoped(ctx.tenantId, (tx) => mealPlansRepository.removeFavourite(tx, ctx.tenantId, patientId, recipeId));
+    },
+
+    /** GET /meal-plans/current/meals/:mealId: one meal of this week, its ingredients for the patient's portion, after swaps. */
+    meal: async (ctx: TenantContext, mealId: string, log: Logger): Promise<PlannedMealDetailDto> => {
+      const { patientId, meal, view } = await findMeal(ctx, mealId, log);
+      return toDetail(meal, view, await isFavourite(ctx.tenantId, patientId, view.recipe.id));
+    },
+
+    /**
+     * GET …/meals/:mealId/ingredients/:ingredientId/swaps: the foods of the ingredient's SMAE
+     * group the patient can eat instead, with the grams that keep the same equivalents.
+     * Empty when the food has no SMAE data.
+     */
+    swapOptions: async (ctx: TenantContext, mealId: string, ingredientId: string): Promise<FoodSwapOptionsResponse> => {
+      const { patientId, view } = await findMeal(ctx, mealId, null);
+      const ingredient = view.ingredients.find((i) => i.id === ingredientId);
+      if (!ingredient) throw Errors.notFound('Ingredient');
+      const original = ingredient.swappedFrom ?? ingredient.food;
+      if (!original.smaeGroup || !original.gramsPerEquivalent) return { items: [] };
+
+      // The recipe's grams for the patient's portion; each option keeps their equivalents.
+      const grams = view.recipe.ingredients.find((i) => i.id === ingredientId)!.grams * view.portion;
+      const options = swapOptions(original, ingredient.food, await foods.inSmaeGroup(original.smaeGroup), await swapFilters(ctx.tenantId, patientId));
+      return {
+        items: options.map((f) => ({
+          foodId: f.id,
+          name: f.name,
+          grams: round(f.id === original.id ? grams : equivalentGrams(grams, original, f), 1),
+          original: f.id === original.id,
+        })),
+      };
+    },
+
+    /**
+     * PUT …/meals/:mealId/ingredients/:ingredientId/swap: eat `foodId` instead of the recipe's
+     * food in this meal only (today or later). The recipe's own food undoes the swap. Returns
+     * the updated meal.
+     */
+    swap: async (ctx: TenantContext, mealId: string, ingredientId: string, foodId: string, log: Logger): Promise<PlannedMealDetailDto> => {
+      const { patientId, weekStart, meal, view } = await findMeal(ctx, mealId, null);
+      if (isoDate(meal.date) < localToday(new Date())) throw Errors.validation('Past meals can’t be changed');
+      const ingredient = view.ingredients.find((i) => i.id === ingredientId);
+      if (!ingredient) throw Errors.notFound('Ingredient');
+      const original = ingredient.swappedFrom ?? ingredient.food;
+
+      if (foodId !== original.id && foodId !== ingredient.food.id) {
+        const food = (await foods.byIds([foodId])).get(foodId);
+        if (!food) throw Errors.notFound('Food');
+        if (!canSwap(original, food)) throw Errors.validation('The food isn’t an SMAE equivalent of this ingredient');
+        if (!swapOptions(original, ingredient.food, [food], await swapFilters(ctx.tenantId, patientId)).length) {
+          throw Errors.validation('The food conflicts with the patient’s allergies or disliked foods');
+        }
+      }
+
+      if (foodId !== ingredient.food.id) {
+        await scoped(ctx.tenantId, async (tx) => {
+          // Regenerating the day in between removes the meal (and would fail the insert).
+          if (!(await mealPlansRepository.findMeal(tx, ctx.tenantId, patientId, new Date(weekStart), mealId))) throw Errors.notFound('Meal');
+          if (foodId === original.id) await mealPlansRepository.removeSwap(tx, ctx.tenantId, mealId, ingredientId);
+          else await mealPlansRepository.setSwap(tx, ctx.tenantId, mealId, ingredientId, foodId);
+          await writeAudit(tx, ctx, {
+            action: 'MealIngredientSwapped', resourceType: 'MealPlanMeal', resourceId: mealId,
+            metadata: { recipeIngredientId: ingredientId, fromFoodId: ingredient.food.id, toFoodId: foodId },
+          });
+        });
+      }
+
+      const updated = await findMeal(ctx, mealId, log);
+      return toDetail(updated.meal, updated.view, await isFavourite(ctx.tenantId, patientId, updated.view.recipe.id));
     },
   };
 }

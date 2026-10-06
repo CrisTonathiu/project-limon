@@ -10,6 +10,8 @@ export type AppStackParamList = {
   Onboarding: undefined;
   Home: undefined;
   Meals: undefined;
+  /** One meal of this week's plan. `title` (the recipe's) shows in the header while it loads. */
+  MealDetail: { mealId: string; title: string };
   Recipes: undefined;
   /** `title` shows in the header while the recipe loads. */
   RecipeDetail: { recipeId: string; title: string };
@@ -23,6 +25,7 @@ export type AppStackParamList = {
 /** Screens that belong to a module. They are hidden (and not registered) when the tenant has the module off. */
 export const SCREEN_FEATURE: Partial<Record<keyof AppStackParamList, FeatureKey>> = {
   Meals: FeatureKey.MEAL_PLAN,
+  MealDetail: FeatureKey.MEAL_PLAN,
   Recipes: FeatureKey.RECIPES,
   RecipeDetail: FeatureKey.RECIPES,
   Progress: FeatureKey.GOAL_TRACKER,

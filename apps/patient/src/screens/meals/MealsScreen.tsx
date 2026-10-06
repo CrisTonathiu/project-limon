@@ -1,6 +1,6 @@
 import type { MealPlanDayDto, MealPlanResponse, PlannedMealDto } from '@limon/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { canRegenerate, dayChip, formatPortion, initialDayIndex, withFavourite } from '../../features/meal-plans/meal-plan-format';
@@ -16,7 +16,8 @@ type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; w
 /**
  * This week's meal plan: a strip of the 7 days, then the selected day's meals with its
  * totals against the daily target. Today and later days can get new recipes, and any
- * meal's recipe can be marked ♥ (the generator prefers favourites in later plans).
+ * meal's recipe can be marked ♥ (the generator prefers favourites in later plans). A meal
+ * opens its detail, where ingredients can be swapped.
  */
 export function MealsScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Meals'>) {
   const { theme } = useTenantTheme();
@@ -41,6 +42,21 @@ export function MealsScreen({ navigation }: NativeStackScreenProps<AppStackParam
       });
   }, []);
   useEffect(fetchPlan, [fetchPlan]);
+
+  // Back from a meal, its swaps may have changed the day's totals: refresh without the spinner or moving the day.
+  const openedMeal = useRef(false);
+  useEffect(
+    () =>
+      navigation.addListener('focus', () => {
+        if (!openedMeal.current) return;
+        openedMeal.current = false;
+        api.mealPlans
+          .current()
+          .then((week) => setLoad((prev) => (prev.status === 'loaded' ? { status: 'loaded', week } : prev)))
+          .catch((err) => console.error('[meals] refreshing the plan failed', err));
+      }),
+    [navigation],
+  );
 
   const regenerate = (date: string) => {
     setRegenerating(true);
@@ -123,7 +139,10 @@ export function MealsScreen({ navigation }: NativeStackScreenProps<AppStackParam
       <Pressable
         key={meal.id}
         accessibilityRole="button"
-        onPress={() => navigation.navigate('RecipeDetail', { recipeId: recipe.id, title: recipe.title })}
+        onPress={() => {
+          openedMeal.current = true;
+          navigation.navigate('MealDetail', { mealId: meal.id, title: recipe.title });
+        }}
         style={style}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

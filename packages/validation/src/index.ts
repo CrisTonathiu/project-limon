@@ -168,6 +168,18 @@ export type MealPlanDayParam = z.infer<typeof MealPlanDayParamSchema>;
 export const MealPlanFavouriteParamSchema = z.object({ recipeId: z.string().uuid() }).strict();
 export type MealPlanFavouriteParam = z.infer<typeof MealPlanFavouriteParamSchema>;
 
+/** GET /meal-plans/current/meals/:mealId */
+export const MealPlanMealParamSchema = z.object({ mealId: z.string().uuid() }).strict();
+export type MealPlanMealParam = z.infer<typeof MealPlanMealParamSchema>;
+
+/** GET …/ingredients/:ingredientId/swaps and PUT …/ingredients/:ingredientId/swap */
+export const MealPlanIngredientParamSchema = z.object({ mealId: z.string().uuid(), ingredientId: z.string().uuid() }).strict();
+export type MealPlanIngredientParam = z.infer<typeof MealPlanIngredientParamSchema>;
+
+/** PUT …/swap: the food to eat instead. The recipe's own food undoes the swap. */
+export const FoodSwapSchema = z.object({ foodId: z.string().uuid() }).strict();
+export type FoodSwapInput = z.infer<typeof FoodSwapSchema>;
+
 export const PaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   cursor: z.string().uuid().optional(),

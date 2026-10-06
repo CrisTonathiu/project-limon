@@ -1,6 +1,8 @@
 import { Permission } from '@limon/auth';
 import { FeatureKey } from '@limon/types';
-import { MealPlanDayParamSchema, MealPlanFavouriteParamSchema } from '@limon/validation';
+import {
+  FoodSwapSchema, MealPlanDayParamSchema, MealPlanFavouriteParamSchema, MealPlanIngredientParamSchema, MealPlanMealParamSchema,
+} from '@limon/validation';
 import type { FastifyInstance } from 'fastify';
 import type { Container } from '../../infrastructure/container.js';
 import { ctxOf, requireFeature, requireTenant } from '../../middleware/auth.js';
@@ -41,4 +43,31 @@ export async function mealPlansRoutes(app: FastifyInstance, c: Container) {
     await service.removeFavourite(ctxOf(req), recipeId);
     return reply.status(204).send();
   });
+
+  app.get('/meal-plans/current/meals/:mealId', { preHandler: [requireTenant(c, Permission.SELF_MEAL_PLANS_READ), feature] }, async (req, reply) => {
+    const { mealId } = MealPlanMealParamSchema.parse(req.params);
+    return reply.header('Cache-Control', 'no-store').send(await service.meal(ctxOf(req), mealId, req.log));
+  });
+
+  // SMAE swaps are their own module on top of the meal plan.
+  const swaps = requireFeature(c, FeatureKey.FOOD_SWAPS);
+
+  app.get(
+    '/meal-plans/current/meals/:mealId/ingredients/:ingredientId/swaps',
+    { preHandler: [requireTenant(c, Permission.SELF_MEAL_PLANS_READ), feature, swaps] },
+    async (req, reply) => {
+      const { mealId, ingredientId } = MealPlanIngredientParamSchema.parse(req.params);
+      return reply.send(await service.swapOptions(ctxOf(req), mealId, ingredientId));
+    },
+  );
+
+  app.put(
+    '/meal-plans/current/meals/:mealId/ingredients/:ingredientId/swap',
+    { preHandler: [...writeOwn, swaps] },
+    async (req, reply) => {
+      const { mealId, ingredientId } = MealPlanIngredientParamSchema.parse(req.params);
+      const { foodId } = FoodSwapSchema.parse(req.body);
+      return reply.header('Cache-Control', 'no-store').send(await service.swap(ctxOf(req), mealId, ingredientId, foodId, req.log));
+    },
+  );
 }

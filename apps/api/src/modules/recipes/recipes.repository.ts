@@ -1,6 +1,11 @@
 import type { TenantTx } from '@limon/database';
 import type { MealType } from '@limon/types';
 
+/** A catalog food with what swaps, filters and macros need (`SwapFood` in meal-plans). */
+const foodSelect = {
+  id: true, name: true, smaeGroup: true, gramsPerEquivalent: true, allergens: true, fatsecretFoodId: true, fatsecretServingId: true,
+} as const;
+
 const summarySelect = { id: true, title: true, mealTypes: true, servings: true, totalMinutes: true } as const;
 
 /**
@@ -34,6 +39,19 @@ export const recipesRepository = {
         id: true, title: true, mealTypes: true, servings: true, totalMinutes: true,
         ingredients: {
           select: { grams: true, food: { select: { id: true, allergens: true, fatsecretFoodId: true, fatsecretServingId: true } } },
+        },
+      },
+    }),
+
+  /** These recipes as a planned meal shows them: steps, and ingredients in order with their food's SMAE data. */
+  listForMeals: (tx: TenantTx, tenantId: string, ids: string[]) =>
+    tx.recipe.findMany({
+      where: { tenantId, id: { in: ids } },
+      select: {
+        id: true, title: true, description: true, servings: true, totalMinutes: true, steps: true,
+        ingredients: {
+          orderBy: { position: 'asc' },
+          select: { id: true, quantity: true, unit: true, grams: true, note: true, food: { select: foodSelect } },
         },
       },
     }),

@@ -7,6 +7,7 @@ import { SignInScreen } from '../screens/auth/SignInScreen';
 import { SignUpScreen } from '../screens/auth/SignUpScreen';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { InviteCodeScreen } from '../screens/invite/InviteCodeScreen';
+import { MealDetailScreen } from '../screens/meals/MealDetailScreen';
 import { MealsScreen } from '../screens/meals/MealsScreen';
 import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 import { ProfileEditScreen } from '../screens/profile/ProfileEditScreen';
@@ -61,6 +62,9 @@ export function RootNavigator() {
           <AppStack.Screen name="Home" component={HomeScreen} options={{ title: '' }} />
           {/* Modules switched off for this tenant are not registered at all. */}
           {canOpen('Meals') && <AppStack.Screen name="Meals" component={MealsScreen} options={{ title: t.nav.meals }} />}
+          {canOpen('MealDetail') && (
+            <AppStack.Screen name="MealDetail" component={MealDetailScreen} options={({ route }) => ({ title: route.params.title })} />
+          )}
           {canOpen('Recipes') && <AppStack.Screen name="Recipes" component={RecipesScreen} options={{ title: t.nav.recipes }} />}
           {canOpen('RecipeDetail') && (
             <AppStack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={({ route }) => ({ title: route.params.title })} />

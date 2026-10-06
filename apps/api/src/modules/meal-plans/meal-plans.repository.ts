@@ -3,6 +3,11 @@ import type { MealType } from '@limon/types';
 
 export type MealRow = { date: Date; slot: number; mealType: MealType; recipeId: string | null; servings: number | null };
 
+const mealSelect = {
+  id: true, date: true, slot: true, mealType: true, recipeId: true, servings: true,
+  swaps: { select: { recipeIngredientId: true, foodId: true } },
+} as const;
+
 /**
  * Every query filters by tenantId explicitly (defence in depth on top of RLS).
  */
@@ -47,9 +52,26 @@ export const mealPlansRepository = {
       where: { tenantId_patientId_weekStart: { tenantId, patientId, weekStart } },
       select: {
         id: true,
-        meals: { orderBy: [{ date: 'asc' }, { slot: 'asc' }], select: { id: true, date: true, slot: true, mealType: true, recipeId: true, servings: true } },
+        meals: { orderBy: [{ date: 'asc' }, { slot: 'asc' }], select: mealSelect },
       },
     }),
+
+  /** One meal of the patient's plan for that week, or null (another patient's meal looks the same as a missing one). */
+  findMeal: (tx: TenantTx, tenantId: string, patientId: string, weekStart: Date, mealId: string) =>
+    tx.mealPlanMeal.findFirst({ where: { tenantId, id: mealId, mealPlan: { patientId, weekStart } }, select: mealSelect }),
+
+  /** The meal eats `foodId` instead of the recipe ingredient's food. Replaces an earlier swap of that ingredient. */
+  setSwap: (tx: TenantTx, tenantId: string, mealPlanMealId: string, recipeIngredientId: string, foodId: string) =>
+    tx.mealPlanMealSwap.upsert({
+      where: { tenantId_mealPlanMealId_recipeIngredientId: { tenantId, mealPlanMealId, recipeIngredientId } },
+      create: { tenantId, mealPlanMealId, recipeIngredientId, foodId },
+      update: { foodId },
+      select: { id: true },
+    }),
+
+  /** Back to the recipe's food. Idempotent. */
+  removeSwap: (tx: TenantTx, tenantId: string, mealPlanMealId: string, recipeIngredientId: string) =>
+    tx.mealPlanMealSwap.deleteMany({ where: { tenantId, mealPlanMealId, recipeIngredientId } }),
 
   /** Replaces one date's meals. Touching the plan row first serializes concurrent regenerations of it. */
   replaceDay: async (tx: TenantTx, tenantId: string, mealPlanId: string, date: Date, meals: Omit<MealRow, 'date'>[]) => {

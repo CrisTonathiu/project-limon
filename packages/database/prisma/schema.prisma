@@ -229,6 +229,7 @@ model Tenant {
   mealPlans             MealPlan[]
   mealPlanMeals         MealPlanMeal[]
   mealFeedback          MealFeedback[]
+  mealPlanMealSwaps     MealPlanMealSwap[]
   protocols             Protocol[]
   conversations         Conversation[]
   messages              Message[]
@@ -525,6 +526,7 @@ model Food {
   recipeIngredients        RecipeIngredient[]
   defaultRecipeIngredients DefaultRecipeIngredient[]
   dislikedBy               PatientDislikedFood[]
+  mealSwaps                MealPlanMealSwap[]
 
   @@index([fatsecretFoodId])
   @@index([smaeGroup])
@@ -622,7 +624,9 @@ model RecipeIngredient {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   recipe Recipe @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Cascade)
   food   Food   @relation(fields: [foodId], references: [id], onDelete: Restrict)
+  swaps  MealPlanMealSwap[]
 
+  @@unique([tenantId, id])
   @@unique([tenantId, recipeId, position])
   @@index([foodId])
   @@map("recipe_ingredients")
@@ -672,10 +676,35 @@ model MealPlanMeal {
   mealPlan MealPlan @relation(fields: [tenantId, mealPlanId], references: [tenantId, id], onDelete: Cascade)
   // A recipe used in a plan can't be deleted: the recipe editor (dashboard) will have to archive instead.
   recipe   Recipe?  @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Restrict)
+  swaps    MealPlanMealSwap[]
 
+  @@unique([tenantId, id])
   @@unique([tenantId, mealPlanId, date, slot])
   @@index([tenantId, recipeId])
   @@map("meal_plan_meals")
+}
+
+/// An ingredient of one plan meal swapped for an equivalent food from the same SMAE group.
+/// Only the food is stored: its grams follow from the equivalents when the meal is read, and
+/// the recipe itself never changes. Regenerating the day removes the meal, and its swaps with it.
+model MealPlanMealSwap {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  mealPlanMealId     String   @map("meal_plan_meal_id") @db.Uuid
+  recipeIngredientId String   @map("recipe_ingredient_id") @db.Uuid
+  /// The food eaten instead of the recipe ingredient's.
+  foodId             String   @map("food_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  mealPlanMeal     MealPlanMeal     @relation(fields: [tenantId, mealPlanMealId], references: [tenantId, id], onDelete: Cascade)
+  recipeIngredient RecipeIngredient @relation(fields: [tenantId, recipeIngredientId], references: [tenantId, id], onDelete: Cascade)
+  food             Food             @relation(fields: [foodId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, mealPlanMealId, recipeIngredientId])
+  @@index([foodId])
+  @@map("meal_plan_meal_swaps")
 }
 
 /// A patient's rating of a recipe in a given week. For now only favourites (♥, rating 1),
