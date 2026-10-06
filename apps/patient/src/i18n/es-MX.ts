@@ -77,11 +77,32 @@ export const es = {
   },
 
   home: {
-    title: 'Tu plan',
-    signedInAs: (email: string) => `Sesión iniciada como ${email}`,
+    greeting: (name: string) => `Hola, ${name}`,
+    greetingNoName: 'Hola',
+    openProfile: 'Abrir tu perfil',
+    weightGoal: 'Meta de peso',
+    planThisWeek: 'Plan esta semana',
+    caloriesToday: 'Calorías hoy',
+    /** Under the big number in the ring: "−4.2" over "kg de 7 kg". */
+    kgOfGoal: (goal: string) => `kg de ${goal}`,
+    /** Under the kcal eaten: "1,240" over "de 1,800 kcal". */
+    ofKcal: (target: string) => `de ${target}`,
+    ringA11y: (outer: string, outerValue: string, inner?: string, innerValue?: string) =>
+      inner ? `${outer}: ${outerValue}. ${inner}: ${innerValue}.` : `${outer}: ${outerValue}.`,
+    streakOne: 'día de racha',
+    streakOther: 'días de racha',
+    mealsToday: 'comidas hoy',
+    yourWeight: 'Tu peso',
+    weeks: (count: number) => `${count} semanas`,
+    weightToday: (kg: string) => `${kg} hoy`,
+    weightA11y: (from: string, to: string, weeks: number) => `Tu peso pasó de ${from} a ${to} en ${weeks} semanas.`,
+    /** `when` is a time ("14:00") or a meal ("Cena", "Desayuno de mañana"). */
+    nextMeal: (when: string) => `Siguiente · ${when}`,
+    tomorrow: (meal: string) => `${meal} de mañana`,
   },
 
   nav: {
+    home: 'Inicio',
     meals: 'Comidas',
     shoppingList: 'Lista del súper',
     recipes: 'Recetas',

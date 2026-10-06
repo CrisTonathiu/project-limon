@@ -1,6 +1,6 @@
 import type { PatientProfileDto } from '@limon/types';
-import { useFocusEffect } from '@react-navigation/native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
@@ -16,8 +16,10 @@ type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; p
 /**
  * The patient's daily target and questionnaire answers, with edit, sign out and account
  * deletion. Reachable from the paywall too: deleting an account must not require paying.
+ * A tab in the paid app and a stack screen on the paywall; either way the stack opens ProfileEdit.
  */
-export function ProfileScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Profile'>) {
+export function ProfileScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const session = useSession();
   const { config, theme } = useTenantTheme();
   const [load, setLoad] = useState<Load>({ status: 'loading' });

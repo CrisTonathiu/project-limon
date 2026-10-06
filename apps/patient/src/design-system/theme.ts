@@ -77,4 +77,8 @@ export const motion = {
   entrance: { duration: 500, rise: 12, stagger: 80 },
   ring: { duration: 900, innerDelay: 150 },
   line: { duration: 1100 },
+  /** After the line has drawn, its end dot fades in. */
+  dot: { duration: 300 },
+  flicker: { duration: 1600, scale: 1.08, rotate: 4 },
+  press: { duration: 120, scale: 0.97 },
 } as const;

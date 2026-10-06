@@ -26,6 +26,9 @@ export const formatGrams = (g: number) => `${formatNumber(g)} g`;
 export const formatKg = (kg: number) => `${formatNumber(kg, 1)} kg`;
 export const formatCm = (cm: number) => `${formatNumber(cm, 1)} cm`;
 export const formatMl = (ml: number) => `${formatNumber(ml)} ml`;
+/** -4.2 → "−4.2", 1.5 → "+1.5": a typographic minus, and a plus so gains read as changes. */
+export const formatSigned = (value: number, maxDecimals = 0) =>
+  `${value < 0 ? '−' : value > 0 ? '+' : ''}${formatNumber(Math.abs(value), maxDecimals)}`;
 /** 0.235 → "23.5 %" (es-MX puts a space before the sign). */
 export const formatPercent = (ratio: number) => `${formatNumber(ratio * 100, 1)} %`;
 
@@ -64,6 +67,12 @@ const dateFormats = {
 /** Accepts a Date or an API date-only string. Uses the device's time zone. */
 export function formatDate(date: Date | string, style: keyof typeof dateFormats = 'long'): string {
   return dateFormats[style].format(typeof date === 'string' ? parseDateOnly(date) : date);
+}
+
+/** "Lunes 5 de octubre": the date line above a screen title. */
+export function formatDayHeading(date: Date): string {
+  const text = dateFormats.long.format(date).replace(',', '');
+  return text.charAt(0).toLocaleUpperCase(LOCALE) + text.slice(1);
 }
 
 const collator = new Intl.Collator(LOCALE, { sensitivity: 'base' });

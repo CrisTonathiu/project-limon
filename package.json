@@ -15,6 +15,9 @@
     "db:generate": "pnpm --filter @limon/database generate",
     "db:migrate": "pnpm --filter @limon/database migrate:dev",
     "db:seed": "pnpm --filter @limon/database seed",
+    "storybook": "pnpm --filter @limon/patient storybook",
+    "storybook:web": "pnpm --filter @limon/patient storybook:web",
+    "storybook:build": "pnpm --filter @limon/patient storybook:build",
     "format": "prettier --write ."
   },
   "devDependencies": {

@@ -4,13 +4,14 @@ The patient app styles everything through one typed theme, built with [Restyle](
 
 ## Where things live
 
-| Path                                         | What it is                                                                                      |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `apps/patient/src/design-system/theme.ts`    | Colors, spacing, radii, text and card variants, motion timings. `buildTheme(primary)`.          |
-| `apps/patient/src/design-system/restyle.tsx` | `Box`, `Text`, `CardBox`, `useAppTheme`, `DesignSystemProvider`.                                |
-| `apps/patient/src/design-system/components/` | Shared components (`Card`, `StatTile`, `ProgressRing`), each with a `*.stories.tsx` next to it. |
-| `apps/patient/src/design-system/motion.ts`   | `useEntrance(delay)`: the fade and rise every block uses. Respects reduced motion.              |
-| `apps/patient/.rnstorybook/`, `.storybook/`  | Storybook on a phone and in the browser. Both load the same stories.                            |
+| Path                                         | What it is                                                                                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/patient/src/design-system/theme.ts`    | Colors, spacing, radii, text and card variants, motion timings. `buildTheme(primary)`.                                                                        |
+| `apps/patient/src/design-system/restyle.tsx` | `Box`, `Text`, `CardBox`, `useAppTheme`, `DesignSystemProvider`.                                                                                              |
+| `apps/patient/src/design-system/components/` | Shared components (`Card`, `StatTile`, `ProgressRing`, `Sparkline`, `PrimaryCard`, `ScreenHeader`, `TabBar`, `Icon`), each with a `*.stories.tsx` next to it. |
+| `apps/patient/src/design-system/motion.ts`   | `useEntrance(delay)` (the fade and rise every block uses), `useFlicker`, `usePressScale`. Respect reduced motion.                                             |
+| `apps/patient/src/screens/*/*View.tsx`       | Screen designs: presentational views that take plain data, with `*.stories.tsx` under Screens/.                                                               |
+| `apps/patient/.rnstorybook/`, `.storybook/`  | Storybook on a phone and in the browser. Both load the same stories.                                                                                          |
 
 Only `primary` changes per clinic. `primaryTint` (16% on white) and `onPrimary` (black or white text) are derived from it, and `App.tsx` feeds in the tenant color from `/apps/bootstrap`.
 
@@ -23,7 +24,7 @@ Only `primary` changes per clinic. `primaryTint` (16% on white) and `onPrimary` 
 
 ## Storybook
 
-From `apps/patient`:
+From the repo root or `apps/patient`:
 
 | Command                | What it does                                                                      |
 | ---------------------- | --------------------------------------------------------------------------------- |
@@ -54,4 +55,4 @@ export default meta;
 export const Default: StoryObj<typeof meta> = {};
 ```
 
-The theme, fonts and background are added for you by the shared decorator in `src/design-system/stories/decorators.tsx`.
+The theme, fonts, safe areas and background are added for you by the shared decorator in `src/design-system/stories/decorators.tsx`. A screen story sets `parameters: { screen: true }` to fill the frame edge to edge.

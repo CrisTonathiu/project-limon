@@ -1,12 +1,11 @@
 import { MealType, type RecipeSummaryDto } from '@limon/types';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 import { Button } from '../../components/Button';
 import { formatMinutes } from '../../features/recipes/recipe-format';
 import { t } from '../../i18n/es-MX';
 import { plural } from '../../i18n/format';
-import type { AppStackParamList } from '../../navigation/types';
+import type { TabScreenProps } from '../../navigation/types';
 import { api } from '../../services/api';
 import { useTenantTheme } from '../../theme/theme-context';
 
@@ -15,7 +14,7 @@ type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; r
 const FILTERS: (MealType | null)[] = [null, MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER, MealType.SNACK];
 
 /** The tenant's recipes, filtered by meal type. */
-export function RecipesScreen({ navigation }: NativeStackScreenProps<AppStackParamList, 'Recipes'>) {
+export function RecipesScreen({ navigation }: TabScreenProps<'Recipes'>) {
   const { theme } = useTenantTheme();
   const [mealType, setMealType] = useState<MealType | null>(null);
   const [load, setLoad] = useState<Load>({ status: 'loading' });
