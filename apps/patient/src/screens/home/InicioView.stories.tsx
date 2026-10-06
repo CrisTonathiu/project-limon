@@ -1,27 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-native';
-import { useState } from 'react';
-import { useWindowDimensions } from 'react-native';
-import { Box, TabBar, type TabItem } from '../../design-system';
-import { t } from '../../i18n/es-MX';
+import { PhoneFrame } from '../../design-system/stories/PhoneFrame';
 import { InicioView, type InicioViewProps } from './InicioView';
 
-const tabs: TabItem[] = [
-  { key: 'home', label: t.nav.home, icon: 'home' },
-  { key: 'meals', label: t.nav.meals, icon: 'meals' },
-  { key: 'recipes', label: t.nav.recipes, icon: 'recipes' },
-  { key: 'progress', label: t.nav.progress, icon: 'progress' },
-  { key: 'profile', label: t.nav.profile, icon: 'profile' },
-];
-
-/** The screen as a patient sees it: Inicio above the tab bar, filling the phone. */
 function Phone(props: InicioViewProps) {
-  const { height } = useWindowDimensions();
-  const [tab, setTab] = useState('home');
   return (
-    <Box height={height}>
+    <PhoneFrame tab="home">
       <InicioView {...props} />
-      <TabBar tabs={tabs} active={tab} onSelect={setTab} />
-    </Box>
+    </PhoneFrame>
   );
 }
 

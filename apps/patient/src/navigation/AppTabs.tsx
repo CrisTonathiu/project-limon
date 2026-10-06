@@ -1,8 +1,5 @@
 import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Pressable } from 'react-native';
-import { TabBar, Text, type IconName } from '../design-system';
+import { TabBar, type IconName } from '../design-system';
 import { t } from '../i18n/es-MX';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { MealsScreen } from '../screens/meals/MealsScreen';
@@ -28,18 +25,10 @@ export function AppTabs() {
   const canOpen = (screen: keyof TabParamList | keyof AppStackParamList) =>
     isScreenEnabled(screen, session.hasFeature);
   return (
-    <Tab.Navigator tabBar={(props) => <AppTabBar {...props} />}>
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: t.nav.home, headerShown: false }} />
-      {canOpen('Meals') && (
-        <Tab.Screen
-          name="Meals"
-          component={MealsScreen}
-          options={{
-            title: t.nav.meals,
-            headerRight: canOpen('ShoppingList') ? () => <ShoppingListLink /> : undefined,
-          }}
-        />
-      )}
+    // Every tab draws its own header (ScreenHeader), as in the mockups.
+    <Tab.Navigator tabBar={(props) => <AppTabBar {...props} />} screenOptions={{ headerShown: false }}>
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: t.nav.home }} />
+      {canOpen('Meals') && <Tab.Screen name="Meals" component={MealsScreen} options={{ title: t.nav.meals }} />}
       {canOpen('Recipes') && <Tab.Screen name="Recipes" component={RecipesScreen} options={{ title: t.nav.recipes }} />}
       {canOpen('Progress') && <Tab.Screen name="Progress" component={ProgressScreen} options={{ title: t.nav.progress }} />}
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: t.nav.profile }} />
@@ -64,21 +53,5 @@ function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         if (name !== active && !event.defaultPrevented) navigation.navigate(route.name, route.params);
       }}
     />
-  );
-}
-
-/** Until Comidas is redesigned, the week's shopping list opens from its header. */
-function ShoppingListLink() {
-  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  return (
-    <Pressable
-      onPress={() => navigation.navigate('ShoppingList')}
-      accessibilityRole="button"
-      style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 16 }}
-    >
-      <Text variant="bodyStrong" color="primary">
-        {t.nav.shoppingList}
-      </Text>
-    </Pressable>
   );
 }

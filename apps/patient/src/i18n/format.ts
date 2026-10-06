@@ -26,6 +26,8 @@ export const formatGrams = (g: number) => `${formatNumber(g)} g`;
 export const formatKg = (kg: number) => `${formatNumber(kg, 1)} kg`;
 export const formatCm = (cm: number) => `${formatNumber(cm, 1)} cm`;
 export const formatMl = (ml: number) => `${formatNumber(ml)} ml`;
+/** 1500 → "1.5 L", 2000 → "2 L". */
+export const formatLiters = (ml: number) => `${formatNumber(ml / 1000, 1)} L`;
 /** -4.2 → "−4.2", 1.5 → "+1.5": a typographic minus, and a plus so gains read as changes. */
 export const formatSigned = (value: number, maxDecimals = 0) =>
   `${value < 0 ? '−' : value > 0 ? '+' : ''}${formatNumber(Math.abs(value), maxDecimals)}`;
@@ -73,6 +75,16 @@ export function formatDate(date: Date | string, style: keyof typeof dateFormats 
 export function formatDayHeading(date: Date): string {
   const text = dateFormats.long.format(date).replace(',', '');
   return text.charAt(0).toLocaleUpperCase(LOCALE) + text.slice(1);
+}
+
+const dayMonth = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'long' });
+
+/** "5 al 11 de octubre", or "28 de septiembre al 4 de octubre" across months. Date-only strings. */
+export function formatDayRange(from: string, to: string): string {
+  const a = parseDateOnly(from);
+  const b = parseDateOnly(to);
+  const start = a.getMonth() === b.getMonth() ? formatNumber(a.getDate()) : dayMonth.format(a);
+  return `${start} al ${dayMonth.format(b)}`;
 }
 
 const collator = new Intl.Collator(LOCALE, { sensitivity: 'base' });

@@ -7,13 +7,54 @@
  * Voice: informal "tú", short and warm. Legal texts (consents) must match the
  * published documents word for word; have them reviewed before launch.
  */
+/** Food names are stored capitalized ("Pechuga de pollo"); mid-sentence they read lowercase. */
+const midSentence = (name: string) => name.charAt(0).toLocaleLowerCase('es-MX') + name.slice(1);
+
 export const es = {
+  /** Short macro names, for chips and bars. */
+  macros: {
+    protein: (g: string) => `Proteína ${g}`,
+    carbs: (g: string) => `Carbs ${g}`,
+    fat: (g: string) => `Grasa ${g}`,
+    /** Single letters for the day summary: "P 112 g". */
+    proteinShort: (g: string) => `P ${g}`,
+    carbsShort: (g: string) => `C ${g}`,
+    fatShort: (g: string) => `G ${g}`,
+    proteinLabel: 'Proteína',
+    carbsLabel: 'Carbs',
+    fatLabel: 'Grasa',
+  },
+
+  progress: {
+    title: 'Tu progreso',
+    goal: (kg: string) => `Meta: ${kg}`,
+    remaining: (kg: string) => `faltan ${kg}`,
+    reached: '¡Meta alcanzada!',
+    /** Under the goal bar: "78 kg · 18 ago". */
+    start: (kg: string, date: string) => `${kg} · ${date}`,
+    weight: 'Peso',
+    period: 'Periodo',
+    periods: { weeks8: '8 sem', months3: '3 meses', all: 'Todo' },
+    today: 'Hoy',
+    chartA11y: (from: string, to: string) => `Tu peso pasó de ${from} a ${to}.`,
+    logWeight: 'Registrar peso',
+    measurements: { waist: 'Cintura', hip: 'Cadera', bodyFat: 'Grasa' },
+    water: 'Agua',
+    waterToday: (drunk: string, goal: string) => `${drunk} de ${goal} hoy`,
+    addWater: '+250 ml',
+    addWaterA11y: 'Agregar un vaso de 250 ml',
+    soonTitle: 'Muy pronto',
+    soonBody: 'Aquí verás tu peso, tu meta y el agua que tomas. Estamos terminando esta sección.',
+  },
+
   common: {
     genericError: 'Algo salió mal. Inténtalo de nuevo.',
     networkError: 'Algo salió mal. Revisa tu conexión e inténtalo de nuevo.',
     comingSoon: 'Próximamente.',
     signOut: 'Cerrar sesión',
     yourNutritionist: 'tu nutriólogo',
+    back: 'Volver',
+    close: 'Cerrar',
   },
 
   invite: {
@@ -114,6 +155,10 @@ export const es = {
 
   recipes: {
     all: 'Todas',
+    searchPlaceholder: 'Buscar recetas',
+    noMatches: 'Ninguna receta coincide con tu búsqueda.',
+    /** Card meta: "10 min · 1 porción". */
+    meta: (parts: string[]) => parts.join(' · '),
     mealTypes: { BREAKFAST: 'Desayuno', LUNCH: 'Comida', DINNER: 'Cena', SNACK: 'Colación' },
     empty: 'No hay recetas para esta comida todavía.',
     loadFailed: 'No pudimos cargar las recetas. Revisa tu conexión.',
@@ -135,6 +180,11 @@ export const es = {
   },
 
   meals: {
+    title: 'Tu semana',
+    /** Accessibility label of a day in the week strip. */
+    dayA11y: (date: string, today: boolean) => (today ? `${date}, hoy` : date),
+    /** The day ring: "99 %" of the target planned. */
+    dayRingA11y: (percent: string) => `El plan del día cubre ${percent} de tu meta`,
     loadFailed: 'No pudimos cargar tu plan. Revisa tu conexión.',
     retry: 'Reintentar',
     today: 'Hoy',
@@ -156,6 +206,9 @@ export const es = {
   },
 
   swaps: {
+    sheetTitle: (food: string) => `Cambiar ${midSentence(food)}`,
+    confirm: (food: string) => `Usar ${midSentence(food)}`,
+    originalTag: (amount: string) => `${amount} · original`,
     hint: 'Puedes cambiar un ingrediente por otro del mismo grupo del SMAE. La cantidad se ajusta para que aporte lo mismo.',
     open: 'Cambiar',
     close: 'Cerrar',
@@ -191,6 +244,22 @@ export const es = {
   },
 
   profile: {
+    facts: {
+      height: 'Estatura',
+      weight: 'Peso',
+      birthDate: 'Nacimiento',
+      activity: 'Actividad',
+      activityLevels: { SEDENTARY: 'Sedentaria', LIGHT: 'Ligera', MODERATE: 'Moderada', ACTIVE: 'Alta', VERY_ACTIVE: 'Muy alta' },
+      meals: 'Comidas al día',
+      allergies: 'Alergias',
+      none: 'Ninguna',
+      dislikes: 'No te gusta',
+      pregnant: 'Embarazo o lactancia',
+      yes: 'Sí',
+    },
+    editLink: 'Editar',
+    subscription: 'Suscripción',
+    subscriptionInactive: 'Inactiva',
     support: (email: string) => `Soporte: ${email}`,
     open: 'Mi perfil',
     loadFailed: 'No pudimos cargar tu perfil. Revisa tu conexión.',

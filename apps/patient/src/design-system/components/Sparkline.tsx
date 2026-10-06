@@ -21,6 +21,8 @@ export type SparklineProps = {
   height?: number;
   /** When the line starts drawing, in ms (Inicio waits for the ring). */
   delay?: number;
+  /** spark: over a soft tint band (Inicio). chart: over gridlines, the end dot ringed in white (Progreso). */
+  variant?: 'spark' | 'chart';
   accessibilityLabel?: string;
 };
 
@@ -28,7 +30,13 @@ const LINE = 3.5;
 const DOT = 6;
 
 /** A small trend line over a soft tint band; it draws in from the left, then its end dot appears. */
-export function Sparkline({ values, height = 90, delay = 0, accessibilityLabel }: SparklineProps) {
+export function Sparkline({
+  values,
+  height = 90,
+  delay = 0,
+  variant = 'spark',
+  accessibilityLabel,
+}: SparklineProps) {
   const [width, setWidth] = useState(0);
   return (
     <Box
@@ -39,7 +47,7 @@ export function Sparkline({ values, height = 90, delay = 0, accessibilityLabel }
       accessibilityLabel={accessibilityLabel}
     >
       {width > 0 && values.length > 1 ? (
-        <Line values={values} width={width} height={height} delay={delay} />
+        <Line values={values} width={width} height={height} delay={delay} variant={variant} />
       ) : null}
     </Box>
   );
@@ -50,7 +58,8 @@ function Line({
   width,
   height,
   delay,
-}: Required<Pick<SparklineProps, 'values' | 'height' | 'delay'>> & { width: number }) {
+  variant,
+}: Required<Pick<SparklineProps, 'values' | 'height' | 'delay' | 'variant'>> & { width: number }) {
   const { colors } = useAppTheme();
   const reduced = useReducedMotion();
   const points = sparklinePoints(values, width, height);
@@ -85,14 +94,26 @@ function Line({
 
   return (
     <Svg width={width} height={height}>
-      <Path
-        d={d}
-        fill="none"
-        stroke={colors.primaryTint}
-        strokeWidth={BAND}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      {variant === 'chart' ? (
+        // Top, middle and bottom gridlines; the baseline a little stronger.
+        [BAND / 2, height / 2, height - BAND / 2].map((y, i) => (
+          <Path
+            key={y}
+            d={`M0 ${y} H${width}`}
+            stroke={i === 2 ? colors.divider : colors.track}
+            strokeWidth={1}
+          />
+        ))
+      ) : (
+        <Path
+          d={d}
+          fill="none"
+          stroke={colors.primaryTint}
+          strokeWidth={BAND}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
       <AnimatedPath
         d={d}
         fill="none"
@@ -108,6 +129,8 @@ function Line({
         cy={end.y}
         r={DOT}
         fill={colors.primary}
+        stroke={variant === 'chart' ? colors.surface : undefined}
+        strokeWidth={variant === 'chart' ? 3 : 0}
         animatedProps={dotProps}
       />
     </Svg>

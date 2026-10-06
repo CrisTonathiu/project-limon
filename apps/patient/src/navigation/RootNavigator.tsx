@@ -52,7 +52,8 @@ export function RootNavigator() {
         // or delete their account (store rules). The API enforces the paywall too.
         <AppStack.Navigator screenOptions={appScreenOptions}>
           <AppStack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: '' }} />
-          <AppStack.Screen name="Profile" component={ProfileScreen} options={{ title: t.nav.profile }} />
+          {/* Draws its own header; its Suscripción row leads back to the paywall. */}
+          <AppStack.Screen name="Profile" component={ProfileScreen} options={{ title: t.nav.profile, headerShown: false }} />
           <AppStack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ title: t.profile.edit }} />
         </AppStack.Navigator>
       ) : session.status === 'signedIn' ? (
@@ -60,11 +61,11 @@ export function RootNavigator() {
           <AppStack.Screen name="Tabs" component={AppTabs} options={{ headerShown: false, title: t.nav.home }} />
           {/* Modules switched off for this tenant are not registered at all. */}
           {canOpen('MealDetail') && (
-            <AppStack.Screen name="MealDetail" component={MealDetailScreen} options={({ route }) => ({ title: route.params.title })} />
+            <AppStack.Screen name="MealDetail" component={MealDetailScreen} options={({ route }) => ({ title: route.params.title, headerShown: false })} />
           )}
           {canOpen('ShoppingList') && <AppStack.Screen name="ShoppingList" component={ShoppingListScreen} options={{ title: t.nav.shoppingList }} />}
           {canOpen('RecipeDetail') && (
-            <AppStack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={({ route }) => ({ title: route.params.title })} />
+            <AppStack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={({ route }) => ({ title: route.params.title, headerShown: false })} />
           )}
           {canOpen('AiChat') && <AppStack.Screen name="AiChat" component={AiChatScreen} options={{ title: t.nav.aiShort }} />}
           <AppStack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ title: t.profile.edit }} />

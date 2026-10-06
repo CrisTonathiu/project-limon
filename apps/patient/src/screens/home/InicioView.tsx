@@ -1,6 +1,5 @@
-import { Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { Pressable, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Box,
   Card,
@@ -10,10 +9,10 @@ import {
   PrimaryCard,
   ProgressRing,
   ScreenHeader,
+  ScreenScroll,
   Sparkline,
   StatTile,
   Text,
-  useAppTheme,
   useFlicker,
   type AppTheme,
   type Ring,
@@ -63,8 +62,6 @@ const HERO_RESERVED = 24 * 2 + 16 * 2 + 16 + 112;
 
 /** The home tab (docs/ui/mockups/01-inicio.html): progress first, then today, then what's next. */
 export function InicioView(props: InicioViewProps) {
-  const { spacing } = useAppTheme();
-  const insets = useSafeAreaInsets();
   // Blocks enter in reading order, motion.entrance.stagger apart; hidden blocks don't leave a gap.
   let order = 0;
   const next = () => order++ * motion.entrance.stagger;
@@ -93,16 +90,7 @@ export function InicioView(props: InicioViewProps) {
   ].filter((tile) => !!tile);
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{
-        paddingHorizontal: spacing.xl,
-        // The mockup's 56 is measured from the top of the phone, status bar included.
-        paddingTop: Math.max(insets.top + spacing.s, spacing.top),
-        paddingBottom: spacing.xl,
-        gap: spacing.l,
-      }}
-    >
+    <ScreenScroll gap="l">
       <ScreenHeader
         caption={formatDayHeading(props.today)}
         title={props.firstName ? t.home.greeting(props.firstName) : t.home.greetingNoName}
@@ -132,7 +120,7 @@ export function InicioView(props: InicioViewProps) {
           delay={next()}
         />
       ) : null}
-    </ScrollView>
+    </ScreenScroll>
   );
 }
 

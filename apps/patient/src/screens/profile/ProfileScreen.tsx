@@ -1,17 +1,20 @@
-import type { PatientProfileDto } from '@limon/types';
+import type { PatientDto, PatientProfileDto } from '@limon/types';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
-import { Button } from '../../components/Button';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import { t } from '../../i18n/es-MX';
-import { formatCm, formatDate, formatGrams, formatKcal, formatKg } from '../../i18n/format';
+import { formatCm, formatDate, formatKg, formatNumber } from '../../i18n/format';
 import type { AppStackParamList } from '../../navigation/types';
 import { api } from '../../services/api';
 import { useSession } from '../../state/session-context';
 import { useTenantTheme } from '../../theme/theme-context';
+import { PerfilView, type PerfilProfile, type PerfilViewProps } from './PerfilView';
 
-type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; profile: PatientProfileDto | null };
+type Load =
+  | { status: 'loading' }
+  | { status: 'failed' }
+  | { status: 'loaded'; profile: PatientProfileDto | null };
 
 /**
  * The patient's daily target and questionnaire answers, with edit, sign out and account
@@ -21,8 +24,9 @@ type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; p
 export function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const session = useSession();
-  const { config, theme } = useTenantTheme();
+  const { config } = useTenantTheme();
   const [load, setLoad] = useState<Load>({ status: 'loading' });
+  const [patient, setPatient] = useState<PatientDto | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -39,6 +43,14 @@ export function ProfileScreen() {
   // Reloads when coming back from the edit screen, so the target follows the changes.
   useFocusEffect(fetchProfile);
 
+  // The name for the header; without it the header falls back to "Perfil".
+  useEffect(() => {
+    api.patients
+      .me()
+      .then(setPatient)
+      .catch((err) => console.error('[profile] loading the patient failed', err));
+  }, []);
+
   const deleteAccount = async () => {
     setDeleting(true);
     setDeleteError(null);
@@ -53,86 +65,81 @@ export function ProfileScreen() {
   };
 
   const confirmDelete = () =>
-    Alert.alert(t.profile.deleteConfirm.title, t.profile.deleteConfirm.body(config?.appName ?? t.common.yourNutritionist), [
-      { text: t.profile.deleteConfirm.cancel, style: 'cancel' },
-      { text: t.profile.deleteConfirm.confirm, style: 'destructive', onPress: () => void deleteAccount() },
-    ]);
-
-  const Section = ({ title, children }: { title: string; children: ReactNode }) => (
-    <View style={{ backgroundColor: theme.colors.surface, borderRadius: theme.radius.md, padding: theme.spacing.md, gap: theme.spacing.xs }}>
-      <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: theme.typography.fontSize.lg }}>{title}</Text>
-      {children}
-    </View>
-  );
-  const Line = ({ children, muted }: { children: ReactNode; muted?: boolean }) => (
-    <Text style={{ color: muted ? theme.colors.textMuted : theme.colors.text }}>{children}</Text>
-  );
-
-  const profileSections = (profile: PatientProfileDto) => {
-    const target = profile.energyTarget;
-    return (
-      <>
-        <Section title={t.profile.target.title}>
-          {target.status === 'READY' ? (
-            <>
-              <Text style={{ color: theme.colors.text, fontSize: theme.typography.fontSize.xl, fontWeight: '700' }}>
-                {formatKcal(target.targetKcal)}
-              </Text>
-              <Line>{t.profile.target.macros(formatGrams(target.proteinG), formatGrams(target.carbsG), formatGrams(target.fatG))}</Line>
-              <Line muted>{t.profile.target.note}</Line>
-            </>
-          ) : (
-            <Line>{t.profile.target.hold[target.reason]}</Line>
-          )}
-        </Section>
-
-        <Section title={t.profile.data.title}>
-          <Line>{t.profile.data.birthDate(formatDate(profile.dateOfBirth, 'full'))}</Line>
-          <Line>{t.profile.data.heightWeight(formatCm(profile.heightCm), formatKg(profile.weightKg))}</Line>
-          <Line>{t.onboarding.activity.levels[profile.activityLevel].label}</Line>
-          <Line>{t.onboarding.meals.option(profile.mealsPerDay)}</Line>
-          {profile.pregnantOrBreastfeeding ? <Line>{t.profile.data.pregnant}</Line> : null}
-          <Line>
-            {profile.allergies.length
-              ? t.profile.data.allergies(profile.allergies.map((a) => t.onboarding.allergies.names[a]).join(', '))
-              : t.profile.data.noAllergies}
-          </Line>
-          {profile.dislikedFoods.length ? <Line>{t.profile.data.dislikes(profile.dislikedFoods.map((f) => f.name).join(', '))}</Line> : null}
-        </Section>
-
-        <Button label={t.profile.edit} onPress={() => navigation.navigate('ProfileEdit', { profile })} />
-      </>
+    Alert.alert(
+      t.profile.deleteConfirm.title,
+      t.profile.deleteConfirm.body(config?.appName ?? t.common.yourNutritionist),
+      [
+        { text: t.profile.deleteConfirm.cancel, style: 'cancel' },
+        {
+          text: t.profile.deleteConfirm.confirm,
+          style: 'destructive',
+          onPress: () => void deleteAccount(),
+        },
+      ],
     );
-  };
+
+  const entitlement = session.status === 'signedIn' ? session.me.entitlement : undefined;
+  const state: PerfilViewProps['state'] =
+    load.status === 'loaded'
+      ? { status: 'loaded', profile: load.profile ? toPerfil(load.profile) : null }
+      : load.status === 'failed'
+        ? { status: 'failed', onRetry: fetchProfile }
+        : load;
 
   return (
-    <ScrollView
-      style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md }}
-    >
-      {load.status === 'loading' ? <ActivityIndicator /> : null}
-      {load.status === 'failed' ? (
-        <>
-          <Line>{t.profile.loadFailed}</Line>
-          <Button label={t.profile.retry} onPress={fetchProfile} />
-        </>
-      ) : null}
-      {load.status === 'loaded' && load.profile ? profileSections(load.profile) : null}
-
-      {config?.supportEmail ? <Line muted>{t.profile.support(config.supportEmail)}</Line> : null}
-      <Button label={t.common.signOut} disabled={deleting} onPress={() => void session.signOut()} />
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={confirmDelete}
-        disabled={deleting}
-        style={{ padding: theme.spacing.md, marginTop: theme.spacing.lg }}
-      >
-        <Text style={{ color: theme.colors.danger, textAlign: 'center', fontWeight: '600' }}>
-          {deleting ? t.profile.deleting : t.profile.deleteAccount}
-        </Text>
-      </Pressable>
-      {deleteError ? <Text style={{ color: theme.colors.danger, textAlign: 'center' }}>{deleteError}</Text> : null}
-    </ScrollView>
+    <PerfilView
+      name={patient?.firstName ?? null}
+      email={patient?.email ?? (session.status === 'signedIn' ? session.me.user.email : null)}
+      state={state}
+      subscription={
+        entitlement?.status
+          ? { label: t.subscription.status[entitlement.status], active: entitlement.active }
+          : null
+      }
+      supportEmail={config?.supportEmail ?? null}
+      deleting={deleting}
+      deleteError={deleteError}
+      onEdit={
+        load.status === 'loaded' && load.profile
+          ? () => navigation.navigate('ProfileEdit', { profile: load.profile! })
+          : undefined
+      }
+      onOpenSubscription={() => navigation.navigate('Subscription')}
+      onSignOut={() => void session.signOut()}
+      onDeleteAccount={confirmDelete}
+    />
   );
+}
+
+function toPerfil(profile: PatientProfileDto): PerfilProfile {
+  const target = profile.energyTarget;
+  const f = t.profile.facts;
+  return {
+    target:
+      target.status === 'READY'
+        ? {
+            kcal: target.targetKcal,
+            proteinG: target.proteinG,
+            carbsG: target.carbsG,
+            fatG: target.fatG,
+          }
+        : { hold: t.profile.target.hold[target.reason] },
+    facts: [
+      { label: f.height, value: formatCm(profile.heightCm) },
+      { label: f.weight, value: formatKg(profile.weightKg) },
+      { label: f.birthDate, value: formatDate(profile.dateOfBirth, 'full') },
+      { label: f.activity, value: f.activityLevels[profile.activityLevel] },
+      { label: f.meals, value: formatNumber(profile.mealsPerDay) },
+      {
+        label: f.allergies,
+        value: profile.allergies.length
+          ? profile.allergies.map((a) => t.onboarding.allergies.names[a]).join(', ')
+          : f.none,
+      },
+      ...(profile.dislikedFoods.length
+        ? [{ label: f.dislikes, value: profile.dislikedFoods.map((d) => d.name).join(', ') }]
+        : []),
+      ...(profile.pregnantOrBreastfeeding ? [{ label: f.pregnant, value: f.yes }] : []),
+    ],
+  };
 }

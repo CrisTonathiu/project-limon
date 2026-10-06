@@ -1,14 +1,12 @@
-import type { MealPlanDayDto, MealPlanResponse, PlannedMealDto } from '@limon/types';
+import { FeatureKey, type MealPlanResponse } from '@limon/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { Button } from '../../components/Button';
-import { canRegenerate, dayChip, formatPortion, initialDayIndex, withFavourite } from '../../features/meal-plans/meal-plan-format';
-import { formatMinutes } from '../../features/recipes/recipe-format';
+import { canRegenerate, dayChip, initialDayIndex, withFavourite } from '../../features/meal-plans/meal-plan-format';
 import { t } from '../../i18n/es-MX';
-import { formatDate, formatGrams, formatKcal, toDateOnly } from '../../i18n/format';
+import { formatDate, formatDayRange, formatKcal, toDateOnly } from '../../i18n/format';
 import type { TabScreenProps } from '../../navigation/types';
 import { api } from '../../services/api';
-import { useTenantTheme } from '../../theme/theme-context';
+import { useSession } from '../../state/session-context';
+import { ComidasView, type ComidasViewProps } from './ComidasView';
 
 type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; week: MealPlanResponse };
 
@@ -19,7 +17,7 @@ type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; w
  * opens its detail, where ingredients can be swapped.
  */
 export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
-  const { theme } = useTenantTheme();
+  const session = useSession();
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [dayIndex, setDayIndex] = useState(0);
   const [regenerating, setRegenerating] = useState(false);
@@ -87,143 +85,57 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
     });
   };
 
-  const Muted = ({ children }: { children: string }) => <Text style={{ color: theme.colors.textMuted }}>{children}</Text>;
-
-  const weekStrip = (days: MealPlanDayDto[]) => (
-    <View accessibilityRole="tablist" style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
-      {days.map((day, i) => {
-        const selected = i === dayIndex;
-        const chip = dayChip(day.date);
-        return (
-          <Pressable
-            key={day.date}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            accessibilityLabel={formatDate(day.date)}
-            onPress={() => {
-              setDayIndex(i);
-              setRegenerateFailed(false);
-            }}
-            style={{
-              flex: 1,
-              alignItems: 'center',
-              paddingVertical: theme.spacing.sm,
-              borderRadius: theme.radius.md,
-              borderWidth: 1,
-              borderColor: selected ? theme.colors.primary : day.date === today ? theme.colors.primary : theme.colors.border,
-              backgroundColor: selected ? theme.colors.primary : theme.colors.background,
-            }}
-          >
-            <Text style={{ color: selected ? theme.colors.onPrimary : theme.colors.textMuted, fontSize: theme.typography.fontSize.xs }}>{chip.weekday}</Text>
-            <Text style={{ color: selected ? theme.colors.onPrimary : theme.colors.text, fontWeight: '700' }}>{chip.day}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-
-  const mealCard = (meal: PlannedMealDto) => {
-    const label = <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>{t.recipes.mealTypes[meal.mealType]}</Text>;
-    const style = { backgroundColor: theme.colors.surface, borderRadius: theme.radius.md, padding: theme.spacing.md, gap: theme.spacing.xs };
-    if (!meal.recipe) {
-      return (
-        <View key={meal.id} style={style}>
-          {label}
-          <Muted>{t.meals.noRecipe}</Muted>
-        </View>
-      );
-    }
-    const { recipe } = meal;
-    return (
-      <Pressable
-        key={meal.id}
-        accessibilityRole="button"
-        onPress={() => {
-          openedMeal.current = true;
-          navigation.navigate('MealDetail', { mealId: meal.id, title: recipe.title });
-        }}
-        style={style}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          {label}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: meal.favourite }}
-            accessibilityLabel={meal.favourite ? t.meals.unfavourite(recipe.title) : t.meals.favourite(recipe.title)}
-            hitSlop={12}
-            onPress={() => toggleFavourite(recipe.id, !meal.favourite)}
-          >
-            <Text style={{ color: meal.favourite ? theme.colors.primary : theme.colors.textMuted, fontSize: theme.typography.fontSize.xl }}>
-              {meal.favourite ? '♥' : '♡'}
-            </Text>
-          </Pressable>
-        </View>
-        <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: theme.typography.fontSize.lg }}>{recipe.title}</Text>
-        <Muted>
-          {[
-            meal.servings ? formatPortion(meal.servings) : null,
-            meal.macros ? formatKcal(meal.macros.calories) : null,
-            recipe.totalMinutes ? formatMinutes(recipe.totalMinutes) : null,
-          ].filter(Boolean).join('  ·  ')}
-        </Muted>
-      </Pressable>
-    );
+  const viewState = (): ComidasViewProps['state'] => {
+    if (load.status !== 'loaded') return load.status === 'loading' ? load : { status: 'failed', onRetry: fetchPlan };
+    const { week } = load;
+    if (week.status === 'CONSULT_NUTRITIONIST') return { status: 'consult', message: t.profile.target.hold[week.reason] };
+    const { days } = week.plan;
+    const day = days[dayIndex] ?? days[0]!;
+    return {
+      status: 'ready',
+      weekLabel: formatDayRange(days[0]!.date, days[days.length - 1]!.date),
+      days: days.map((d) => ({
+        date: d.date,
+        letter: dayChip(d.date).weekday.charAt(0).toLocaleUpperCase('es-MX'),
+        day: dayChip(d.date).day,
+        accessibilityLabel: t.meals.dayA11y(formatDate(d.date), d.date === today),
+        today: d.date === today,
+      })),
+      selected: days.indexOf(day),
+      totals: day.totals,
+      targetKcal: week.target.kcal,
+      meals: day.meals.map((m) => ({
+        id: m.id,
+        label: t.recipes.mealTypes[m.mealType],
+        recipe: m.recipe ? { id: m.recipe.id, title: m.recipe.title } : null,
+        kcal: m.macros ? formatKcal(m.macros.calories) : null,
+        favourite: m.favourite,
+      })),
+      canRegenerate: canRegenerate(day.date, today),
+      regenerating,
+      regenerateFailed,
+      favouriteFailed,
+    };
   };
 
-  const dayView = (week: Extract<MealPlanResponse, { status: 'READY' }>) => {
-    const day = week.plan.days[dayIndex] ?? week.plan.days[0]!;
-    const { totals } = day;
-    return (
-      <>
-        {weekStrip(week.plan.days)}
-        <Text accessibilityRole="header" style={{ color: theme.colors.text, fontWeight: '700', fontSize: theme.typography.fontSize.lg }}>
-          {day.date === today ? `${t.meals.today} · ${formatDate(day.date)}` : formatDate(day.date)}
-        </Text>
-
-        <View style={{ backgroundColor: theme.colors.surface, borderRadius: theme.radius.md, padding: theme.spacing.md, gap: theme.spacing.xs }}>
-          {totals ? (
-            <>
-              <Text style={{ color: theme.colors.text, fontSize: theme.typography.fontSize.xl, fontWeight: '700' }}>
-                {t.meals.dayTotal(formatKcal(totals.calories), formatKcal(week.target.kcal))}
-              </Text>
-              <Muted>{t.recipes.macros(formatGrams(totals.protein), formatGrams(totals.carbohydrate), formatGrams(totals.fat))}</Muted>
-            </>
-          ) : (
-            <Muted>{t.meals.totalsUnavailable}</Muted>
-          )}
-        </View>
-
-        {day.meals.map(mealCard)}
-        {favouriteFailed ? <Text style={{ color: theme.colors.danger }}>{t.meals.favouriteFailed}</Text> : null}
-
-        {canRegenerate(day.date, today) ? (
-          <View style={{ gap: theme.spacing.sm }}>
-            <Button label={regenerating ? t.meals.regenerating : t.meals.regenerate} disabled={regenerating} onPress={() => regenerate(day.date)} />
-            {regenerateFailed ? <Text style={{ color: theme.colors.danger }}>{t.meals.regenerateFailed}</Text> : null}
-          </View>
-        ) : null}
-
-        {day.meals.some((m) => m.macros) ? <Muted>{t.recipes.attribution}</Muted> : null}
-      </>
-    );
-  };
-
+  const state = viewState();
   return (
-    <ScrollView style={{ backgroundColor: theme.colors.background }} contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md }}>
-      {load.status === 'loading' ? <ActivityIndicator /> : null}
-      {load.status === 'failed' ? (
-        <>
-          <Text style={{ color: theme.colors.text }}>{t.meals.loadFailed}</Text>
-          <Button label={t.meals.retry} onPress={fetchPlan} />
-        </>
-      ) : null}
-      {load.status === 'loaded' && load.week.status === 'CONSULT_NUTRITIONIST' ? (
-        <>
-          <Text style={{ color: theme.colors.text }}>{t.profile.target.hold[load.week.reason]}</Text>
-          <Muted>{t.meals.consult}</Muted>
-        </>
-      ) : null}
-      {load.status === 'loaded' && load.week.status === 'READY' ? dayView(load.week) : null}
-    </ScrollView>
+    <ComidasView
+      state={state}
+      onSelectDay={(i) => {
+        setDayIndex(i);
+        setRegenerateFailed(false);
+      }}
+      onOpenMeal={(meal) => {
+        if (!meal.recipe) return;
+        openedMeal.current = true;
+        navigation.navigate('MealDetail', { mealId: meal.id, title: meal.recipe.title });
+      }}
+      onToggleFavourite={(meal) => meal.recipe && toggleFavourite(meal.recipe.id, !meal.favourite)}
+      onRegenerate={() => state.status === 'ready' && regenerate(state.days[state.selected]!.date)}
+      onOpenShoppingList={
+        session.hasFeature(FeatureKey.SHOPPING_LIST) ? () => navigation.navigate('ShoppingList') : undefined
+      }
+    />
   );
 }

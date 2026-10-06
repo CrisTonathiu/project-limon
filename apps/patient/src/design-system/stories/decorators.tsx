@@ -8,7 +8,15 @@ import { Box, DesignSystemProvider } from '../restyle';
 /** The preview brand from the mockups; every story has a `brand` control to try a tenant color. */
 export const PREVIEW_BRAND = '#3173BD';
 
-function Frame({ brand, screen, children }: { brand: string; screen: boolean; children: ReactNode }) {
+function Frame({
+  brand,
+  screen,
+  children,
+}: {
+  brand: string;
+  screen: boolean;
+  children: ReactNode;
+}) {
   const fontsReady = useDesignFonts();
   return (
     <SafeAreaProvider>
