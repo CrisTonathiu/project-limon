@@ -13,6 +13,7 @@ import { ProfileEditScreen } from '../screens/profile/ProfileEditScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { RecipeDetailScreen } from '../screens/recipes/RecipeDetailScreen';
 import { ShoppingListScreen } from '../screens/shopping-list/ShoppingListScreen';
+import { WaterScreen } from '../screens/water/WaterScreen';
 import { SubscriptionScreen } from '../screens/subscription/SubscriptionScreen';
 import { UnavailableScreen } from '../screens/UnavailableScreen';
 import { useSession } from '../state/session-context';
@@ -69,6 +70,7 @@ export function RootNavigator() {
             <AppStack.Screen name="RecipeDetail" component={RecipeDetailScreen} options={({ route }) => ({ title: route.params.title, headerShown: false })} />
           )}
           {canOpen('GoalSetup') && <AppStack.Screen name="GoalSetup" component={GoalSetupScreen} options={{ headerShown: false }} />}
+          {canOpen('Water') && <AppStack.Screen name="Water" component={WaterScreen} options={{ title: t.nav.water, headerShown: false }} />}
           {canOpen('AiChat') && <AppStack.Screen name="AiChat" component={AiChatScreen} options={{ title: t.nav.aiShort }} />}
           <AppStack.Screen name="ProfileEdit" component={ProfileEditScreen} options={{ title: t.profile.edit }} />
           <AppStack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: t.subscription.title }} />

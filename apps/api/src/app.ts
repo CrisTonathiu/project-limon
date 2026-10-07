@@ -14,6 +14,7 @@ import { recipesRoutes } from './modules/recipes/recipes.routes.js';
 import { shoppingListRoutes } from './modules/shopping-list/shopping-list.routes.js';
 import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes.js';
 import { tenantsRoutes } from './modules/tenants/tenants.routes.js';
+import { waterRoutes } from './modules/water/water.routes.js';
 
 const REQUEST_ID = /^[a-zA-Z0-9-]{8,64}$/;
 
@@ -77,6 +78,7 @@ export async function buildApp(c: Container) {
       await recipesRoutes(v1, c);
       await mealPlansRoutes(v1, c);
       await shoppingListRoutes(v1, c);
+      await waterRoutes(v1, c);
     },
     { prefix: '/api/v1' },
   );

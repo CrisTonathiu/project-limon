@@ -5,6 +5,7 @@ export type AuditAction =
   | 'TenantCreated' | 'TenantSuspended' | 'TenantDeletionScheduled' | 'TenantDeleted'
   | 'NutritionistRegistered'
   | 'PatientCreated' | 'PatientInvited' | 'PatientRegistered' | 'PatientDeleted' | 'PatientProfileSaved' | 'PatientGoalSaved'
+  | 'BodyLogSaved' | 'BodyLogDeleted'
   | 'FeatureFlagsChanged' | 'GoalRulesChanged'
   | 'MealPlanCreated' | 'MealPlanDayRegenerated' | 'MealIngredientSwapped' | 'RecipeUpdated' | 'DefaultRecipesCopied'
   | 'SubscriptionCanceled'

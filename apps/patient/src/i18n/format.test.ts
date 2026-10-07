@@ -16,6 +16,7 @@ describe('es-MX formatting', () => {
     expect(formatSigned(0)).toBe('0');
     expect(formatLiters(1500)).toBe('1.5 L');
     expect(formatLiters(2000)).toBe('2 L');
+    expect(formatLiters(2650)).toBe('2.65 L');
   });
 
   it('pluralizes in Spanish', () => {

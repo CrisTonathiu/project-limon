@@ -295,6 +295,9 @@ model Tenant {
   patientDislikedFoods  PatientDislikedFood[]
   goalRules             TenantGoalRules[]
   patientGoals          PatientGoal[]
+  bodyLogs              BodyLog[]
+  waterIntakes          WaterIntake[]
+  waterSettings         WaterSettings[]
 
   @@map("tenants")
 }
@@ -490,6 +493,9 @@ model Patient {
   inviteCodes        TenantInviteCode[]
   profile            PatientProfile?
   goal               PatientGoal?
+  bodyLogs           BodyLog[]
+  waterIntakes       WaterIntake[]
+  waterSettings      WaterSettings?
   shoppingListChecks ShoppingListCheck[]
 
   @@unique([tenantId, id])
@@ -561,6 +567,8 @@ model PatientGoal {
   decidedGoal        WeightGoal         @map("decided_goal")
   decidedPace        GoalPace?          @map("decided_pace")
   reason             GoalDecisionReason
+  /// The patient's weight when they set the goal: where the progress bar starts.
+  startWeightKg      Float              @map("start_weight_kg")
   /// The rules the decision used: "platform-1" or "clinic-3".
   rulesVersion       String             @map("rules_version")
   decidedAt          DateTime           @default(now()) @map("decided_at")
@@ -573,6 +581,63 @@ model PatientGoal {
 
   @@unique([tenantId, patientId])
   @@map("patient_goals")
+}
+
+/// One day of the patient's weigh-in and body measurements (goal tracker). Every value is
+/// optional, but a row has at least one. The latest weight is also the profile's weight.
+/// Health data: never log it or put it in audit metadata.
+model BodyLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  patientId  String   @map("patient_id") @db.Uuid
+  /// The day on the patient's calendar (America/Mexico_City).
+  date       DateTime @db.Date
+  weightKg   Float?   @map("weight_kg")
+  waistCm    Float?   @map("waist_cm")
+  hipCm      Float?   @map("hip_cm")
+  chestCm    Float?   @map("chest_cm")
+  armCm      Float?   @map("arm_cm")
+  thighCm    Float?   @map("thigh_cm")
+  bodyFatPct Float?   @map("body_fat_pct")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, patientId, date])
+  @@map("body_logs")
+}
+
+/// A glass (or bottle) of water the patient logged (water tracker). One row per tap, so it can be undone.
+model WaterIntake {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  patientId String   @map("patient_id") @db.Uuid
+  /// The day on the patient's calendar (America/Mexico_City) when it was logged.
+  date      DateTime @db.Date
+  amountMl  Int      @map("amount_ml")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, patientId, date])
+  @@map("water_intakes")
+}
+
+/// The patient's own daily water target. No row means the default (35 ml per kg of body weight).
+model WaterSettings {
+  patientId String   @id @map("patient_id") @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  targetMl  Int      @map("target_ml")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, patientId])
+  @@map("water_settings")
 }
 
 /// A catalog food the patient doesn't want in their meal plans (onboarding / profile).

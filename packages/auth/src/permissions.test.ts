@@ -12,6 +12,12 @@ describe('permissions', () => {
     expect(ENTITLED_PERMISSIONS.has(Permission.SELF_PATIENT_WRITE)).toBe(false);
     expect(WRITE_PERMISSIONS.has(Permission.SELF_PATIENT_WRITE)).toBe(true);
   });
+  it('patients log their weigh-ins and water only with a subscription, and not while the tenant is suspended', () => {
+    expect(hasPermission('PATIENT', Permission.SELF_PROGRESS_WRITE)).toBe(true);
+    expect(ENTITLED_PERMISSIONS.has(Permission.SELF_PROGRESS_READ)).toBe(true);
+    expect(ENTITLED_PERMISSIONS.has(Permission.SELF_PROGRESS_WRITE)).toBe(true);
+    expect(WRITE_PERMISSIONS.has(Permission.SELF_PROGRESS_WRITE)).toBe(true);
+  });
   it('platform admins do not implicitly get tenant data permissions', () => {
     expect(hasPermission('PLATFORM_ADMIN', Permission.PATIENTS_READ)).toBe(false);
   });

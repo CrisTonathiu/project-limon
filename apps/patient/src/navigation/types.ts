@@ -30,6 +30,8 @@ export type AppStackParamList = {
   AiChat: undefined;
   /** Goal setting: intention, pace, screening, then the explanation. */
   GoalSetup: undefined;
+  /** Today's water, its history and the daily target. */
+  Water: undefined;
   /** On the paywall only; in the paid app, Profile is a tab. */
   Profile: undefined;
   ProfileEdit: { profile: PatientProfileDto };
@@ -44,19 +46,24 @@ export type TabScreenProps<K extends keyof TabParamList> = CompositeScreenProps<
 
 type ScreenName = keyof AppStackParamList | keyof TabParamList;
 
-/** Screens that belong to a module. They are hidden (and not registered) when the tenant has the module off. */
-export const SCREEN_FEATURE: Partial<Record<ScreenName, FeatureKey>> = {
+/**
+ * Screens that belong to a module. They are hidden (and not registered) when the tenant has the
+ * module off. A list means any of them: Progreso holds both the goal and the water tracker.
+ */
+export const SCREEN_FEATURE: Partial<Record<ScreenName, FeatureKey | FeatureKey[]>> = {
   Meals: FeatureKey.MEAL_PLAN,
   MealDetail: FeatureKey.MEAL_PLAN,
   ShoppingList: FeatureKey.SHOPPING_LIST,
   Recipes: FeatureKey.RECIPES,
   RecipeDetail: FeatureKey.RECIPES,
-  Progress: FeatureKey.GOAL_TRACKER,
+  Progress: [FeatureKey.GOAL_TRACKER, FeatureKey.WATER_TRACKER],
   GoalSetup: FeatureKey.GOAL_TRACKER,
+  Water: FeatureKey.WATER_TRACKER,
   AiChat: FeatureKey.AI_ASSISTANT,
 };
 
 export function isScreenEnabled(screen: ScreenName, hasFeature: (feature: FeatureKey) => boolean): boolean {
   const feature = SCREEN_FEATURE[screen];
-  return !feature || hasFeature(feature);
+  if (!feature) return true;
+  return Array.isArray(feature) ? feature.some((f) => hasFeature(f)) : hasFeature(feature);
 }

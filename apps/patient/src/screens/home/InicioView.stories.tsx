@@ -20,6 +20,8 @@ const full: InicioViewProps = {
   mealsToday: { eaten: 3, planned: 5 },
   calories: { eaten: 1240, target: 1800 },
   weight: { valuesKg: [78, 77.4, 76.8, 76.3, 75.1, 74.8, 74.2, 73.9, 73.8], weeks: 8 },
+  // The mockup's three tiles are streak, meals and calories; water joins when one of them is off.
+  water: null,
   nextMeal: { when: '14:00', title: 'Ensalada de quinoa' },
   onOpenProfile: () => {},
   onOpenNextMeal: () => {},
@@ -39,16 +41,16 @@ type Story = StoryObj<typeof meta>;
 export const Anillo: Story = {};
 
 /**
- * What the MVP can fill today: no goal tracker yet, so the ring shows today's calories, and
- * without meal check-off there is no plan ring, streak or meals tile.
+ * What the MVP can fill today: the weight goal ring and weight card (goal tracker) and the water
+ * tile (water tracker). Without meal check-off there is no plan ring, streak, meals or calories.
  */
 export const MvpToday: Story = {
   args: {
-    ring: { kind: 'calories', eaten: 1240, target: 1800 },
     planAdherence: null,
     streakDays: null,
     mealsToday: null,
-    weight: null,
+    calories: null,
+    water: { drunkMl: 1500, goalMl: 2400 },
   },
 };
 

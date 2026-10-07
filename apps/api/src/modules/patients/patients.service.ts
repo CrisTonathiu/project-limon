@@ -5,6 +5,10 @@ import {
   FeatureKey,
   WeightGoal,
   type Allergen,
+  type BodyLogDto,
+  type BodyLogListResponse,
+  type ProgressPeriod,
+  type ProgressResponse,
   type MyGoalResponse,
   type PatientDto,
   type PatientGoalDto,
@@ -12,10 +16,12 @@ import {
   type PatientProfileResponse,
   type SetGoalResponse,
 } from '@limon/types';
-import type { CreatePatientInput, PatientProfile, SetGoalInput } from '@limon/validation';
+import type { BodyLog, CreatePatientInput, PatientProfile, SetGoalInput } from '@limon/validation';
 import type { Container } from '../../infrastructure/container.js';
 import { Errors } from '../../lib/errors.js';
+import { localToday } from '../meal-plans/week.js';
 import { createTenantsService } from '../tenants/tenants.service.js';
+import { buildProgress, isEmptyLog, mergeBodyLog, type BodyValues } from './body-logs.js';
 import { energyTarget, type Goal } from './energy-target.js';
 import { decideGoal, paceAllowed } from './goal-decision.js';
 import { effectiveGoalRules, type EffectiveGoalRules } from './goal-rules.js';
@@ -42,6 +48,11 @@ const toGoalDto = (g: GoalRow): PatientGoalDto => ({
   rulesVersion: g.rulesVersion,
   decidedAt: g.decidedAt.toISOString(),
 });
+
+type BodyLogRow = NonNullable<Awaited<ReturnType<typeof patientsRepository.findBodyLog>>>;
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const toBodyLogDto = ({ date, ...values }: BodyLogRow): BodyLogDto => ({ date: isoDay(date), ...values });
+const valuesOf = (row: BodyLogRow | null): BodyValues | null => (row ? toBodyLogDto(row) : null);
 
 /** The stored decision as the energy target's goal. A pace always comes with LOSE and GAIN (DB check). */
 const storedGoal = (g: GoalRow | null): Goal =>
@@ -101,6 +112,34 @@ export function createPatientsService(c: Container) {
   const hasGoalTracker = async (tenantId: string) =>
     (await tenants.features(tenantId)).includes(FeatureKey.GOAL_TRACKER);
 
+  /** The signed-in patient and their profile; trackers need onboarding to be finished. */
+  const patientWithProfile = async (tx: TenantTx, ctx: TenantContext) => {
+    const p = await patientsRepository.findByUserId(tx, ctx.tenantId, ctx.userId);
+    if (!p) throw Errors.notFound('Patient');
+    const profile = await patientsRepository.findProfile(tx, ctx.tenantId, p.id);
+    if (!profile || !p.dateOfBirth) throw Errors.conflict('Finish the onboarding questionnaire first.');
+    return { patient: p, profile };
+  };
+
+  /** Merges values into a day's log; a day left with nothing is deleted. Returns the day, or null. */
+  const writeBodyLog = async (tx: TenantTx, tenantId: string, patientId: string, date: string, input: BodyLog) => {
+    const day = new Date(date);
+    const merged = mergeBodyLog(valuesOf(await patientsRepository.findBodyLog(tx, tenantId, patientId, day)), input);
+    if (isEmptyLog(merged)) {
+      await patientsRepository.deleteBodyLog(tx, tenantId, patientId, day);
+      return null;
+    }
+    return toBodyLogDto(await patientsRepository.saveBodyLog(tx, tenantId, patientId, day, merged));
+  };
+
+  /** The profile's weight follows the latest weigh-in (energy target, water target, BMI checks). */
+  const syncProfileWeight = async (tx: TenantTx, tenantId: string, patientId: string, profileWeightKg: number) => {
+    const latest = await patientsRepository.latestWeightKg(tx, tenantId, patientId);
+    if (latest !== null && latest !== profileWeightKg) {
+      await patientsRepository.setProfileWeight(tx, tenantId, patientId, latest);
+    }
+  };
+
   return {
     list: (ctx: TenantContext) =>
       scoped(ctx, async (tx) => ({
@@ -155,7 +194,12 @@ export function createPatientsService(c: Container) {
         ) {
           throw Errors.validation('dislikedFoodIds: unknown food');
         }
+        const before = await patientsRepository.findProfile(tx, ctx.tenantId, p.id);
         const profile = await patientsRepository.saveProfile(tx, ctx.tenantId, p.id, input);
+        // A new or changed weight is today's weigh-in, so the chart starts at onboarding.
+        if (before?.weightKg !== input.weightKg) {
+          await writeBodyLog(tx, ctx.tenantId, p.id, localToday(new Date()), { weightKg: input.weightKg });
+        }
         // Health data: the audit row records that the profile changed, never the values.
         await writeAudit(tx, ctx, {
           action: 'PatientProfileSaved',
@@ -198,6 +242,7 @@ export function createPatientsService(c: Container) {
           pace: decision.goal.type === WeightGoal.MAINTAIN ? null : decision.goal.pace,
           reason: decision.reason,
           rulesVersion: rules.version,
+          startWeightKg: profile.weightKg,
         });
         // Health data: the audit row records which rules decided, never the goal or the reason (which can reveal health details).
         await writeAudit(tx, ctx, {
@@ -211,6 +256,59 @@ export function createPatientsService(c: Container) {
           rules,
         });
         return { goal: toGoalDto(goal), options: rules.paces, energyTarget: target };
+      }),
+
+    /** GET /patients/me/progress: the weight chart for the period, measurements and the weight goal. */
+    myProgress: (ctx: TenantContext, period: ProgressPeriod): Promise<ProgressResponse> =>
+      scoped(ctx, async (tx) => {
+        const { patient, profile } = await patientWithProfile(tx, ctx);
+        const logs = await patientsRepository.bodyLogs(tx, ctx.tenantId, patient.id);
+        const goal = await patientsRepository.findGoal(tx, ctx.tenantId, patient.id);
+        return buildProgress(logs.map(toBodyLogDto), {
+          currentWeightKg: profile.weightKg,
+          period,
+          today: localToday(new Date()),
+          goal: goal && { ...goal, startedOn: localToday(goal.decidedAt) },
+        });
+      }),
+
+    /** GET /patients/me/body-logs: the latest days, newest first. */
+    myBodyLogs: (ctx: TenantContext, limit = 100): Promise<BodyLogListResponse> =>
+      scoped(ctx, async (tx) => {
+        const { patient } = await patientWithProfile(tx, ctx);
+        const rows = await patientsRepository.recentBodyLogs(tx, ctx.tenantId, patient.id, limit);
+        return { items: rows.map(toBodyLogDto) };
+      }),
+
+    /**
+     * PUT /patients/me/body-logs/:date: merges a weigh-in and/or measurements into that day
+     * (today or earlier). A new latest weight becomes the profile's weight.
+     */
+    saveMyBodyLog: (ctx: TenantContext, date: string, input: BodyLog): Promise<{ log: BodyLogDto | null }> =>
+      scoped(ctx, async (tx) => {
+        if (date > localToday(new Date())) throw Errors.validation("date: can't be in the future");
+        const { patient, profile } = await patientWithProfile(tx, ctx);
+        const log = await writeBodyLog(tx, ctx.tenantId, patient.id, date, input);
+        if (input.weightKg !== undefined) await syncProfileWeight(tx, ctx.tenantId, patient.id, profile.weightKg);
+        // Health data: the audit row records that a log changed, never the values.
+        await writeAudit(tx, ctx, { action: 'BodyLogSaved', resourceType: 'BodyLog', resourceId: patient.id });
+        return { log };
+      }),
+
+    /** DELETE /patients/me/body-logs/:date. Idempotent. The profile keeps the latest weight left. */
+    deleteMyBodyLog: (ctx: TenantContext, date: string): Promise<void> =>
+      scoped(ctx, async (tx) => {
+        const { patient, profile } = await patientWithProfile(tx, ctx);
+        await patientsRepository.deleteBodyLog(tx, ctx.tenantId, patient.id, new Date(date));
+        await syncProfileWeight(tx, ctx.tenantId, patient.id, profile.weightKg);
+        await writeAudit(tx, ctx, { action: 'BodyLogDeleted', resourceType: 'BodyLog', resourceId: patient.id });
+      }),
+
+    /** The signed-in patient's id and current weight (e.g. for the default water target). Needs onboarding. */
+    currentWeight: (ctx: TenantContext): Promise<{ patientId: string; weightKg: number }> =>
+      scoped(ctx, async (tx) => {
+        const { patient, profile } = await patientWithProfile(tx, ctx);
+        return { patientId: patient.id, weightKg: profile.weightKg };
       }),
 
     /**

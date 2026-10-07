@@ -1,6 +1,7 @@
 import type { Prisma, TenantTx } from '@limon/database';
 import type { GoalDecisionReason, GoalPace, WeightGoal } from '@limon/types';
 import type { CreatePatientInput, PatientProfile, SetGoalInput } from '@limon/validation';
+import type { BodyValues } from './body-logs.js';
 
 /** Disliked foods come with their names, sorted by name. */
 const profileInclude = {
@@ -9,6 +10,17 @@ const profileInclude = {
     orderBy: { food: { name: 'asc' } },
   },
 } satisfies Prisma.PatientProfileInclude;
+
+const bodyLogSelect = {
+  date: true,
+  weightKg: true,
+  waistCm: true,
+  hipCm: true,
+  chestCm: true,
+  armCm: true,
+  thighCm: true,
+  bodyFatPct: true,
+} satisfies Prisma.BodyLogSelect;
 
 /**
  * Every query filters by tenantId explicitly (defence in depth on top of RLS).
@@ -63,6 +75,7 @@ export const patientsRepository = {
       pace: GoalPace | null;
       reason: GoalDecisionReason;
       rulesVersion: string;
+      startWeightKg: number;
     },
   ) => {
     const data = {
@@ -75,6 +88,7 @@ export const patientsRepository = {
       decidedPace: decision.pace,
       reason: decision.reason,
       rulesVersion: decision.rulesVersion,
+      startWeightKg: decision.startWeightKg,
       decidedAt: new Date(),
     };
     return tx.patientGoal.upsert({
@@ -83,6 +97,50 @@ export const patientsRepository = {
       update: data,
     });
   },
+
+  /** Every weigh-in and measurement of the patient, oldest first. */
+  bodyLogs: (tx: TenantTx, tenantId: string, patientId: string) =>
+    tx.bodyLog.findMany({ where: { tenantId, patientId }, orderBy: { date: 'asc' }, select: bodyLogSelect }),
+
+  /** The newest days first, for the history list. */
+  recentBodyLogs: (tx: TenantTx, tenantId: string, patientId: string, limit: number) =>
+    tx.bodyLog.findMany({
+      where: { tenantId, patientId },
+      orderBy: { date: 'desc' },
+      take: limit,
+      select: bodyLogSelect,
+    }),
+
+  findBodyLog: (tx: TenantTx, tenantId: string, patientId: string, date: Date) =>
+    tx.bodyLog.findUnique({
+      where: { tenantId_patientId_date: { tenantId, patientId, date } },
+      select: bodyLogSelect,
+    }),
+
+  saveBodyLog: (tx: TenantTx, tenantId: string, patientId: string, date: Date, values: BodyValues) =>
+    tx.bodyLog.upsert({
+      where: { tenantId_patientId_date: { tenantId, patientId, date } },
+      create: { tenantId, patientId, date, ...values },
+      update: values,
+      select: bodyLogSelect,
+    }),
+
+  /** Idempotent. */
+  deleteBodyLog: (tx: TenantTx, tenantId: string, patientId: string, date: Date) =>
+    tx.bodyLog.deleteMany({ where: { tenantId, patientId, date } }),
+
+  /** The weight of the most recent day that has one, or null. */
+  latestWeightKg: async (tx: TenantTx, tenantId: string, patientId: string) =>
+    (
+      await tx.bodyLog.findFirst({
+        where: { tenantId, patientId, weightKg: { not: null } },
+        orderBy: { date: 'desc' },
+        select: { weightKg: true },
+      })
+    )?.weightKg ?? null,
+
+  setProfileWeight: (tx: TenantTx, tenantId: string, patientId: string, weightKg: number) =>
+    tx.patientProfile.update({ where: { tenantId_patientId: { tenantId, patientId } }, data: { weightKg } }),
 
   /** How many of these ids are foods in the catalog. */
   countFoods: (tx: TenantTx, ids: string[]) => tx.food.count({ where: { id: { in: ids } } }),
@@ -121,6 +179,9 @@ export const patientsRepository = {
     const now = new Date();
     await tx.patientProfile.deleteMany({ where: { tenantId, patientId } });
     await tx.patientGoal.deleteMany({ where: { tenantId, patientId } });
+    await tx.bodyLog.deleteMany({ where: { tenantId, patientId } });
+    await tx.waterIntake.deleteMany({ where: { tenantId, patientId } });
+    await tx.waterSettings.deleteMany({ where: { tenantId, patientId } });
     await tx.mealPlan.deleteMany({ where: { tenantId, patientId } }); // meals cascade
     await tx.mealFeedback.deleteMany({ where: { tenantId, patientId } });
     await tx.shoppingListCheck.deleteMany({ where: { tenantId, patientId } });

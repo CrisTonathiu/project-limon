@@ -6,12 +6,14 @@ import {
   Entering,
   fonts,
   Icon,
+  LoadState,
   ProgressBar,
   ScreenHeader,
   ScreenScroll,
   SegmentedControl,
   Sparkline,
   Text,
+  type LoadStateProps,
 } from '../../design-system';
 import { goalProgress } from '../../features/progress/goal';
 import { t } from '../../i18n/es-MX';
@@ -37,9 +39,14 @@ export type ProgresoData = {
 export type ProgresoViewProps = ProgresoData & {
   period: Period;
   onChangePeriod?: (period: Period) => void;
-  /** Leave out until weigh-ins can be saved. */
+  /** Leave out when the clinic has no goal tracker. */
   onLogWeight?: () => void;
+  onLogMeasurements?: () => void;
   onAddWater?: () => void;
+  /** The water card opens the water screen. */
+  onOpenWater?: () => void;
+  /** Shown under the header while the trackers load, or after they failed to. */
+  status?: LoadStateProps | null;
   /**
    * The patient's goal (goal setting): what they're working toward and the starting target,
    * explained. Leave out when the clinic has no goal tracker or while it loads.
@@ -51,18 +58,25 @@ export type ProgresoViewProps = ProgresoData & {
 };
 
 /**
- * Progreso (docs/ui/mockups/06-progreso.html): the weight goal, the weight chart, weigh-in,
- * measurements and water. Blocks without data are left out; with none at all, a "coming
- * soon" card stands in until the goal and water trackers ship.
+ * Progreso (docs/ui/mockups/06-progreso.html): the patient's goal, the weight goal bar, the
+ * weight chart, weigh-in, measurements and water. Blocks without data are left out; with none
+ * at all (no tracker on for the clinic), a "coming soon" card stands in.
  */
 export function ProgresoView(props: ProgresoViewProps) {
   let order = 1;
   const next = () => order++ * 80;
-  // Weigh-ins, measurements and water have no API yet; the goal (plan) does.
-  const empty = !props.goal && !props.weight && !props.measurements && !props.water;
+  const empty =
+    !props.status &&
+    !props.plan &&
+    !props.goal &&
+    !props.weight &&
+    !props.onLogWeight &&
+    !props.measurements &&
+    !props.water;
   return (
     <ScreenScroll>
       <ScreenHeader title={t.progress.title} delay={0} />
+      {props.status ? <LoadState {...props.status} /> : null}
       {props.plan ? <PlanCard plan={props.plan} delay={next()} /> : null}
       {empty ? (
         <Card variant="tint" delay={next()} gap="s">
@@ -106,8 +120,23 @@ export function ProgresoView(props: ProgresoViewProps) {
           </Box>
         </Entering>
       ) : null}
+      {props.onLogMeasurements ? (
+        <Entering delay={next()}>
+          <Button
+            variant="tint"
+            icon="plus"
+            label={t.progress.logMeasurements}
+            onPress={props.onLogMeasurements}
+          />
+        </Entering>
+      ) : null}
       {props.water ? (
-        <WaterCard water={props.water} onAdd={props.onAddWater} delay={next()} />
+        <WaterCard
+          water={props.water}
+          onAdd={props.onAddWater}
+          onOpen={props.onOpenWater}
+          delay={next()}
+        />
       ) : null}
     </ScreenScroll>
   );
@@ -159,25 +188,33 @@ function WeightCard({
           }))}
         />
       </Box>
-      <Sparkline
-        key={period}
-        variant="chart"
-        height={140}
-        values={weight.valuesKg}
-        delay={delay + 320}
-        accessibilityLabel={
-          first !== undefined
-            ? t.progress.chartA11y(formatKg(first), formatKg(weight.currentKg))
-            : undefined
-        }
-      />
-      <Box flexDirection="row" justifyContent="space-between">
-        {weight.axis.map((label) => (
-          <Text key={label} variant="caption" fontSize={11}>
-            {label}
-          </Text>
-        ))}
-      </Box>
+      {weight.valuesKg.length < 2 ? (
+        <Text variant="body" color="textMuted">
+          {t.progress.chartEmpty}
+        </Text>
+      ) : (
+        <>
+          <Sparkline
+            key={period}
+            variant="chart"
+            height={140}
+            values={weight.valuesKg}
+            delay={delay + 320}
+            accessibilityLabel={
+              first !== undefined
+                ? t.progress.chartA11y(formatKg(first), formatKg(weight.currentKg))
+                : undefined
+            }
+          />
+          <Box flexDirection="row" justifyContent="space-between">
+            {weight.axis.map((label, i) => (
+              <Text key={`${i}-${label}`} variant="caption" fontSize={11}>
+                {label}
+              </Text>
+            ))}
+          </Box>
+        </>
+      )}
     </Card>
   );
 }
@@ -185,10 +222,12 @@ function WeightCard({
 function WaterCard({
   water,
   onAdd,
+  onOpen,
   delay,
 }: {
   water: NonNullable<ProgresoData['water']>;
   onAdd?: () => void;
+  onOpen?: () => void;
   delay: number;
 }) {
   return (
@@ -200,22 +239,33 @@ function WaterCard({
       alignItems="center"
       gap="m"
     >
-      <Box
-        width={40}
-        height={40}
-        borderRadius="s"
-        backgroundColor="primaryTint"
-        alignItems="center"
-        justifyContent="center"
+      {/* The icon and text open the water screen; "+250 ml" is its own target. */}
+      <Pressable
+        onPress={onOpen}
+        disabled={!onOpen}
+        accessibilityRole={onOpen ? 'button' : undefined}
+        accessibilityLabel={onOpen ? t.progress.waterOpenA11y : undefined}
+        style={{ flex: 1 }}
       >
-        <Icon name="water" color="primary" />
-      </Box>
-      <Box flex={1}>
-        <Text variant="bodyStrong">{t.progress.water}</Text>
-        <Text variant="caption">
-          {t.progress.waterToday(formatLiters(water.drunkMl), formatLiters(water.goalMl))}
-        </Text>
-      </Box>
+        <Box flexDirection="row" alignItems="center" gap="m" minHeight={44}>
+          <Box
+            width={40}
+            height={40}
+            borderRadius="s"
+            backgroundColor="primaryTint"
+            alignItems="center"
+            justifyContent="center"
+          >
+            <Icon name="water" color="primary" />
+          </Box>
+          <Box flex={1}>
+            <Text variant="bodyStrong">{t.progress.water}</Text>
+            <Text variant="caption">
+              {t.progress.waterToday(formatLiters(water.drunkMl), formatLiters(water.goalMl))}
+            </Text>
+          </Box>
+        </Box>
+      </Pressable>
       {onAdd ? (
         <Pressable
           onPress={onAdd}
