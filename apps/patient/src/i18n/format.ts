@@ -26,8 +26,8 @@ export const formatGrams = (g: number) => `${formatNumber(g)} g`;
 export const formatKg = (kg: number) => `${formatNumber(kg, 1)} kg`;
 export const formatCm = (cm: number) => `${formatNumber(cm, 1)} cm`;
 export const formatMl = (ml: number) => `${formatNumber(ml)} ml`;
-/** 1500 → "1.5 L", 2000 → "2 L". */
-export const formatLiters = (ml: number) => `${formatNumber(ml / 1000, 1)} L`;
+/** 1500 → "1.5 L", 2000 → "2 L", 2650 → "2.65 L" (water targets move in 250 ml steps). */
+export const formatLiters = (ml: number) => `${formatNumber(ml / 1000, 2)} L`;
 /** -4.2 → "−4.2", 1.5 → "+1.5": a typographic minus, and a plus so gains read as changes. */
 export const formatSigned = (value: number, maxDecimals = 0) =>
   `${value < 0 ? '−' : value > 0 ? '+' : ''}${formatNumber(Math.abs(value), maxDecimals)}`;
@@ -60,6 +60,8 @@ const dateFormats = {
   long: new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }),
   /** "lun 5 de oct" — week strip, chart axes. */
   short: new Intl.DateTimeFormat(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' }),
+  /** "18 ago" — Progreso chart axis and goal start. */
+  dayMonth: new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short' }),
   /** "5 de octubre de 2026" — goal dates, history. */
   full: new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' }),
   /** "14:30" — reminders. */

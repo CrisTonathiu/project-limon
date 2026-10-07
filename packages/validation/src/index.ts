@@ -1,4 +1,4 @@
-import { ActivityLevel, Allergen, BiologicalSex, GoalIntention, GoalPace, MealType, RecentWeightChange } from '@limon/types';
+import { ActivityLevel, Allergen, BiologicalSex, GoalIntention, GoalPace, MealType, ProgressPeriod, RecentWeightChange } from '@limon/types';
 import { z } from 'zod';
 
 /**
@@ -213,6 +213,97 @@ export const SetGoalSchema = z
     }
   });
 export type SetGoalInput = z.output<typeof SetGoalSchema>;
+
+/** Bounds of weigh-ins and measurements, shared with the app's number pickers. */
+export const BODY_LOG_LIMITS = {
+  weightKg: PATIENT_PROFILE_LIMITS.weightKg,
+  waistCm: { min: 30, max: 250 },
+  hipCm: { min: 30, max: 250 },
+  chestCm: { min: 30, max: 250 },
+  armCm: { min: 10, max: 100 },
+  thighCm: { min: 20, max: 150 },
+  bodyFatPct: { min: 2, max: 75 },
+  /** How far back a weigh-in can be logged. */
+  minDate: '2000-01-01',
+} as const;
+const B = BODY_LOG_LIMITS;
+
+/** null clears the value; leaving the field out keeps what the day already has. Rounded to 0.1. */
+const bodyValue = (bounds: { min: number; max: number }) =>
+  z
+    .number()
+    .min(bounds.min)
+    .max(bounds.max)
+    .transform((v) => Math.round(v * 10) / 10)
+    .nullable()
+    .optional();
+
+/** PUT /patients/me/body-logs/:date: one day's weigh-in and measurements, merged into what that day has. */
+export const BodyLogSchema = z
+  .object({
+    weightKg: bodyValue(B.weightKg),
+    waistCm: bodyValue(B.waistCm),
+    hipCm: bodyValue(B.hipCm),
+    chestCm: bodyValue(B.chestCm),
+    armCm: bodyValue(B.armCm),
+    thighCm: bodyValue(B.thighCm),
+    bodyFatPct: bodyValue(B.bodyFatPct),
+  })
+  .strict()
+  .refine((log) => Object.values(log).some((v) => v !== undefined), 'nothing to log');
+export type BodyLogInput = z.input<typeof BodyLogSchema>;
+export type BodyLog = z.output<typeof BodyLogSchema>;
+
+/** A day in the patient's calendar. The API checks it isn't in the future. */
+export const IsoDateParamSchema = z
+  .object({
+    date: z
+      .string()
+      .date('date must be YYYY-MM-DD')
+      .refine((d) => d >= B.minDate, `date can't be before ${B.minDate}`),
+  })
+  .strict();
+
+/** GET /patients/me/progress */
+export const ProgressQuerySchema = z
+  .object({ period: z.nativeEnum(ProgressPeriod).default(ProgressPeriod.WEEKS_8) })
+  .strict();
+
+export const WATER_LIMITS = {
+  /** One logged glass or bottle. */
+  intakeMl: { min: 50, max: 2000 },
+  /** The patient's own daily target, in steps of 50 ml. */
+  targetMl: { min: 1000, max: 6000, step: 50 },
+  /** Default target per kg of body weight. */
+  defaultMlPerKg: 35,
+  historyDays: { default: 7, max: 30 },
+} as const;
+const W = WATER_LIMITS;
+
+/** POST /water/intakes */
+export const WaterIntakeSchema = z
+  .object({ amountMl: z.number().int().min(W.intakeMl.min).max(W.intakeMl.max) })
+  .strict();
+export type WaterIntakeInput = z.infer<typeof WaterIntakeSchema>;
+
+/** PUT /water/target. null goes back to the default (35 ml per kg). */
+export const WaterTargetSchema = z
+  .object({
+    targetMl: z
+      .number()
+      .int()
+      .min(W.targetMl.min)
+      .max(W.targetMl.max)
+      .refine((ml) => ml % W.targetMl.step === 0, `targetMl must be a multiple of ${W.targetMl.step}`)
+      .nullable(),
+  })
+  .strict();
+export type WaterTargetInput = z.infer<typeof WaterTargetSchema>;
+
+/** GET /water */
+export const WaterQuerySchema = z
+  .object({ days: z.coerce.number().int().min(1).max(W.historyDays.max).default(W.historyDays.default) })
+  .strict();
 
 /** Placeholders — shape will grow with the nutrition domain. */
 export const CreateRecipeSchema = z

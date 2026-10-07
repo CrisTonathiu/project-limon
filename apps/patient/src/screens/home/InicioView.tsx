@@ -22,6 +22,7 @@ import {
   formatDayHeading,
   formatKcal,
   formatKg,
+  formatLiters,
   formatNumber,
   formatPercent,
   formatSigned,
@@ -45,6 +46,8 @@ export type InicioData = {
   streakDays: number | null;
   mealsToday: { eaten: number; planned: number } | null;
   calories: { eaten: number; target: number } | null;
+  /** Today's water against the target (water tracker). */
+  water: { drunkMl: number; goalMl: number } | null;
   /** Weekly weights, oldest first. */
   weight: { valuesKg: number[]; weeks: number } | null;
   /** `when` is a time ("14:00") or, while the plan has no times, the meal ("Cena"). */
@@ -87,6 +90,12 @@ export function InicioView(props: InicioViewProps) {
         value: formatNumber(props.calories.eaten),
         label: t.home.ofKcal(formatKcal(props.calories.target)),
       },
+    props.water && {
+      key: 'water',
+      icon: <Icon name="water" color="primary" />,
+      value: formatLiters(props.water.drunkMl),
+      label: t.home.ofWater(formatLiters(props.water.goalMl)),
+    },
   ].filter((tile) => !!tile);
 
   return (

@@ -105,13 +105,72 @@ export const es = {
     today: 'Hoy',
     chartA11y: (from: string, to: string) => `Tu peso pasó de ${from} a ${to}.`,
     logWeight: 'Registrar peso',
-    measurements: { waist: 'Cintura', hip: 'Cadera', bodyFat: 'Grasa' },
+    measurements: {
+      waistCm: 'Cintura',
+      hipCm: 'Cadera',
+      chestCm: 'Pecho',
+      armCm: 'Brazo',
+      thighCm: 'Muslo',
+      bodyFatPct: 'Grasa corporal',
+    },
+    logMeasurements: 'Registrar medidas',
+    /** Weigh-in sheet. */
+    weighInTitle: 'Registrar peso',
+    weighInSubtitle: 'Tu peso de hoy',
+    weighInLess: 'Restar 0.1 kg',
+    weighInMore: 'Sumar 0.1 kg',
+    weightRequired: 'Escribe tu peso.',
+    outOfRange: (min: string, max: string) => `Debe estar entre ${min} y ${max}.`,
+    save: 'Guardar',
+    saveError: 'No pudimos guardar. Revisa tu conexión e inténtalo de nuevo.',
+    /** Measurements sheet. */
+    measurementsTitle: 'Registrar medidas',
+    measurementsSubtitle: 'Las de hoy. Llena solo las que tomaste.',
+    measurementUnit: { cm: 'cm', pct: '%' },
+    /** Under the weight card while there are fewer than two weigh-ins. */
+    chartEmpty: 'Registra tu peso cada semana para ver aquí tu avance.',
+    waterOpenA11y: 'Ver el detalle del agua',
     water: 'Agua',
     waterToday: (drunk: string, goal: string) => `${drunk} de ${goal} hoy`,
     addWater: '+250 ml',
     addWaterA11y: 'Agregar un vaso de 250 ml',
+    loadError: 'No pudimos cargar tu progreso. Revisa tu conexión e inténtalo de nuevo.',
     soonTitle: 'Muy pronto',
     soonBody: 'Aquí verás tu peso, tus medidas y el agua que tomas. Estamos terminando esta sección.',
+  },
+
+  water: {
+    title: 'Agua',
+    /** In the ring: "1.5 L" over "de 2.4 L". */
+    ofTarget: (target: string) => `de ${target}`,
+    ringA11y: (drunk: string, target: string) => `Llevas ${drunk} de ${target} de agua hoy.`,
+    reached: '¡Llegaste a tu meta de hoy!',
+    add: (amount: string) => `+${amount}`,
+    addA11y: (amount: string) => `Agregar ${amount} de agua`,
+    other: 'Otra cantidad',
+    otherTitle: 'Agregar agua',
+    otherPlaceholder: 'Cantidad',
+    otherInvalid: (min: string, max: string) => `Escribe entre ${min} y ${max} ml.`,
+    addButton: 'Agregar',
+    today: 'Hoy',
+    noIntakes: 'Aún no registras agua hoy.',
+    /** One glass in today's list: "250 ml · 14:30". */
+    intake: (amount: string, time: string) => `${amount} · ${time}`,
+    removeA11y: (amount: string, time: string) => `Quitar ${amount} de las ${time}`,
+    history: 'Historial',
+    historyPeriod: 'Periodo del historial',
+    historyDays: { 7: '7 días', 30: '30 días' } as Record<7 | 30, string>,
+    historyA11y: (days: number, met: number) => `En los últimos ${days} días llegaste a tu meta ${met} ${met === 1 ? 'vez' : 'veces'}.`,
+    target: 'Meta diaria',
+    targetCustom: 'La elegiste tú',
+    targetDefault: 'Recomendada: 35 ml por kg de tu peso',
+    changeTarget: 'Cambiar',
+    targetTitle: 'Tu meta diaria de agua',
+    targetLess: 'Restar 250 ml',
+    targetMore: 'Sumar 250 ml',
+    useDefault: (amount: string) => `Usar la recomendada (${amount})`,
+    error: 'No pudimos guardar el agua. Revisa tu conexión e inténtalo de nuevo.',
+    loadError: 'No pudimos cargar el agua. Revisa tu conexión e inténtalo de nuevo.',
   },
 
   common: {
@@ -122,6 +181,7 @@ export const es = {
     yourNutritionist: 'tu nutriólogo',
     back: 'Volver',
     close: 'Cerrar',
+    retry: 'Reintentar',
   },
 
   invite: {
@@ -193,6 +253,8 @@ export const es = {
     caloriesToday: 'Calorías hoy',
     /** Under the big number in the ring: "−4.2" over "kg de 7 kg". */
     kgOfGoal: (goal: string) => `kg de ${goal}`,
+    /** Under the water tile's number: "de 2.4 L de agua". */
+    ofWater: (goal: string) => `de ${goal} de agua`,
     /** Under the kcal eaten: "1,240" over "de 1,800 kcal". */
     ofKcal: (target: string) => `de ${target}`,
     ringA11y: (outer: string, outerValue: string, inner?: string, innerValue?: string) =>
@@ -215,6 +277,7 @@ export const es = {
     shoppingList: 'Lista del súper',
     recipes: 'Recetas',
     progress: 'Progreso',
+    water: 'Agua',
     ai: 'Pregúntale a la IA',
     aiShort: 'IA',
     profile: 'Perfil',

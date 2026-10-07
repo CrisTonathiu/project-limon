@@ -319,6 +319,62 @@ export type MyGoalResponse = {
 /** PUT /patients/me/goal: the saved goal, and the energy target it leads to. */
 export type SetGoalResponse = MyGoalResponse & { goal: PatientGoalDto; energyTarget: EnergyTargetDto };
 
+/** Body measurements a patient can log, besides weight. */
+export const BodyMeasurement = {
+  WAIST_CM: 'waistCm',
+  HIP_CM: 'hipCm',
+  CHEST_CM: 'chestCm',
+  ARM_CM: 'armCm',
+  THIGH_CM: 'thighCm',
+  BODY_FAT_PCT: 'bodyFatPct',
+} as const;
+export type BodyMeasurement = (typeof BodyMeasurement)[keyof typeof BodyMeasurement];
+
+/** One day of weigh-in and measurements. Values the patient didn't log that day are null. */
+export type BodyLogDto = { date: string; weightKg: number | null } & Record<BodyMeasurement, number | null>;
+
+/** GET /patients/me/body-logs: newest first. */
+export type BodyLogListResponse = { items: BodyLogDto[] };
+
+/** Period of the weight chart: the last 8 weeks, the last 3 months, or everything. */
+export const ProgressPeriod = { WEEKS_8: 'weeks8', MONTHS_3: 'months3', ALL: 'all' } as const;
+export type ProgressPeriod = (typeof ProgressPeriod)[keyof typeof ProgressPeriod];
+
+/** GET /patients/me/progress */
+export type ProgressResponse = {
+  /** The profile's weight, which follows the latest weigh-in. */
+  currentWeightKg: number;
+  /** Weigh-ins in the period, oldest first. */
+  weights: { date: string; weightKg: number }[];
+  /** Each measurement's latest value and its change since the first time it was logged (null with one value). */
+  measurements: Record<BodyMeasurement, { value: number; date: string; change: number | null } | null>;
+  /**
+   * The weight goal's start and target, when the goal loses or gains toward a number of kg.
+   * Null for goals that maintain, or that don't say how many kg.
+   */
+  weightGoal: { startWeightKg: number; targetWeightKg: number; startedOn: string } | null;
+};
+
+/** One glass (or bottle) of water. */
+export type WaterIntakeDto = { id: string; amountMl: number; createdAt: string };
+
+/** Today's water: what was drunk against the target. Returned by every water endpoint. */
+export type WaterTodayDto = {
+  /** Today on the patient's calendar (YYYY-MM-DD). */
+  date: string;
+  targetMl: number;
+  /** The default target (35 ml per kg), shown when the patient edits theirs. */
+  defaultTargetMl: number;
+  /** True when the patient set their own target. */
+  customTarget: boolean;
+  totalMl: number;
+  /** Newest first. */
+  intakes: WaterIntakeDto[];
+};
+
+/** GET /water: today plus the totals of the last `days` days (today included, oldest first, 0 for days with none). */
+export type WaterResponse = WaterTodayDto & { history: { date: string; totalMl: number }[] };
+
 /** Why a patient gets no automatic energy target and is sent to their nutritionist instead. */
 export const EnergyTargetHoldReason = {
   MINOR: 'MINOR',

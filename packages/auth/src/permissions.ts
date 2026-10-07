@@ -24,6 +24,9 @@ export const Permission = {
   SELF_MEAL_PLANS_READ: 'self:meal-plans:read',
   /** The patient's own plan: regenerate a day, favourites. */
   SELF_MEAL_PLANS_WRITE: 'self:meal-plans:write',
+  /** The patient's own trackers: weigh-ins, body measurements and water. */
+  SELF_PROGRESS_READ: 'self:progress:read',
+  SELF_PROGRESS_WRITE: 'self:progress:write',
   AI_CHAT: 'ai:chat',
   SELF_SUBSCRIPTION_READ: 'self:subscription:read',
   PLATFORM_TENANTS_MANAGE: 'platform:tenants:manage',
@@ -38,12 +41,12 @@ const policy: Record<UserRole, ReadonlySet<Permission>> = {
     P.TENANT_READ, P.TENANT_MANAGE, P.BRANDING_MANAGE, P.APPS_MANAGE,
     P.PATIENTS_READ, P.PATIENTS_WRITE, P.RECIPES_READ, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE, P.FOODS_SEARCH, P.FOODS_READ,
   ]),
-  PATIENT: new Set([P.TENANT_READ, P.SELF_PATIENT_READ, P.SELF_PATIENT_WRITE, P.SELF_SUBSCRIPTION_READ, P.FOODS_READ, P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.SELF_MEAL_PLANS_WRITE, P.AI_CHAT]),
+  PATIENT: new Set([P.TENANT_READ, P.SELF_PATIENT_READ, P.SELF_PATIENT_WRITE, P.SELF_SUBSCRIPTION_READ, P.FOODS_READ, P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.SELF_MEAL_PLANS_WRITE, P.SELF_PROGRESS_READ, P.SELF_PROGRESS_WRITE, P.AI_CHAT]),
 };
 
 /** Permissions that mutate state; blocked when the tenant is READ_ONLY (suspended). */
 export const WRITE_PERMISSIONS: ReadonlySet<Permission> = new Set([
-  P.TENANT_MANAGE, P.BRANDING_MANAGE, P.APPS_MANAGE, P.PATIENTS_WRITE, P.SELF_PATIENT_WRITE, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE, P.SELF_MEAL_PLANS_WRITE, P.AI_CHAT,
+  P.TENANT_MANAGE, P.BRANDING_MANAGE, P.APPS_MANAGE, P.PATIENTS_WRITE, P.SELF_PATIENT_WRITE, P.RECIPES_WRITE, P.MEAL_PLANS_WRITE, P.SELF_MEAL_PLANS_WRITE, P.SELF_PROGRESS_WRITE, P.AI_CHAT,
 ]);
 
 /**
@@ -52,7 +55,7 @@ export const WRITE_PERMISSIONS: ReadonlySet<Permission> = new Set([
  * can still sign in, finish onboarding, see the paywall and manage/restore their purchase.
  */
 export const ENTITLED_PERMISSIONS: ReadonlySet<Permission> = new Set([
-  P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.SELF_MEAL_PLANS_WRITE, P.AI_CHAT,
+  P.RECIPES_READ, P.SELF_MEAL_PLANS_READ, P.SELF_MEAL_PLANS_WRITE, P.SELF_PROGRESS_READ, P.SELF_PROGRESS_WRITE, P.AI_CHAT,
 ]);
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {

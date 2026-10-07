@@ -1,8 +1,11 @@
 import { Permission } from '@limon/auth';
 import { FeatureKey } from '@limon/types';
 import {
+  BodyLogSchema,
   CreatePatientSchema,
+  IsoDateParamSchema,
   PatientProfileSchema,
+  ProgressQuerySchema,
   SetGoalSchema,
   UuidParamSchema,
 } from '@limon/validation';
@@ -48,6 +51,28 @@ export async function patientsRoutes(app: FastifyInstance, c: Container) {
     { preHandler: [requireTenant(c, Permission.SELF_PATIENT_WRITE), goals] },
     async (req) => service.setMyGoal(ctxOf(req), SetGoalSchema.parse(req.body)),
   );
+  // Weigh-ins and body measurements: part of the goal tracker, and paywalled.
+  const readProgress = [requireTenant(c, Permission.SELF_PROGRESS_READ), goals];
+  const writeProgress = [requireTenant(c, Permission.SELF_PROGRESS_WRITE), goals];
+  app.get('/patients/me/progress', { preHandler: readProgress }, async (req, reply) =>
+    reply
+      .header('Cache-Control', 'no-store')
+      .send(await service.myProgress(ctxOf(req), ProgressQuerySchema.parse(req.query).period)),
+  );
+  app.get('/patients/me/body-logs', { preHandler: readProgress }, async (req, reply) =>
+    reply.header('Cache-Control', 'no-store').send(await service.myBodyLogs(ctxOf(req))),
+  );
+  app.put('/patients/me/body-logs/:date', { preHandler: writeProgress }, async (req) =>
+    service.saveMyBodyLog(
+      ctxOf(req),
+      IsoDateParamSchema.parse(req.params).date,
+      BodyLogSchema.parse(req.body),
+    ),
+  );
+  app.delete('/patients/me/body-logs/:date', { preHandler: writeProgress }, async (req, reply) => {
+    await service.deleteMyBodyLog(ctxOf(req), IsoDateParamSchema.parse(req.params).date);
+    return reply.status(204).send();
+  });
   app.get('/patients', { preHandler: requireTenant(c, Permission.PATIENTS_READ) }, async (req) =>
     service.list(ctxOf(req)),
   );

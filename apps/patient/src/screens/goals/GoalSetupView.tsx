@@ -1,5 +1,4 @@
 import { GoalIntention, RecentWeightChange, type GoalPace } from '@limon/types';
-import { TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Box,
@@ -13,7 +12,7 @@ import {
   RoundButton,
   ScreenScroll,
   Text,
-  useAppTheme,
+  TextField,
 } from '../../design-system';
 import { stepError, type GoalForm, type GoalStep } from '../../features/goals/goal-form';
 import { t } from '../../i18n/es-MX';
@@ -144,7 +143,7 @@ function Step({ asking, onChange }: GoalSetupViewProps & { asking: Asking }) {
         {step === 'details' && form.intention === GoalIntention.OTHER ? (
           <>
             <Question title={t.goals.otherDetails} />
-            <Field
+            <TextField
               value={form.otherText}
               onChangeText={(otherText) => set({ otherText })}
               placeholder={t.goals.otherPlaceholder}
@@ -176,7 +175,7 @@ function Step({ asking, onChange }: GoalSetupViewProps & { asking: Asking }) {
                   ? t.goals.desiredGain
                   : t.goals.desiredLose}
               </Text>
-              <Field
+              <TextField
                 value={form.desiredKg}
                 onChangeText={(desiredKg) => set({ desiredKg })}
                 placeholder={t.goals.desiredPlaceholder}
@@ -217,56 +216,6 @@ function Question({ title }: { title: string }) {
     <Text variant="title" accessibilityRole="header" marginBottom="s">
       {title}
     </Text>
-  );
-}
-
-function Field({
-  value,
-  onChangeText,
-  placeholder,
-  keyboardType,
-  multiline,
-  suffix,
-}: {
-  value: string;
-  onChangeText: (text: string) => void;
-  placeholder: string;
-  keyboardType?: 'decimal-pad';
-  multiline?: boolean;
-  suffix?: string;
-}) {
-  const { colors } = useAppTheme();
-  return (
-    <Box
-      flexDirection="row"
-      alignItems="center"
-      gap="s"
-      backgroundColor="surface"
-      borderRadius="m"
-      paddingHorizontal="l"
-      minHeight={52}
-    >
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textMuted}
-        accessibilityLabel={placeholder}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        maxLength={multiline ? 300 : 6}
-        style={{
-          flex: 1,
-          minHeight: multiline ? 96 : 44,
-          paddingVertical: 12,
-          fontFamily: fonts.body,
-          fontSize: 15,
-          color: colors.text,
-          textAlignVertical: multiline ? 'top' : 'center',
-        }}
-      />
-      {suffix ? <Text variant="label">{suffix}</Text> : null}
-    </Box>
   );
 }
 

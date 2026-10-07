@@ -1,8 +1,8 @@
 import type {
-  ApiErrorBody, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, FoodSwapOptionsResponse, MealPlanResponse, MealType, MeResponse, MyGoalResponse, PatientDto, PatientEntitlement, PatientProfileResponse, SetGoalResponse,
-  PlannedMealDetailDto, RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, ShoppingListResponse, TenantAppConfig,
+  ApiErrorBody, BodyLogDto, BodyLogListResponse, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, FoodSwapOptionsResponse, MealPlanResponse, MealType, MeResponse, MyGoalResponse, PatientDto, PatientEntitlement, PatientProfileResponse, ProgressPeriod, ProgressResponse, SetGoalResponse,
+  PlannedMealDetailDto, RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, ShoppingListResponse, TenantAppConfig, WaterResponse, WaterTodayDto,
 } from '@limon/types';
-import type { CreatePatientInput, PatientProfileInput, SetGoalInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
+import type { BodyLogInput, CreatePatientInput, PatientProfileInput, SetGoalInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
 
 /**
  * Typed client shared by the dashboard (web) and patient apps (React Native).
@@ -116,6 +116,16 @@ export function createApiClient(opts: ApiClientOptions) {
       setChecked: (foodId: string, checked: boolean) =>
         request<void>('PUT', `/shopping-list/current/items/${encodeURIComponent(foodId)}`, { checked }),
     },
+    water: {
+      /** Today's water and the daily totals of the last `days` days (water_tracker module). */
+      get: (days = 7) => request<WaterResponse>('GET', `/water?${new URLSearchParams({ days: String(days) })}`),
+      /** Log a glass for today; returns today's water. */
+      add: (amountMl: number) => request<WaterTodayDto>('POST', '/water/intakes', { amountMl }),
+      /** Undo a glass. */
+      remove: (intakeId: string) => request<WaterTodayDto>('DELETE', `/water/intakes/${encodeURIComponent(intakeId)}`),
+      /** The patient's own daily target, or null for the default (35 ml per kg). */
+      setTarget: (targetMl: number | null) => request<WaterTodayDto>('PUT', '/water/target', { targetMl }),
+    },
     patients: {
       list: () => request<{ items: PatientDto[] }>('GET', '/patients'),
       create: (input: CreatePatientInput) => request<PatientDto>('POST', '/patients', input),
@@ -129,6 +139,14 @@ export function createApiClient(opts: ApiClientOptions) {
       myGoal: () => request<MyGoalResponse>('GET', '/patients/me/goal'),
       /** Intention, pace and screening; the clinic's rules decide the starting target. */
       setMyGoal: (input: SetGoalInput) => request<SetGoalResponse>('PUT', '/patients/me/goal', input),
+      /** Weight chart for the period, latest measurements and the weight goal (goal_tracker module). */
+      myProgress: (period: ProgressPeriod) => request<ProgressResponse>('GET', `/patients/me/progress?${new URLSearchParams({ period })}`),
+      /** Logged days, newest first. */
+      myBodyLogs: () => request<BodyLogListResponse>('GET', '/patients/me/body-logs'),
+      /** Merge a weigh-in and/or measurements into a day (today or earlier); null clears a value. `log` is null once the day is empty. */
+      saveMyBodyLog: (date: string, input: BodyLogInput) =>
+        request<{ log: BodyLogDto | null }>('PUT', `/patients/me/body-logs/${encodeURIComponent(date)}`, input),
+      deleteMyBodyLog: (date: string) => request<void>('DELETE', `/patients/me/body-logs/${encodeURIComponent(date)}`),
       /** Erases the patient's data. The Cognito login is deleted separately by the app. */
       deleteMyAccount: () => request<void>('DELETE', '/patients/me'),
     },

@@ -33,12 +33,12 @@ const full: ProgresoData = {
   measurements: [
     { label: 'Cintura', value: '82 cm', change: '−3 cm' },
     { label: 'Cadera', value: '98 cm', change: '−2 cm' },
-    { label: 'Grasa', value: '29 %', change: '−1.5 %' },
+    { label: 'Grasa corporal', value: '29%', change: '−1.5%' },
   ],
   water: { drunkMl: 1500, goalMl: 2400 },
 };
 
-/** The period switch and "+250 ml" work. */
+/** The period switch and "+250 ml" work; weigh-in and measurements show their buttons. */
 function Phone(props: ProgresoData & Pick<ProgresoViewProps, 'plan'>) {
   const [period, setPeriod] = useState<Period>('weeks8');
   const [water, setWater] = useState(props.water);
@@ -46,11 +46,14 @@ function Phone(props: ProgresoData & Pick<ProgresoViewProps, 'plan'>) {
     <PhoneFrame tab="progress">
       <ProgresoView
         {...props}
-        weight={props.weight ? series[period] : null}
+        // A single weigh-in keeps its own data, to show the "log more" hint instead of a chart.
+        weight={props.weight && props.weight.valuesKg.length > 1 ? series[period] : props.weight}
         water={water}
         period={period}
         onChangePeriod={setPeriod}
         onLogWeight={props.weight ? () => {} : undefined}
+        onLogMeasurements={props.weight ? () => {} : undefined}
+        onOpenWater={() => {}}
         onAddWater={() => setWater((w) => (w ? { ...w, drunkMl: w.drunkMl + 250 } : w))}
       />
     </PhoneFrame>
@@ -68,13 +71,13 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
-/** What the app shows today with a goal set: the plan card; weigh-ins and water have no API yet. */
-export const ComingSoon: Story = {
+/** The first visit after setting a goal: the plan card, the onboarding weigh-in and today's water. */
+export const FirstWeek: Story = {
   args: {
-    goal: null,
-    weight: null,
+    goal: { startKg: 78, targetKg: 68, currentKg: 78, startedOn: 'Hoy' },
+    weight: { currentKg: 78, valuesKg: [78], axis: ['', '', ''] },
     measurements: null,
-    water: null,
+    water: { drunkMl: 250, goalMl: 2750 },
     plan: {
       status: 'set',
       intention: 'Bajar de peso',
@@ -85,6 +88,10 @@ export const ComingSoon: Story = {
       onChange: () => {},
     },
   },
+};
+/** No module on for the clinic: the "coming soon" card. */
+export const ComingSoon: Story = {
+  args: { goal: null, weight: null, measurements: null, water: null },
 };
 /** No goal yet. */
 export const NoGoal: Story = {

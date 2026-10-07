@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ageInYears, CreatePatientSchema, GoalRulesSchema, PatientProfileSchema, RegisterNutritionistSchema, SetGoalSchema } from './index.js';
+import { ageInYears, BodyLogSchema, CreatePatientSchema, GoalRulesSchema, IsoDateParamSchema, PatientProfileSchema, RegisterNutritionistSchema, SetGoalSchema, WaterIntakeSchema, WaterQuerySchema, WaterTargetSchema } from './index.js';
 
 describe('validation schemas', () => {
   it('rejects client-supplied tenantId (never trusted from clients)', () => {
@@ -87,5 +87,36 @@ describe('GoalRulesSchema', () => {
       expect(GoalRulesSchema.safeParse(looser).success).toBe(false);
     }
     expect(GoalRulesSchema.safeParse({ paces: { lose: [], gain: ['GENTLE'] } }).success).toBe(false);
+  });
+});
+
+describe('BodyLogSchema', () => {
+  it('keeps what is sent, rounded to 0.1, and lets null clear a value', () => {
+    expect(BodyLogSchema.parse({ weightKg: 73.84, waistCm: null })).toEqual({ weightKg: 73.8, waistCm: null });
+  });
+
+  it('refuses an empty log, unknown fields and values out of range', () => {
+    expect(BodyLogSchema.safeParse({}).success).toBe(false);
+    expect(BodyLogSchema.safeParse({ neckCm: 38 }).success).toBe(false);
+    expect(BodyLogSchema.safeParse({ bodyFatPct: 80 }).success).toBe(false);
+  });
+});
+
+describe('IsoDateParamSchema', () => {
+  it('takes real days only', () => {
+    expect(IsoDateParamSchema.safeParse({ date: '2026-10-06' }).success).toBe(true);
+    expect(IsoDateParamSchema.safeParse({ date: '2026-02-30' }).success).toBe(false);
+    expect(IsoDateParamSchema.safeParse({ date: '1999-12-31' }).success).toBe(false);
+  });
+});
+
+describe('water', () => {
+  it('takes whole millilitres for a glass and a target on the 50 ml grid, or null for the default', () => {
+    expect(WaterIntakeSchema.safeParse({ amountMl: 250 }).success).toBe(true);
+    expect(WaterIntakeSchema.safeParse({ amountMl: 250.5 }).success).toBe(false);
+    expect(WaterTargetSchema.parse({ targetMl: null })).toEqual({ targetMl: null });
+    expect(WaterTargetSchema.safeParse({ targetMl: 2420 }).success).toBe(false);
+    expect(WaterQuerySchema.parse({})).toEqual({ days: 7 });
+    expect(WaterQuerySchema.safeParse({ days: '31' }).success).toBe(false);
   });
 });

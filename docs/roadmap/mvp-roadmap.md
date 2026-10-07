@@ -154,9 +154,16 @@ Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s
 ### Week 6 · Nov 2 – 6 — Water and goal trackers
 
 - [ ] **Water:** daily target (default 35 ml/kg, editable), quick-add buttons (250 / 500 ml, custom), today's progress ring, 7- and 30-day history, local reminders (`expo-notifications`, no push server needed).
-- [ ] **Goal:** the patient creates a goal (type, target weight, target date). The API validates it against the guardrails.
-- [ ] Logs: weight, body measurements (waist, hip, chest, arm, thigh), body fat %. Show charts over time and progress toward the goal.
-- [ ] **Home screen:** today's meals, water progress, latest weight, and a goal progress card, each shown only if its flag is enabled.
+  - [x] `water` module (migration `0016_progress_trackers`): `water_intakes` keeps one row per glass (so it can be undone) on the patient's calendar day, `water_settings` the patient's own target. `GET /water?days=7|30` (today, the target and the daily totals), `POST /water/intakes`, `DELETE /water/intakes/:id`, `PUT /water/target` (`null` goes back to 35 ml/kg, in 50 ml steps). Behind `water_tracker`, paywalled (`self:progress:*`).
+  - [x] App: the water card on Progreso (+250 ml, optimistic), a water tile on Inicio, and an Agua screen with the ring, +250 / +500 / custom, today's glasses with undo, the 7/30-day history and the target.
+  - [ ] Local reminders: `expo-notifications` isn't installed yet, and adding it needs a new development build.
+- [x] **Goal:** the patient states an intention and, to lose or gain, a pace the clinic allows and how many kg; the clinic's rules (stricter-only) decide the starting target (migration `0015_patient_goals`, `GET/PUT /patients/me/goal`). The goal also keeps the weight it started from, for the progress bar.
+- [x] Logs: weight, body measurements (waist, hip, chest, arm, thigh), body fat %. Show charts over time and progress toward the goal.
+  - `body_logs` (migration `0016_progress_trackers`): one row per day, every value optional; `PUT /patients/me/body-logs/:date` merges into the day (today or earlier, `null` clears a value, an emptied day is deleted), `DELETE` removes it, `GET /patients/me/body-logs` lists them. Behind `goal_tracker`, paywalled.
+  - The latest weigh-in is the profile's weight (energy target, water target, BMI checks), and a weight saved in onboarding or the profile is logged as today's weigh-in, so the chart starts at onboarding.
+  - `GET /patients/me/progress?period=weeks8|months3|all`: the period's weigh-ins, each measurement's latest value and change since the first, and the goal's start and target weight.
+  - App: Progreso's goal bar, weight chart with the period switch, "Registrar peso" (a sheet with ±0.1 kg steps rather than a number wheel), measurement tiles and "Registrar medidas".
+- [x] **Home screen:** today's meals, water progress, latest weight, and a goal progress card, each shown only if its flag is enabled. Inicio shows the weight goal ring, the weight card (last weigh-in of each of the last 8 weeks), a water tile and the next meal; the Progreso tab shows when either tracker is on.
 - [ ] **Start Google's closed test (by Fri Nov 6 at the latest):** upload the current Android build to each pilot's Play closed-testing track and get **at least 12 testers** opted in (their first patients). Google only grants production access after 14 continuous days, so this is the last week that still allows a week-9 launch.
 
 **Done when:** all four trackers work offline-tolerant (optimistic UI, retry) and respect their feature flags.
