@@ -17,8 +17,8 @@
 | 11 | Localization | **Spanish (es-MX) only** |
 | — | App distribution | **One branded app per nutritionist**, published from their own developer accounts (ADR-009), from the MVP on |
 | — | Patient admission | Per tenant via the `invite_only` flag: **Open** or **Invite only** (single-use code per patient). Approval by emailed link comes next |
-| 6 | AWS region | **`us-east-1`** for the MVP; revisit `mx-central-1` with the real production environment |
-| — | Hosting during the MVP | One disposable `preproduction` environment (< US$50/month); see [aws.md](aws.md) |
+| 6 | Cloud and region | **GCP, `us-east1`** (decided 2026-10-08, replacing AWS `us-east-1`); revisit `northamerica-south1` (Querétaro) with the production project. See [GCP migration](../roadmap/gcp-migration.md) |
+| — | Hosting during the MVP | One disposable GCP project, `limon-preproduction` (< US$50/month), managed with Terraform |
 | — | Tenant billing | Base rate + add-ons; pricing model options in the roadmap |
 | — | Recipes | Global default library copied into each tenant; nutrients from FatSecret MX, equivalents from SMAE |
 
