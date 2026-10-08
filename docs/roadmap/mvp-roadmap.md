@@ -13,7 +13,7 @@ a goal tracker. Our team turns each module on or off per nutritionist with featu
 
 | Module | Feature flag | What ships |
 |---|---|---|
-| Authentication | always on | Sign up / sign in (Cognito, already built), consent capture (already built) |
+| Authentication | always on | Sign up / sign in, consent capture (already built). Moves from Cognito to **Identity Platform** (one identity tenant per nutritionist) with the [GCP migration](gcp-migration.md#phase-4--authentication-cognito--identity-platform-oct-1314-the-largest-piece) |
 | Admission | `invite_only` | Open sign-up, or invite only with a single-use code per patient |
 | Patient registration | always on | Onboarding questionnaire (sex, birth date, height, weight, activity level, meals per day, allergies / dislikes), profile editing |
 | Recipes | `recipes` | Default recipe library copied into each tenant; tenant copies can be edited; nutrition values from FatSecret MX |
@@ -39,7 +39,7 @@ Nutritionist web dashboard · per-tenant store builds · AI assistant · calenda
 | Recipe ownership | Global default library → **copied** into each tenant at provisioning | Nutritionists edit their own copies; updates to the library never overwrite tenant edits. |
 | Nutrition data | **FatSecret Premier (Mexico region, Spanish)** for nutrients; **SMAE 5th ed. (v2.0, 2024)** for equivalents | FatSecret values differ from other sources, so it stays the source. Mexico data needs the paid Premier plan, and FatSecret only lets us store **IDs**: nutrients are fetched live and cached ≤ 24 h. See [Nutrition data](#nutrition-data-fatsecret--smae) and [Risks](#2-nutrition-data-fatsecret-premier-high). |
 | Meal plan generation | Rule-based, no AI | Favourites are recorded now so a preference model can be trained later. |
-| Hosting | **One AWS environment, `preproduction`** (us-east-1, < US$50/month), used by the pilot. Local development runs on `docker compose` | Sized to the bare minimum: API Gateway instead of a load balancer, one small API task, one small RDS database, and a NAT instance whose fixed IP is whitelisted at FatSecret. It is disposable: replaced by a real `production` environment after the MVP. See [Infrastructure](#infrastructure). |
+| Hosting | **Google Cloud (GCP)**, one project `limon-preproduction` in `us-east1` (< US$50/month), used by the pilot, managed with **Terraform**. Local development runs on `docker compose` | Moved from AWS on Oct 8, before any pilot data existed, because the developer knows GCP better (costs are similar). Cloud Run, Cloud SQL, Identity Platform, Pub/Sub, and Cloud NAT with a static IP that FatSecret whitelists. Disposable: replaced by a `production` project after the MVP. See [Infrastructure](#infrastructure) and the [GCP migration](gcp-migration.md). |
 | Nutritionist tools | No dashboard in the MVP | Recipe editing goes through an internal admin API + CSV import that **our team** runs for the nutritionist. An in-app nutritionist screen is a stretch goal. |
 
 ## Timeline
@@ -54,12 +54,21 @@ Meal plans                    ████
 Swaps+List                          ████
 Trackers                                  ████
 Payments                                        ████
+GCP move                ██▌   (Oct 8 – 21, see gcp-migration.md)
 Hardening                                             ████
 Launch                                                      ████
 Content     ░░░░░░░░░░░░░░░░░░░░░░░░ (default recipes, runs in parallel)
 ```
 
 > Nov 16 is a public holiday in Mexico (Revolution Day, observed). Week 8 has 4 working days.
+
+## GCP migration
+
+On Oct 8 hosting moved from AWS to GCP (see the Hosting decision above). The work is tracked in its own checklist, **[GCP migration](gcp-migration.md)**: AWS cleanup (Oct 8–9), then Terraform, Cloud SQL, Identity Platform, Pub/Sub + Cloud Scheduler, Cloud Storage, deploy and CI (Oct 12–21).
+
+- **Why it fits the schedule:** weeks 2–6 are almost done ahead of time, so the migration uses that slack. Nothing moves to v1.1 and the launch date stays.
+- **Why it must finish by Oct 21:** week 7's Stripe webhooks need the deployed API, and the Android closed test (by Nov 6) needs builds that talk to it.
+- **What it changes in the roadmap:** the week 1 delivery item, sign-up email verification (a link instead of a code), account deletion (the API deletes the login), the Sunday plan job (Cloud Scheduler), the FatSecret whitelisted IP, costs and the Infrastructure section.
 
 ### Week 1 · Sep 28 – Oct 2 — Foundation and decisions
 
@@ -72,7 +81,7 @@ Close the blockers first so nothing stalls later.
 - [x] **Admission modes:** `invite_only` flag (open or invite only), per-patient single-use invite codes, admin command to issue them.
 - [x] **Feature flags:** `tenant_features` table (`tenant_id`, `feature_key`, `enabled`, `config` JSON). `/auth/me` returns the effective flags (dependencies such as `shopping_list` → `meal_plan` applied), the API guard `requireFeature(c, FeatureKey.MEAL_PLAN)` returns `FEATURE_DISABLED`, and the app hides disabled screens. Toggle with `pnpm --filter @limon/database admin features <slug> --enable … --disable …`.
 - [x] **i18n:** es-MX strings in a typed dictionary (`src/i18n/es-MX.ts`, no i18next needed for one locale), number/unit/date/plural formatting in `src/i18n/format.ts`, iOS system UI set to Spanish. No hard-coded UI strings from here on.
-- [ ] **Delivery:** deploy `preproduction` (CDK) at `api.projectlimon.com` (see [Infrastructure](#infrastructure)) and whitelist its NAT IP at FatSecret, EAS development build on a device, error tracking (Sentry) in the API and the app.
+- [ ] **Delivery:** deploy `preproduction` at `api.projectlimon.com` and whitelist its NAT IP at FatSecret (now on GCP: [migration phases 2–7](gcp-migration.md#to-do)), EAS development build on a device, error tracking (Sentry) in the API and the app.
 
 **Done when:** a patient can sign up in their nutritionist's app (`preproduction` build) (with an invite code when that nutritionist is invite only), sees the nutritionist's branding, and only the enabled tabs.
 
@@ -91,6 +100,7 @@ Close the blockers first so nothing stalls later.
   - Erases the health data (profile, meal plans, conversations), anonymizes the patient and user rows, revokes the consents, and frees the email so it can sign up again. Consent records and `PatientSubscription` rows stay (legal and financial records, `onDelete: Restrict`).
   - Works without a subscription (`SELF_PATIENT_WRITE`, like profile edits). Patients of a suspended tenant can't reach the API at all, so they use the web or email request below.
   - The app then deletes the Cognito user with the patient's own access token (Cognito `DeleteUser`), so the API needs no Cognito admin permissions. If that call fails, the Cognito login is left over but leads to no data; an admin cleanup comes with the `production` environment.
+  - **GCP migration:** with Identity Platform the API deletes the login itself, in the same request (tenant-scoped Admin SDK), so no login is ever left over ([phase 4](gcp-migration.md#phase-4--authentication-cognito--identity-platform-oct-1314-the-largest-piece)).
   - The other ARCO rights (access, rectification, opposition) stay manual by email for the MVP; the privacy notice (week 8) gives the address. Rectification is also covered by profile editing.
   - **Week 7:** cancel the patient's Stripe subscription when they delete their account.
   - **Week 8:** publish the web page (or email address) for deletion requests and enter it in Google Play's Data safety form.
@@ -125,9 +135,9 @@ Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s
   - Hard filters: meal type, allergies, disliked foods.
   - Scoring: closeness to the slot's kcal and protein after portion scaling, variety (no repeat within 3 days), and a boost for favourites.
 - [x] Portion scaling: scale servings so each meal lands within ±10% of its slot target (0.5–2.5 servings, in 0.05 steps).
-- [ ] A worker job builds next week's plan every Sunday (SQS worker already exists). It refreshes the nutrient cache for the catalog's foods first, then generates every plan from that cache. "Regenerate this day" on demand.
+- [ ] A worker job builds next week's plan every Sunday (on GCP: Cloud Scheduler → the `worker` service, [phase 5](gcp-migration.md#phase-5--jobs-sqs--pubsub--cloud-scheduler-oct-15)). It refreshes the nutrient cache for the catalog's foods first, then generates every plan from that cache. "Regenerate this day" on demand.
   - [x] On demand: `GET /meal-plans/current` generates the current week on its first read (patients who join mid-week get a plan), `POST /meal-plans/current/days/:date/regenerate` replaces today or a later day, avoiding the recipes of the days around it. `pnpm --filter @limon/api meal-plans generate <slug>` generates plans from the terminal.
-  - [ ] The Sunday job.
+  - [ ] The Sunday job (`POST /maintenance/weekly-plans`, Sundays in `America/Mexico_City`).
 - [x] Plans store recipe ids and portion factors only; the day totals shown in the app are recomputed from the cache (migration `0012_meal_plans`).
 - [x] ♥ Favourite a meal → `meal_feedback` (patient, recipe, rating, week). This is the training data for future AI. `PUT /meal-plans/favourites/:recipeId` records it against the current week; `DELETE` removes the recipe's favourites from every week so the generator stops preferring it. Each planned meal returns `favourite`, and the meal cards have a ♥ button (optimistic, every meal with that recipe follows).
 - [x] App: week view → day view → meal detail, with daily totals against the target. The Meals tab shows a 7-day strip, the day's meals with portion and kcal, opens the recipe, and has "Cambiar el menú de este día" for today and later days.
@@ -263,7 +273,7 @@ App Review may still question it. Test it with an early TestFlight external buil
 - **Schedule:** curation in week 3 needs Mexican `food_id`s, so Premier must be active by Oct 12. Until then, build against Basic (US data) — the code is the same, only the IDs differ.
 - **Storage:** only IDs may be kept; nutrients, names and serving details can be cached 24 h at most, on every plan. The design above follows this. Ask sales whether a contract can allow storing nutrient values; if yes, the cache can become a table.
 - **Dependency:** plan generation and recipe macros need FatSecret to be reachable. Mitigations: the 24 h cache, refreshing it before the Sunday plan job, and showing plans without macros (instead of failing) if FatSecret is down.
-- **Access:** OAuth 2.0 keys only work from whitelisted IPs (up to 15 ranges). In AWS that's the NAT instance's Elastic IP (`NatPublicIps` output of the network stack); add it right after the first `preproduction` deploy.
+- **Access:** OAuth 2.0 keys only work from whitelisted IPs (up to 15 ranges). On GCP that's the Cloud NAT's reserved static IP (`nat_ip` Terraform output); whitelist it right after [phase 2](gcp-migration.md#phase-2--terraform-foundation-oct-12), before the first deploy.
 - **SMAE:** a published, copyrighted book. We store only per-food facts (group, grams per equivalent), not the book's tables; still confirm with the publisher.
 
 ### 3. Auto-generated plans without professional review (medium)
@@ -278,18 +288,20 @@ See the parallel track above.
 ### 6. Store onboarding for each nutritionist (high)
 Launch depends on steps the nutritionist has to do: identity checks, two-factor on their phone, and 12 real testers for 14 days on Google. A pilot who starts late misses week 9. Mitigations: start enrollment in week 1, have their first patients ready as testers, start the closed test by Nov 6, and confirm the Apple API-key question with the first pilot. See [Nutritionist onboarding](#nutritionist-onboarding-store-accounts).
 
+### 7. GCP migration (medium)
+Swapping the cloud mid-MVP touches sign-in, jobs and file storage. Mitigations: it happens before any pilot patient exists (no users to migrate), the authorization pipeline and the database don't change, sign-in is migrated first with a same-email-two-tenants test, and the migration has a hard finish of Oct 21, ahead of Stripe (week 7) and the closed test (Nov 6). See [GCP migration](gcp-migration.md).
+
 ## Tenant pricing options
 
 For the MVP features, **cloud cost per patient is almost zero.** The cost is the **fixed** baseline of running the platform (see [Infrastructure](#infrastructure) for the breakdown):
 
 | Setup | ≈ USD / month |
 |---|---|
-| `preproduction` (the pilot environment) | **35–40** |
-| A modest real `production` (2 API tasks, a load balancer, small Multi-AZ database) | 150–250 |
-| `production-scale` profile (3 NAT gateways, Aurora with a reader, WAF, 7 tasks) | ~700 |
+| `preproduction` on GCP (the pilot environment) | **27–35** |
+| A modest real `production` project (2+ Cloud Run instances, load balancer + Cloud Armor, Cloud SQL with high availability) | 150–250 |
 | FatSecret Premier (Mexico), on top of any of these | quote pending |
 
-Per active patient: API requests, a few KB of rows, and Cognito (the first 10k MAU are free) — well under **US$0.05/month**. FatSecret calls scale with the number of distinct foods in the shared 24 h cache, not with patients. Stripe fees (~3.6% + MX$3 + IVA per charge) are real per-patient costs, but they are paid out of the nutritionist's revenue.
+Per active patient: API requests, a few KB of rows, and Identity Platform (the free tier covers the pilot) — well under **US$0.05/month**. FatSecret calls scale with the number of distinct foods in the shared 24 h cache, not with patients. Stripe fees (~3.6% + MX$3 + IVA per charge) are real per-patient costs, but they are paid out of the nutritionist's revenue.
 
 Per-patient cost only becomes significant with the **AI add-on** (tokens per message), which should be metered on its own later.
 
@@ -306,48 +318,48 @@ So the patient count affects **fairness, support load and margin** more than clo
 
 ## Infrastructure
 
-During the MVP there is **one** AWS environment, `preproduction`, in `us-east-1`. It serves the pilot nutritionists and their patients, and is torn down once a real `production` environment exists. Local development uses `docker compose`; there is no development or staging environment in AWS.
+During the MVP there is **one** cloud environment: the GCP project `limon-preproduction` in `us-east1`, managed with Terraform. It serves the pilot nutritionists and their patients, and is torn down (`terraform destroy`) once a real `production` project exists. Local development uses `docker compose`; there is no development or staging environment in the cloud. Until the [GCP migration](gcp-migration.md) is done (Oct 21), nothing is deployed.
 
 ```
-Patient apps ─HTTPS─▶ api.projectlimon.com (API Gateway HTTP API, ACM certificate, throttling)
-                         └─ VPC link ─▶ 1 Fargate task (private subnet)
-                                          ├─ api container
-                                          └─ worker container (SQS consumer, FatSecret cache refresh)
-                                               ├─▶ RDS PostgreSQL db.t4g.micro (isolated subnet)
-                                               └─▶ NAT instance + Elastic IP ─▶ FatSecret, Stripe, Cognito…
+Patient apps ─HTTPS─▶ api.projectlimon.com (Cloud Run domain mapping, Google-managed certificate)
+                         └─▶ Cloud Run "api" (min 1 instance)
+                                ├─▶ Cloud SQL PostgreSQL 16 (private IP)
+                                ├─▶ Pub/Sub "jobs" ─push─▶ Cloud Run "worker" (private)
+                                └─▶ Cloud Storage (tenant files)
+Cloud Scheduler ─▶ worker: FatSecret cache refresh (15 min), Sunday plans
+Egress ─▶ Cloud NAT + static IP ─▶ FatSecret, Stripe…   ·   Identity Platform (a tenant per nutritionist)
 ```
 
-Estimated monthly cost (list prices, verify in the AWS Pricing Calculator):
+Estimated monthly cost (list prices, verify in the GCP pricing calculator):
 
 | Item | ≈ USD / month |
 |---|---|
-| RDS PostgreSQL `db.t4g.micro`, single-AZ, 20 GB gp3 | 14 |
-| Fargate ARM task, 0.25 vCPU / 1 GB (API + worker) | 8.50 |
-| NAT instance `t4g.nano` + Elastic IP (the fixed IP FatSecret whitelists) | 7.50 |
-| API Gateway HTTP API (US$1 per million requests) | 1–3 |
-| Secrets Manager (3), Cloud Map, CloudWatch logs and 4 alarms | 3–5 |
-| Cognito (free up to 10k monthly users), S3, SQS, ACM | ~0 |
-| **Total** | **≈ 35–40** |
+| Cloud Run `api`, 1 vCPU / 512 MiB, min 1 instance | 10–15 |
+| Cloud Run `worker`, scales to zero | 0–2 |
+| Cloud SQL PostgreSQL 16 `db-f1-micro`, 10 GB SSD, 7-day backups | 10–12 |
+| Cloud NAT + reserved static IP (the IP FatSecret whitelists) | 5–6 |
+| Secret Manager, Artifact Registry | 1–2 |
+| Identity Platform, Pub/Sub, Cloud Scheduler, Cloud Storage, Logging (free tiers) | ~0 |
+| **Total** | **≈ 27–35** |
 
-What was cut, and when to bring it back (all of it is configuration in `infrastructure/config/environments.ts`):
+What was cut, and when to bring it back:
 
 | Cut | Risk accepted for the pilot | Bring back when |
 |---|---|---|
-| Load balancer → API Gateway | None functional; saves ~US$25 | More than one service needs routing (dashboard) |
-| NAT gateway → one NAT instance | If the instance fails, outbound calls (FatSecret, Stripe, Cognito keys) stop until it's replaced; the Elastic IP survives replacement | Production |
-| WAF → API Gateway throttling + Fastify rate limits | No managed bad-input rules | Before scaling past the pilot |
-| 1 task, worker in the same task | A task restart is a short outage; heavy jobs slow the API | Jobs get heavy (meal plan generation at scale) |
-| Single-AZ micro database, 7-day backups | An AZ outage means downtime until restore | Production (Multi-AZ, longer backups) |
-| Staging / development environments | Changes are tested locally, then go straight to the pilot | Production exists (staging returns before it) |
+| Load balancer → Cloud Run domain mapping (a pre-GA preview) | Google doesn't recommend it for production; possible extra latency | Production (global load balancer) |
+| Cloud Armor (WAF) → Fastify rate limits | No managed bad-input rules | Production |
+| One Cloud SQL instance, no high availability, shared core | A zone outage means downtime until restore; limited CPU | Production (HA, dedicated vCPU) |
+| One `api` instance minimum, max 3 | A restart is a short gap; the second instance starts cold | Production (min 2) |
+| Staging / development environments | Changes are tested locally, then go straight to the pilot | Production exists (a staging project comes with it) |
 
-The original full setup is kept as the disabled `production-scale` profile. Deployment steps are in [aws.md](../architecture/aws.md#deploying-preproduction).
+Deployment and teardown steps will live in `docs/architecture/gcp.md` ([migration phase 9](gcp-migration.md#phase-9--remove-aws-from-the-repo-and-docs-oct-21)); until then the migration checklist is the reference.
 
 ## After the MVP
 
 | Phase | Window (estimate) | Scope |
 |---|---|---|
 | v1.1 | Dec 2026 | Anything past the cut line, pilot feedback, ARCO request flow in-app, analytics |
-| Production environment | Before onboarding nutritionists beyond the pilot | Separate AWS account, `production` profile (Multi-AZ database, 2+ tasks, load balancer + WAF, NAT gateway), a `staging` environment, data migrated from `preproduction` (new NAT IPs whitelisted at FatSecret), then `preproduction` torn down |
+| Production environment | Before onboarding nutritionists beyond the pilot | Separate GCP project `limon-production` (same Terraform modules): global load balancer + Cloud Armor, Cloud SQL with high availability, min 2 `api` instances, a `limon-staging` project, data and Identity Platform users exported from `preproduction` (password hashes included), the new NAT IP whitelisted at FatSecret, then `preproduction` destroyed |
 | Nutritionist dashboard | Jan – Feb 2027 | Recipe editor, patient list and progress, meal plan review/override, invite codes, Stripe Connect self-onboarding, feature/add-on self-upgrade |
 | Build automation | Feb – Mar 2027 | Automated per-tenant build and submit pipeline (the MVP pilots are built by hand), OTA updates per tenant, guided store-account onboarding, CFDI invoicing (e.g. Facturapi) |
 | AI add-on (`ai_assistant`) | Q2 2027 | Preference-aware plan generation trained on `meal_feedback`; patient assistant (recipe Q&A, swaps); nutritionist plan drafting; usage-metered billing. See [AI add-on](ai-addon.md), including data to start collecting before the pilot |
