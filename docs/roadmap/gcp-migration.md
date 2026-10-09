@@ -59,10 +59,10 @@ Check items off here as they land. Each phase ends with a **Done when**.
 
 ### Phase 0 · Accounts and tools (Oct 8, ~1 h)
 
-- [ ] Create the GCP project `limon-preproduction`, link a billing account, and set a **budget of US$50/month** with email alerts at 50 / 90 / 100 %.
+- [x] Create the GCP project `limon-preproduction`, link a billing account, and set a **budget of US$50/month** with email alerts at 50 / 90 / 100 %. *(The billing account is in MXN, so the budget is **MXN 1,000/month**, ≈ US$50.)*
 - [ ] Apply for the [Google for Startups Cloud Program](https://cloud.google.com/startup) credits.
-- [ ] Install the `gcloud` CLI and **Terraform** (≥ 1.9) locally; `gcloud auth login` and `gcloud auth application-default login`.
-- [ ] Create a versioned Cloud Storage bucket for the Terraform state (`limon-tfstate-<random>`), by hand, once.
+- [x] Install the `gcloud` CLI and **Terraform** (≥ 1.9) locally; `gcloud auth login` and `gcloud auth application-default login`.
+- [x] Create a versioned Cloud Storage bucket for the Terraform state (`limon-tfstate-<random>`), by hand, once. *(Bucket: **`limon-tfstate-a175b1`**, us-east1, public access prevented.)*
 
 **Done when:** `terraform init` works against the state bucket and the budget alert exists.
 
@@ -84,16 +84,16 @@ Some resources are still running and some were deleted by hand, so CloudFormatio
    ```
    A stack in `DELETE_FAILED` names the resource that blocked it (Events tab). Delete that resource by hand, then delete the stack again. If it still fails, delete with *Retain* on that resource and remove the resource yourself.
 4. **Delete what the stacks keep on purpose:**
-   - [ ] **Cognito user pool** `limon-*-users`: turn off *Deletion protection*, then delete it.
-   - [ ] **S3 bucket** `limon-*-tenant-assets-<account>`: it's versioned, so use the console's **Empty** button (removes every version), then delete it.
-   - [ ] **RDS:** delete leftover instances or Aurora clusters, every manual snapshot (`aws rds describe-db-snapshots --snapshot-type manual`, `aws rds describe-db-cluster-snapshots --snapshot-type manual`) and retained automated backups (RDS → *Automated backups* → *Retained*).
-   - [ ] **CloudWatch log groups** `/limon-*/...`.
-   - [ ] **Secrets Manager** `limon-*/...`: deleted secrets wait 7–30 days; force it with `aws secretsmanager delete-secret --secret-id <id> --force-delete-without-recovery`.
+   - [x] **Cognito user pool** `limon-*-users`: turn off *Deletion protection*, then delete it.
+   - [x] **S3 bucket** `limon-*-tenant-assets-<account>`: it's versioned, so use the console's **Empty** button (removes every version), then delete it.
+   - [x] **RDS:** delete leftover instances or Aurora clusters, every manual snapshot (`aws rds describe-db-snapshots --snapshot-type manual`, `aws rds describe-db-cluster-snapshots --snapshot-type manual`) and retained automated backups (RDS → *Automated backups* → *Retained*).
+   - [x] **CloudWatch log groups** `/limon-*/...`.
+   - [x] **Secrets Manager** `limon-*/...`: deleted secrets wait 7–30 days; force it with `aws secretsmanager delete-secret --secret-id <id> --force-delete-without-recovery`.
 5. **Hunt the usual hidden costs** (EC2 and VPC consoles, each region):
-   - [ ] **Elastic IPs** (charged even when not attached), **NAT gateways**, NAT **EC2 instances** and their **EBS volumes**.
-   - [ ] **Load balancers**, **target groups**, **ECS clusters and services**.
-   - [ ] **WAF web ACLs** (US$5/month each), **API Gateway** APIs and **VPC links**, **Cloud Map** namespaces (each keeps a Route 53 private hosted zone at US$0.50/month).
-   - [ ] **VPCs** named `limon-*` (deleting a VPC removes its subnets, endpoints and security groups).
+   - [x] **Elastic IPs** (charged even when not attached), **NAT gateways**, NAT **EC2 instances** and their **EBS volumes**.
+   - [x] **Load balancers**, **target groups**, **ECS clusters and services**.
+   - [x] **WAF web ACLs** (US$5/month each), **API Gateway** APIs and **VPC links**, **Cloud Map** namespaces (each keeps a Route 53 private hosted zone at US$0.50/month).
+   - [x] **VPCs** named `limon-*` (deleting a VPC removes its subnets, endpoints and security groups).
 6. **Remove the CDK bootstrap**, if nothing else in the account uses CDK: empty and delete the `cdk-hnb659fds-assets-*` S3 bucket and the `cdk-hnb659fds-container-assets-*` ECR repository, then delete the `CDKToolkit` stack.
 7. **Confirm zero.** Keep an AWS budget of US$1/month for one month. If no alert fires, either leave the empty account or **close it** (Account → *Close account*; AWS keeps it suspended for 90 days and then deletes it).
 8. [ ] Remove the old AWS IP from the FatSecret whitelist, if it was ever added.
@@ -109,7 +109,7 @@ New folder `infrastructure/terraform/`, replacing the CDK app (`infrastructure/*
 - [ ] **Network:** VPC `limon` with one `us-east1` subnet for Direct VPC egress, a Cloud Router, a **reserved static IP** and **Cloud NAT** using only that IP. Output the IP (`nat_ip`).
 - [ ] **Private Service Access** (peering range) so Cloud SQL gets a private IP.
 - [ ] **Artifact Registry** Docker repo `limon` in `us-east1`.
-- [ ] **Service accounts:** `api` (Cloud SQL client, Pub/Sub publisher, Storage object admin on the tenant bucket, Secret accessor, Identity Platform admin for account deletion, token creator on itself for signed URLs), `worker` (same, plus Pub/Sub subscriber), `scheduler` and `pubsub-push` (Cloud Run invoker on `worker` only), `deployer` (for CI).
+- [ ] **Service accounts:** `api` (Cloud SQL client, Pub/Sub publisher, Storage object admin on the tenant bucket, Secret accessor, Identity Platform admin for account deletion, token creator on itself for signed URLs), `worker` (same, plus Pub/Sub subscriber), `scheduler` and `pubsub-push` (Cloud Run invoker on `worker` only), `deployer` (for CI). *(IDs must be 6–30 characters, so they are `limon-api`, `limon-worker`, … Roles on a single resource — topic, bucket, `worker` service — are granted when that resource is created, in phases 5 and 6.)*
 - [ ] **Secret Manager** entries (values set by hand, never in Terraform): `db-app-password`, `db-owner-password`, `fatsecret-client-id`, `fatsecret-client-secret`, later `stripe-secret-key`, `stripe-webhook-secret`.
 
 **Done when:** `terraform plan` is clean after `apply`, and the NAT IP is known. **Whitelist that IP at FatSecret now.**
