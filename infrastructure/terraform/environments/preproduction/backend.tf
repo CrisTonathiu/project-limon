@@ -25,3 +25,20 @@ provider "google" {
     environment = "preproduction"
   }
 }
+
+# Identity Platform refuses user credentials (local Application Default Credentials) unless
+# the request names a quota project. Only identity.tf uses this; turning it on for the default
+# provider would also make the API-enablement calls need the Cloud Resource Manager API.
+provider "google" {
+  alias   = "quota"
+  project = var.project_id
+  region  = var.region
+
+  user_project_override = true
+  billing_project       = var.project_id
+
+  default_labels = {
+    project     = "limon"
+    environment = "preproduction"
+  }
+}

@@ -312,20 +312,23 @@ export function createPatientsService(c: Container) {
       }),
 
     /**
-     * The patient deletes their own account. The app deletes the Cognito user afterwards
-     * with the patient's own token; once this commits, that login resolves to no one.
+     * The patient deletes their own account, login included. The Identity Platform login is
+     * deleted last, inside the transaction: if that call fails, nothing is erased and the
+     * patient can retry; once it commits, nothing is left to sign in with.
      * TODO(week 7, see docs/roadmap/mvp-roadmap.md): cancel the patient's Stripe subscription.
      */
     deleteMyAccount: (ctx: TenantContext): Promise<void> =>
       scoped(ctx, async (tx) => {
         const p = await patientsRepository.findByUserId(tx, ctx.tenantId, ctx.userId);
         if (!p) throw Errors.notFound('Patient');
+        const login = await patientsRepository.findLogin(tx, ctx.tenantId, ctx.userId);
         await patientsRepository.deleteAccount(tx, ctx.tenantId, p.id, ctx.userId);
         await writeAudit(tx, ctx, {
           action: 'PatientDeleted',
           resourceType: 'Patient',
           resourceId: p.id,
         });
+        if (c.identityAdmin && login.identityTenantId) await c.identityAdmin.deleteUser(login.identityTenantId, login.authUserId);
       }),
 
     /**

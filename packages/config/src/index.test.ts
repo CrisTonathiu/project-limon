@@ -19,6 +19,12 @@ describe('loadServerEnv', () => {
     ).toThrow(/FATSECRET_CLIENT_ID/);
   });
 
+  it('requires the GCP project for Identity Platform auth', () => {
+    expect(() => loadServerEnv({ ...base, APP_ENV: 'preproduction', AUTH_PROVIDER: 'identity-platform' })).toThrow(/GCP_PROJECT_ID/);
+    const env = loadServerEnv({ ...base, APP_ENV: 'preproduction', AUTH_PROVIDER: 'identity-platform', GCP_PROJECT_ID: 'limon-preproduction' });
+    expect(env.GCP_PROJECT_ID).toBe('limon-preproduction');
+  });
+
   it('accepts dev auth locally', () => {
     expect(loadServerEnv({ ...base, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'x' }).APP_ENV).toBe('development');
   });

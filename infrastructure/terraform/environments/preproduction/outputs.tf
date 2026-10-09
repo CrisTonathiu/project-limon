@@ -24,3 +24,13 @@ output "service_accounts" {
     deployer    = google_service_account.deployer.email
   }
 }
+
+# The patient app's Firebase web config. Public by design (it ships in every app build), but
+# the provider marks the API key sensitive. Read it with: terraform output -json identity_platform
+output "identity_platform" {
+  sensitive = true
+  value = {
+    api_key     = google_identity_platform_config.main.client[0].api_key
+    auth_domain = google_identity_platform_config.main.client[0].firebase_subdomain
+  }
+}

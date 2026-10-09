@@ -3,15 +3,18 @@ import type { TenantTx } from '@limon/database';
 export const authRepository = {
   createTenantGraph(
     tx: TenantTx,
-    data: { tenantId: string; cognitoUserId: string; email: string; firstName: string; lastName: string; businessName: string; slug: string },
+    data: {
+      tenantId: string; authUserId: string; identityTenantId: string | null;
+      email: string; firstName: string; lastName: string; businessName: string; slug: string;
+    },
   ) {
     return (async () => {
       const tenant = await tx.tenant.create({
-        data: { id: data.tenantId, name: data.businessName, slug: data.slug, status: 'TRIAL' },
+        data: { id: data.tenantId, name: data.businessName, slug: data.slug, status: 'TRIAL', identityTenantId: data.identityTenantId },
       });
       await tx.tenantBranding.create({ data: { tenantId: tenant.id, appName: data.businessName } });
       const user = await tx.user.create({
-        data: { tenantId: tenant.id, cognitoUserId: data.cognitoUserId, email: data.email, role: 'NUTRITIONIST' },
+        data: { tenantId: tenant.id, authUserId: data.authUserId, email: data.email, role: 'NUTRITIONIST' },
       });
       const nutritionist = await tx.nutritionist.create({
         data: { tenantId: tenant.id, userId: user.id, firstName: data.firstName, lastName: data.lastName, isOwner: true },
@@ -57,7 +60,7 @@ export const authRepository = {
     tx: TenantTx,
     data: {
       tenantId: string;
-      cognitoUserId: string;
+      authUserId: string;
       email: string;
       firstName: string;
       lastName: string;
@@ -72,7 +75,7 @@ export const authRepository = {
     if (data.invitedPatientId && !existing) return null;
 
     const user = await tx.user.create({
-      data: { tenantId: data.tenantId, cognitoUserId: data.cognitoUserId, email: data.email, role: 'PATIENT' },
+      data: { tenantId: data.tenantId, authUserId: data.authUserId, email: data.email, role: 'PATIENT' },
     });
     const patient = existing
       ? await tx.patient.update({

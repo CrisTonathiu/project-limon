@@ -37,8 +37,10 @@ export async function authRoutes(app: FastifyInstance, c: Container) {
   if (c.devVerifier) {
     const dev = c.devVerifier;
     app.post('/dev/token', async (req) => {
-      const { subject, email } = z.object({ subject: z.string().min(1), email: z.string().email().optional() }).parse(req.body);
-      return { accessToken: await dev.issue(subject, email) };
+      const { subject, email, identityTenantId } = z
+        .object({ subject: z.string().min(1), email: z.string().email().optional(), identityTenantId: z.string().min(1).optional() })
+        .parse(req.body);
+      return { accessToken: await dev.issue(subject, email, identityTenantId) };
     });
   }
 }

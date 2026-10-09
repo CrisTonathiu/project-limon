@@ -70,6 +70,12 @@ resource "google_cloud_run_v2_job" "migrate" {
             }
           }
         }
+
+        # The seed's dev tenants: preproduction keeps only Carlos (invite-only).
+        env {
+          name  = "SEED_TENANTS"
+          value = "carlos-nutrition"
+        }
       }
 
       # Only the database's private range goes through the VPC; the job needs no NAT.

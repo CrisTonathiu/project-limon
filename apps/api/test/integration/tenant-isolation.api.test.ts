@@ -224,3 +224,82 @@ describe('admission modes', () => {
     expect((await check(code, 'carlos-nutrition-ios')).statusCode).toBe(204);
   });
 });
+
+describe('identity tenants (ADR-006)', () => {
+  // Each practice's patients sign in through its own Identity Platform tenant. Dev tokens carry
+  // the identity tenant in a `tenant` claim, standing in for Identity Platform's `firebase.tenant`.
+  const MARIA = '11111111-1111-4111-8111-111111111111';
+  const CARLOS = '22222222-2222-4222-8222-222222222222';
+  const IDP = { [MARIA]: 'test-idp-maria', [CARLOS]: 'test-idp-carlos' };
+  const consent = {
+    privacyNoticeVersion: 'aviso-privacidad-2026-09',
+    termsVersion: 'terminos-2026-09',
+    acceptPrivacyNotice: true,
+    acceptSensitiveDataProcessing: true,
+    acceptTerms: true,
+  };
+  let ip = 0;
+  const setIdentityTenant = async (tenantId: string, identityTenantId: string | null) =>
+    withTenant(c.db, await c.registry.getPlacement(tenantId), (tx) => tx.tenant.update({ where: { id: tenantId }, data: { identityTenantId } }));
+  const signup = async (sub: string, identityTenantId: string | undefined, appKey: string, body: Record<string, unknown>) =>
+    app.inject({
+      method: 'POST', url: '/api/v1/auth/register/patient', remoteAddress: `10.0.9.${++ip}`,
+      headers: { authorization: `Bearer ${await c.devVerifier!.issue(sub, undefined, identityTenantId)}`, 'x-app-key': appKey },
+      payload: { firstName: 'Misma', lastName: 'Persona', ...consent, ...body },
+    });
+  const carlosInvite = async () =>
+    withTenant(c.db, await c.registry.getPlacement(CARLOS), async (tx) => {
+      const patient = await tx.patient.create({ data: { tenantId: CARLOS, firstName: 'Pre', lastName: 'Registrada' } });
+      const code = generateInviteCode();
+      await tx.tenantInviteCode.create({ data: { tenantId: CARLOS, patientId: patient.id, code } });
+      return code;
+    });
+
+  beforeAll(async () => {
+    await setIdentityTenant(MARIA, IDP[MARIA]);
+    await setIdentityTenant(CARLOS, IDP[CARLOS]);
+  });
+  afterAll(async () => {
+    await setIdentityTenant(MARIA, null);
+    await setIdentityTenant(CARLOS, null);
+  });
+
+  it('the same email signs up with two nutritionists as two separate accounts', async () => {
+    const email = `misma-${Date.now()}@test.mx`;
+    const inMaria = await signup(`idp-maria-${Date.now()}`, IDP[MARIA], 'maria-nutrition-ios', { email });
+    const inCarlos = await signup(`idp-carlos-${Date.now()}`, IDP[CARLOS], 'carlos-nutrition-ios', { email, inviteCode: await carlosInvite() });
+    expect(inMaria.statusCode).toBe(201);
+    expect(inCarlos.statusCode).toBe(201);
+    expect(inMaria.json().tenantId).toBe(MARIA);
+    expect(inCarlos.json().tenantId).toBe(CARLOS);
+    expect(inMaria.json().userId).not.toBe(inCarlos.json().userId);
+  });
+
+  it('a login from one practice’s identity tenant cannot register in another practice’s app', async () => {
+    const res = await signup(`idp-cross-${Date.now()}`, IDP[MARIA], 'carlos-nutrition-ios', { email: `cross-${Date.now()}@test.mx`, inviteCode: await carlosInvite() });
+    expect(res.json().error.code).toBe('TENANT_MISMATCH');
+    const noTenant = await signup(`idp-none-${Date.now()}`, undefined, 'maria-nutrition-ios', { email: `none-${Date.now()}@test.mx` });
+    expect(noTenant.json().error.code).toBe('TENANT_MISMATCH');
+  });
+
+  it('a token from another identity tenant is rejected, even for a known uid', async () => {
+    const sub = `idp-known-${Date.now()}`;
+    expect((await signup(sub, IDP[MARIA], 'maria-nutrition-ios', { email: `known-${Date.now()}@test.mx` })).statusCode).toBe(201);
+    const me = async (identityTenantId: string | undefined) =>
+      app.inject({
+        url: '/api/v1/patients/me',
+        headers: { authorization: `Bearer ${await c.devVerifier!.issue(sub, undefined, identityTenantId)}`, 'x-app-key': 'maria-nutrition-ios' },
+      });
+    expect((await me(IDP[MARIA])).statusCode).toBe(200);
+    expect((await me(IDP[CARLOS])).json().error.code).toBe('TENANT_MISMATCH');
+    expect((await me(undefined)).json().error.code).toBe('TENANT_MISMATCH');
+  });
+
+  it('nutritionists sign in at the project level, never inside an identity tenant', async () => {
+    const res = await app.inject({
+      url: '/api/v1/patients',
+      headers: { authorization: `Bearer ${await c.devVerifier!.issue('dev|nutritionist|maria-nutrition', undefined, IDP[MARIA])}` },
+    });
+    expect(res.json().error.code).toBe('TENANT_MISMATCH');
+  });
+});

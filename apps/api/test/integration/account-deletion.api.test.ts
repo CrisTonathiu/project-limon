@@ -2,6 +2,7 @@
  * A patient deletes their own account (DELETE /patients/me) through the HTTP layer (real DB, dev auth).
  * Requires: docker compose up -d && pnpm db:migrate && pnpm db:seed
  */
+import type { IdentityAdmin } from '@limon/auth';
 import { loadServerEnv } from '@limon/config';
 import { withTenant } from '@limon/database';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -95,7 +96,7 @@ describe('account deletion', () => {
     expect(patient).toMatchObject({ firstName: '', lastName: '', email: null, dateOfBirth: null });
     expect(patient.deletedAt).not.toBeNull();
     expect(user).toMatchObject({ status: 'DISABLED', email: `deleted+${user.id}@deleted.invalid` });
-    expect(user.cognitoUserId).not.toBe(sub);
+    expect(user.authUserId).not.toBe(sub);
     expect(consents).toHaveLength(3);
     expect(consents.every((consent) => consent.revokedAt !== null)).toBe(true);
     expect(audit?.metadata).toEqual({});
@@ -125,5 +126,67 @@ describe('account deletion', () => {
   it('nutritionists have no "me" patient to delete', async () => {
     const nutritionist = { authorization: `Bearer ${await c.devVerifier!.issue('dev|nutritionist|maria-nutrition')}` };
     expect((await app.inject({ method: 'DELETE', url: '/api/v1/patients/me', headers: nutritionist })).statusCode).toBe(403);
+  });
+});
+
+describe('account deletion with Identity Platform', () => {
+  // A fake IdentityAdmin, and Maria's tenant given an identity tenant for the duration.
+  const IDP = 'test-idp-maria';
+  const deleted: [string, string][] = [];
+  let failNext = false;
+  const identityAdmin: IdentityAdmin = {
+    createTenant: async () => IDP,
+    deleteTenant: async () => undefined,
+    deleteUser: async (identityTenantId, uid) => {
+      if (failNext) throw new Error('Identity Platform unavailable');
+      deleted.push([identityTenantId, uid]);
+    },
+  };
+  const c2 = createContainer(env, { db: c.db, identityAdmin });
+  let app2: Awaited<ReturnType<typeof buildApp>>;
+  const setIdentityTenant = (identityTenantId: string | null) =>
+    scoped((tx) => tx.tenant.update({ where: { id: tenantId }, data: { identityTenantId } }));
+
+  async function signUp(sub: string) {
+    const headers = { authorization: `Bearer ${await c2.devVerifier!.issue(sub, undefined, IDP)}`, 'x-app-key': appKey };
+    const res = await app2.inject({
+      method: 'POST', url: '/api/v1/auth/register/patient', remoteAddress: `10.0.10.${++ip}`, headers,
+      payload: { email: `${sub}@test.mx`, firstName: 'Ana', lastName: 'Borrar', ...consent },
+    });
+    expect(res.statusCode).toBe(201);
+    return { headers, patientId: res.json().patientId as string };
+  }
+
+  beforeAll(async () => {
+    app2 = await buildApp(c2);
+    await setIdentityTenant(IDP);
+  });
+  afterAll(async () => {
+    await setIdentityTenant(null);
+    await app2.close();
+  });
+
+  it('deletes the login in its identity tenant, in the same request', async () => {
+    const sub = `idp-delete-${Date.now()}`;
+    const { headers } = await signUp(sub);
+    expect((await app2.inject({ method: 'DELETE', url: '/api/v1/patients/me', headers })).statusCode).toBe(204);
+    expect(deleted).toContainEqual([IDP, sub]);
+  });
+
+  it('erases nothing when the login cannot be deleted, so the patient can retry', async () => {
+    const sub = `idp-delete-fail-${Date.now()}`;
+    const { headers, patientId } = await signUp(sub);
+    failNext = true;
+    try {
+      expect((await app2.inject({ method: 'DELETE', url: '/api/v1/patients/me', headers })).statusCode).toBe(500);
+    } finally {
+      failNext = false;
+    }
+    const patient = await scoped((tx) => tx.patient.findUniqueOrThrow({ where: { id: patientId } }));
+    expect(patient.deletedAt).toBeNull();
+    expect((await app2.inject({ url: '/api/v1/patients/me', headers })).statusCode).toBe(200);
+
+    expect((await app2.inject({ method: 'DELETE', url: '/api/v1/patients/me', headers })).statusCode).toBe(204);
+    expect(deleted).toContainEqual([IDP, sub]);
   });
 });

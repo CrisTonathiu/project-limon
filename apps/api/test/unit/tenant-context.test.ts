@@ -13,11 +13,11 @@ function deps(
   return {
     hasActiveEntitlement: async () => entitled,
     resolveIdentity: async () =>
-      identity && { userId: 'u1', tenantId: A, role: 'NUTRITIONIST', userStatus: 'ACTIVE', tenantStatus: 'ACTIVE', email: 'x@y.z', ...identity },
+      identity && { userId: 'u1', tenantId: A, role: 'NUTRITIONIST', userStatus: 'ACTIVE', tenantStatus: 'ACTIVE', email: 'x@y.z', identityTenantId: null, ...identity },
     resolveTenantApp: async (k) => (apps[k] ? ({ tenantStatus: 'ACTIVE', appStatus: 'PUBLISHED', ...apps[k] } as ResolvedTenantApp) : null),
   };
 }
-const principal = { subject: 'sub', email: null, clientId: null };
+const principal = { subject: 'sub', email: null, emailVerified: true, identityTenantId: null as string | null };
 const base = { principal, requestId: 'req-1', appKey: undefined as string | undefined };
 
 describe('resolveTenantContext', () => {
@@ -33,6 +33,27 @@ describe('resolveTenantContext', () => {
   it('rejects a patient using ANOTHER tenant’s app (Maria patient in Carlos app)', async () => {
     const d = deps({ role: 'PATIENT' }, { 'carlos-ios': { tenantId: B } });
     await expect(resolveTenantContext(d, { ...base, appKey: 'carlos-ios', permission: 'self:patient:read' })).rejects.toMatchObject({ code: 'TENANT_MISMATCH' });
+  });
+
+  it('rejects a login whose email is not verified yet', async () => {
+    await expect(
+      resolveTenantContext(deps({}), { ...base, principal: { ...principal, emailVerified: false }, permission: 'tenant:read' }),
+    ).rejects.toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+  });
+
+  it('rejects a patient token from another practice’s identity tenant', async () => {
+    const d = deps({ role: 'PATIENT', identityTenantId: 'carlos-x1' }, { 'carlos-ios': { tenantId: A } });
+    const input = { ...base, appKey: 'carlos-ios', permission: 'self:patient:read' as const };
+    await expect(resolveTenantContext(d, { ...input, principal: { ...principal, identityTenantId: 'maria-y2' } })).rejects.toMatchObject({ code: 'TENANT_MISMATCH' });
+    await expect(resolveTenantContext(d, { ...input, principal: { ...principal, identityTenantId: null } })).rejects.toMatchObject({ code: 'TENANT_MISMATCH' });
+    await expect(resolveTenantContext(d, { ...input, principal: { ...principal, identityTenantId: 'carlos-x1' } })).resolves.toBeTruthy();
+  });
+
+  it('rejects a nutritionist token issued inside an identity tenant (patient logins only)', async () => {
+    const d = deps({ identityTenantId: 'carlos-x1' });
+    await expect(
+      resolveTenantContext(d, { ...base, principal: { ...principal, identityTenantId: 'carlos-x1' }, permission: 'patients:read' }),
+    ).rejects.toMatchObject({ code: 'TENANT_MISMATCH' });
   });
 
   it('requires patients to present an app key', async () => {

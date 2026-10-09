@@ -15,12 +15,10 @@ const ServerEnvSchema = z
     API_PORT: z.coerce.number().int().default(4000),
     CORS_ORIGINS: z.string().default('http://localhost:3000'),
     DATABASE_URL: z.string().url(),
-    AUTH_PROVIDER: z.enum(['cognito', 'dev']).default('dev'),
+    AUTH_PROVIDER: z.enum(['identity-platform', 'dev']).default('dev'),
     DEV_AUTH_SECRET: z.string().optional(),
-    COGNITO_REGION: z.string().optional(),
-    COGNITO_USER_POOL_ID: z.string().optional(),
-    COGNITO_NUTRITIONIST_CLIENT_ID: z.string().optional(),
-    COGNITO_PATIENT_CLIENT_ID: z.string().optional(),
+    /** The GCP project: Identity Platform tokens must be issued for it. */
+    GCP_PROJECT_ID: optional,
     AWS_REGION: z.string().default('us-east-1'),
     S3_TENANT_BUCKET: z.string().default('limon-dev-tenant-assets'),
     SQS_JOBS_QUEUE_URL: z.string().optional(),
@@ -43,8 +41,8 @@ const ServerEnvSchema = z
     if (Boolean(env.FATSECRET_CLIENT_ID) !== Boolean(env.FATSECRET_CLIENT_SECRET)) {
       ctx.addIssue({ code: 'custom', path: ['FATSECRET_CLIENT_ID'], message: 'set both FATSECRET_CLIENT_ID and FATSECRET_CLIENT_SECRET, or neither' });
     }
-    if (env.AUTH_PROVIDER === 'cognito' && !env.COGNITO_USER_POOL_ID) {
-      ctx.addIssue({ code: 'custom', path: ['COGNITO_USER_POOL_ID'], message: 'required for cognito auth' });
+    if (env.AUTH_PROVIDER === 'identity-platform' && !env.GCP_PROJECT_ID) {
+      ctx.addIssue({ code: 'custom', path: ['GCP_PROJECT_ID'], message: 'required for identity-platform auth' });
     }
   });
 

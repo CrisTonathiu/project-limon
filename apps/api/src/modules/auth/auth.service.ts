@@ -13,28 +13,39 @@ import { authRepository } from './auth.repository.js';
 export function createAuthService(c: Container) {
   return {
     /**
-     * Nutritionist signup. Precondition: the user already has a verified Cognito identity.
-     * Creates Tenant + Branding + User + Nutritionist + TenantApps atomically — a
-     * nutritionist can never exist without a tenant — and gives the tenant its own copy
-     * of the default recipe library in the same transaction.
+     * Nutritionist signup. Precondition: the user already has a project-level login (not
+     * inside any identity tenant). Creates Tenant + Branding + User + Nutritionist + TenantApps
+     * atomically — a nutritionist can never exist without a tenant — and gives the tenant its
+     * own copy of the default recipe library in the same transaction.
+     *
+     * The practice's Identity Platform tenant (where its patients' logins live, ADR-006) is
+     * created first, since it can't join the transaction; it's removed again if the
+     * transaction fails, so a failed sign-up leaves nothing behind.
      */
     async registerNutritionist(principal: VerifiedPrincipal, input: RegisterNutritionistInput, requestId: string): Promise<RegisterNutritionistResponse> {
       if (await resolveIdentity(c.db, principal.subject)) throw Errors.conflict('This account is already registered.');
       if (principal.email && principal.email.toLowerCase() !== input.email.toLowerCase()) throw Errors.forbidden();
+      if (principal.identityTenantId !== null) throw Errors.tenantMismatch();
 
       const tenantId = randomUUID();
       const placement = await c.registry.getPlacement(tenantId);
-      return withTenant(c.db, placement, async (tx) => {
-        const r = await authRepository.createTenantGraph(tx, {
-          ...input, email: input.email.toLowerCase(), tenantId, cognitoUserId: principal.subject,
+      const identityTenantId = c.identityAdmin ? await c.identityAdmin.createTenant(input.slug) : null;
+      try {
+        return await withTenant(c.db, placement, async (tx) => {
+          const r = await authRepository.createTenantGraph(tx, {
+            ...input, email: input.email.toLowerCase(), tenantId, authUserId: principal.subject, identityTenantId,
+          });
+          const ctx = { tenantId, userId: r.user.id, requestId };
+          await writeAudit(tx, ctx, { action: 'TenantCreated', resourceType: 'Tenant', resourceId: tenantId });
+          await writeAudit(tx, ctx, { action: 'NutritionistRegistered', resourceType: 'Nutritionist', resourceId: r.nutritionist.id });
+          const recipesCopied = await copyDefaultRecipes(tx, tenantId);
+          await writeAudit(tx, ctx, { action: 'DefaultRecipesCopied', resourceType: 'Tenant', resourceId: tenantId, metadata: { recipesCopied } });
+          return { userId: r.user.id, tenantId, nutritionistId: r.nutritionist.id, tenantAppIds: r.apps.map((a) => a.id) };
         });
-        const ctx = { tenantId, userId: r.user.id, requestId };
-        await writeAudit(tx, ctx, { action: 'TenantCreated', resourceType: 'Tenant', resourceId: tenantId });
-        await writeAudit(tx, ctx, { action: 'NutritionistRegistered', resourceType: 'Nutritionist', resourceId: r.nutritionist.id });
-        const recipesCopied = await copyDefaultRecipes(tx, tenantId);
-        await writeAudit(tx, ctx, { action: 'DefaultRecipesCopied', resourceType: 'Tenant', resourceId: tenantId, metadata: { recipesCopied } });
-        return { userId: r.user.id, tenantId, nutritionistId: r.nutritionist.id, tenantAppIds: r.apps.map((a) => a.id) };
-      });
+      } catch (err) {
+        if (identityTenantId) await c.identityAdmin!.deleteTenant(identityTenantId).catch(() => undefined);
+        throw err;
+      }
     },
 
     /**
@@ -59,6 +70,9 @@ export function createAuthService(c: Container) {
       // Only a live practice accepts new patients (a CANCELING/SUSPENDED tenant must not take payments).
       if (app.tenantStatus !== 'ACTIVE' && app.tenantStatus !== 'TRIAL') throw Errors.tenantSuspended();
       if (app.inviteOnly && !input.inviteCode) throw Errors.inviteCodeInvalid();
+      // The login must live in this practice's identity tenant: a login made in another
+      // nutritionist's app can't register here, even with the same email (ADR-006).
+      if (principal.identityTenantId !== app.identityTenantId) throw Errors.tenantMismatch();
       if (await resolveIdentity(c.db, principal.subject)) throw Errors.conflict('This account is already registered.');
       if (principal.email && principal.email.toLowerCase() !== input.email.toLowerCase()) throw Errors.forbidden();
 
@@ -73,7 +87,7 @@ export function createAuthService(c: Container) {
         const account = await authRepository.createPatientAccount(tx, {
           tenantId,
           invitedPatientId,
-          cognitoUserId: principal.subject,
+          authUserId: principal.subject,
           email: input.email.toLowerCase(),
           firstName: input.firstName,
           lastName: input.lastName,

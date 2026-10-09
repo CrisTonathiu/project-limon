@@ -15,6 +15,7 @@ export class AppError extends Error {
 export const Errors = {
   unauthenticated: () => new AppError('UNAUTHENTICATED', 401, 'Authentication required.'),
   forbidden: () => new AppError('FORBIDDEN', 403, 'You do not have permission to perform this action.'),
+  emailNotVerified: () => new AppError('EMAIL_NOT_VERIFIED', 403, 'Verify your email before continuing.'),
   notFound: (what = 'Resource') => new AppError('NOT_FOUND', 404, `${what} not found.`),
   validation: (msg: string) => new AppError('VALIDATION_ERROR', 400, msg),
   conflict: (msg: string) => new AppError('CONFLICT', 409, msg),

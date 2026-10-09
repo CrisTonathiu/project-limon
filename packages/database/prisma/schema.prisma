@@ -259,6 +259,9 @@ model Tenant {
   // Data placement (tenant registry). Only SHARED/MAIN is implemented.
   databaseMode       DatabaseMode               @default(SHARED) @map("database_mode")
   databaseIdentifier String                     @default("MAIN") @map("database_identifier")
+  /// Identity Platform tenant holding this practice's patient logins (ADR-006). Null until
+  /// provisioned, and always null with dev auth.
+  identityTenantId   String?                    @unique @map("identity_tenant_id")
   /// Platform-provisioned mailbox on the platform domain (e.g. maria@apps.<domain>).
   /// Used to enrol and operate this tenant's Apple/Google developer accounts (ADR-009).
   operationsEmail    String?                    @unique @map("operations_email")
@@ -430,11 +433,11 @@ model TenantLifecycleEvent {
 
 // ── Identity ─────────────────────────────────────────────────────────────────
 
-/// Application user. Cognito proves identity; this row decides tenant + role.
+/// Application user. Identity Platform proves identity; this row decides tenant + role.
 /// PLATFORM_ADMIN users have tenant_id = NULL.
 model User {
   id            String     @id @default(uuid()) @db.Uuid
-  cognitoUserId String     @unique @map("cognito_user_id") // Cognito `sub`
+  authUserId    String     @unique @map("auth_user_id") // Identity Platform uid (token `sub`)
   tenantId      String?    @map("tenant_id") @db.Uuid
   email         String
   role          UserRole

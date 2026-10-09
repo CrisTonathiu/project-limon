@@ -170,10 +170,19 @@ export const patientsRepository = {
     });
   },
 
+  /** The user's login: its uid and the identity tenant it lives in (null with dev auth). */
+  findLogin: async (tx: TenantTx, tenantId: string, userId: string) => {
+    const user = await tx.user.findUniqueOrThrow({
+      where: { tenantId_id: { tenantId, id: userId } },
+      select: { authUserId: true, tenant: { select: { identityTenantId: true } } },
+    });
+    return { authUserId: user.authUserId, identityTenantId: user.tenant?.identityTenantId ?? null };
+  },
+
   /**
    * Account deletion: erases the health data and anonymizes what has to stay. The patient
    * row itself is kept because consents and subscriptions reference it (legal and financial
-   * records). The user's email and Cognito id are replaced, so the same email can sign up again.
+   * records). The user's email and login uid are replaced, so the same email can sign up again.
    */
   deleteAccount: async (tx: TenantTx, tenantId: string, patientId: string, userId: string) => {
     const now = new Date();
@@ -202,7 +211,7 @@ export const patientsRepository = {
       where: { tenantId_id: { tenantId, id: userId } },
       data: {
         email: `deleted+${userId}@deleted.invalid`,
-        cognitoUserId: `deleted:${userId}`,
+        authUserId: `deleted:${userId}`,
         status: 'DISABLED',
         deletedAt: now,
       },
