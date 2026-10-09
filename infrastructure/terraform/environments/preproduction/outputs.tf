@@ -8,6 +8,13 @@ output "artifact_registry" {
   value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.limon.repository_id}"
 }
 
+output "database" {
+  value = {
+    instance   = module.database.instance_name
+    private_ip = module.database.private_ip
+  }
+}
+
 output "service_accounts" {
   value = {
     api         = google_service_account.api.email

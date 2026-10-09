@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1100" viewBox="0 0 1800 1100">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+<path d="M0 0 L10 5 L0 10 z" fill="#455A64"/></marker>
+<style>
+text { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; fill: #1F2933; }
+.t { font-size: 15px; font-weight: 700; }
+.d { font-size: 12.5px; fill: #3E4C59; }
+.b { font-size: 11.5px; font-weight: 700; }
+.l { font-size: 11.5px; fill: #37474F; font-style: italic; paint-order: stroke; stroke: #FFFFFF; stroke-width: 4px; stroke-linejoin: round; }
+</style></defs>
+<rect width="1800" height="1100" fill="#FFFFFF"/>
+<text x="40" y="50" font-size="26" font-weight="800">Limón · GCP infrastructure (preproduction)</text>
+<text x="40" y="78" font-size="14" fill="#52606D">Target architecture from docs/roadmap/gcp-migration.md · status as of Oct 8, 2026</text>
+<rect x="340" y="120" width="1100" height="960" rx="14" fill="#F8FBFF" stroke="#1A73E8" stroke-width="2"/>
+<text x="356" y="144" font-size="15" font-weight="700" fill="#1A73E8">GCP project limon-preproduction · us-east1</text>
+<rect x="660" y="170" width="260" height="465" rx="14" fill="none" stroke="#78909C" stroke-width="2"/>
+<text x="676" y="194" font-size="14" font-weight="700" fill="#78909C">Cloud Run</text>
+<rect x="660" y="660" width="760" height="240" rx="14" fill="none" stroke="#78909C" stroke-width="2"/>
+<text x="676" y="684" font-size="14" font-weight="700" fill="#78909C">VPC limon</text>
+<rect x="40" y="200" width="260" height="130" rx="10" fill="#FFFFFF" stroke="#37474F" stroke-width="1.8"/>
+<text x="54" y="226" class="t">Patient apps</text>
+<text x="54" y="248" class="d">iOS · Android, one app per</text>
+<text x="54" y="266" class="d">nutritionist (white-label)</text>
+<text x="54" y="284" class="d">files via signed URLs</text>
+<rect x="40" y="370" width="260" height="110" rx="10" fill="#FFFFFF" stroke="#37474F" stroke-width="1.8"/>
+<text x="54" y="396" class="t">Hostinger DNS</text>
+<text x="288" y="394" class="b" fill="#37474F" text-anchor="end">P7</text>
+<text x="54" y="418" class="d">api  CNAME →</text>
+<text x="54" y="436" class="d">ghs.googlehosted.com</text>
+<rect x="40" y="925" width="260" height="125" rx="10" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="54" y="951" class="t">GitHub Actions</text>
+<text x="288" y="949" class="b" fill="#5F6B7A" text-anchor="end">P8</text>
+<text x="54" y="973" class="d">build · push · migrate · deploy</text>
+<text x="54" y="991" class="d">Workload Identity Federation</text>
+<text x="54" y="1009" class="d">→ limon-deployer (no keys)</text>
+<rect x="380" y="200" width="240" height="105" rx="10" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="394" y="226" class="t">Domain mapping</text>
+<text x="608" y="224" class="b" fill="#5F6B7A" text-anchor="end">P7</text>
+<text x="394" y="248" class="d">api.projectlimon.com</text>
+<text x="394" y="266" class="d">Google-managed certificate</text>
+<rect x="380" y="355" width="240" height="105" rx="10" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="394" y="381" class="t">Pub/Sub</text>
+<text x="608" y="379" class="b" fill="#5F6B7A" text-anchor="end">P5</text>
+<text x="394" y="403" class="d">topic jobs → push (OIDC)</text>
+<text x="394" y="421" class="d">dead-letter jobs-dlq (5 tries)</text>
+<rect x="380" y="510" width="240" height="105" rx="10" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="394" y="536" class="t">Cloud Scheduler</text>
+<text x="608" y="534" class="b" fill="#5F6B7A" text-anchor="end">P5</text>
+<text x="394" y="558" class="d">food-cache · every 15 min</text>
+<text x="394" y="576" class="d">weekly-plans · Sundays</text>
+<text x="394" y="594" class="d">calls worker (OIDC)</text>
+<rect x="380" y="700" width="240" height="110" rx="10" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="394" y="726" class="t">Terraform state</text>
+<text x="608" y="724" class="b" fill="#2E7D32" text-anchor="end">P0 ✓</text>
+<text x="394" y="748" class="d">gs://limon-tfstate-a175b1</text>
+<text x="394" y="766" class="d">versioned · private</text>
+<rect x="680" y="200" width="220" height="105" rx="10" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="694" y="226" class="t">api · service</text>
+<text x="888" y="224" class="b" fill="#5F6B7A" text-anchor="end">P7</text>
+<text x="694" y="248" class="d">public · min 1 / max 3</text>
+<text x="694" y="266" class="d">1 vCPU · 512 MiB</text>
+<text x="694" y="284" class="d">SA limon-api</text>
+<rect x="680" y="355" width="220" height="105" rx="10" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="694" y="381" class="t">worker · service</text>
+<text x="888" y="379" class="b" fill="#5F6B7A" text-anchor="end">P5</text>
+<text x="694" y="403" class="d">private, IAM-only · min 0</text>
+<text x="694" y="421" class="d">POST /jobs · /maintenance/*</text>
+<text x="694" y="439" class="d">SA limon-worker</text>
+<rect x="680" y="510" width="220" height="105" rx="10" fill="#FFF8E1" stroke="#E09B00" stroke-width="1.8" stroke-dasharray="7 4"/>
+<text x="694" y="536" class="t">migrate · job</text>
+<text x="888" y="534" class="b" fill="#B26A00" text-anchor="end">P3</text>
+<text x="694" y="558" class="d">bootstrap → migrate → seed</text>
+<text x="694" y="576" class="d">RLS tests via --args</text>
+<text x="694" y="594" class="d">SA limon-worker</text>
+<rect x="950" y="465" width="215" height="135" rx="10" fill="#FFF8E1" stroke="#E09B00" stroke-width="1.8" stroke-dasharray="7 4"/>
+<text x="964" y="491" class="t">Cloud SQL · limon-pre</text>
+<text x="1153" y="489" class="b" fill="#B26A00" text-anchor="end">P3</text>
+<text x="964" y="513" class="d">PostgreSQL 16 · db-f1-micro</text>
+<text x="964" y="531" class="d">10 GB SSD, auto-grow</text>
+<text x="964" y="549" class="d">private IP · PITR 7 days</text>
+<text x="964" y="567" class="d">db limon · user limon_owner</text>
+<rect x="1190" y="200" width="230" height="105" rx="10" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="1204" y="226" class="t">Identity Platform</text>
+<text x="1408" y="224" class="b" fill="#5F6B7A" text-anchor="end">P4</text>
+<text x="1204" y="248" class="d">one tenant per nutritionist</text>
+<text x="1204" y="266" class="d">email + password</text>
+<rect x="1190" y="340" width="230" height="115" rx="10" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="1204" y="366" class="t">Cloud Storage</text>
+<text x="1408" y="364" class="b" fill="#5F6B7A" text-anchor="end">P6</text>
+<text x="1204" y="388" class="d">limon-pre-tenant-assets</text>
+<text x="1204" y="406" class="d">V4 signed URLs</text>
+<text x="1204" y="424" class="d">tmp/ expires after 1 day</text>
+<rect x="680" y="700" width="220" height="110" rx="10" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="694" y="726" class="t">Subnet limon-run</text>
+<text x="888" y="724" class="b" fill="#2E7D32" text-anchor="end">P2 ✓</text>
+<text x="694" y="748" class="d">10.10.0.0/24</text>
+<text x="694" y="766" class="d">Direct VPC egress</text>
+<rect x="950" y="700" width="215" height="110" rx="10" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="964" y="726" class="t">Private access (PSA)</text>
+<text x="1153" y="724" class="b" fill="#2E7D32" text-anchor="end">P2 ✓</text>
+<text x="964" y="748" class="d">/20 peering range</text>
+<text x="964" y="766" class="d">→ Cloud SQL private IP</text>
+<rect x="1190" y="700" width="210" height="110" rx="10" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="1204" y="726" class="t">Cloud Router + NAT</text>
+<text x="1388" y="724" class="b" fill="#2E7D32" text-anchor="end">P2 ✓</text>
+<text x="1204" y="748" class="d">static IP limon-nat-ip</text>
+<text x="1204" y="766" class="d">the only egress IP</text>
+<rect x="380" y="925" width="245" height="125" rx="10" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="394" y="951" class="t">Artifact Registry</text>
+<text x="613" y="949" class="b" fill="#2E7D32" text-anchor="end">P2 ✓</text>
+<text x="394" y="973" class="d">Docker repo limon</text>
+<text x="394" y="991" class="d">api · worker · migrate images</text>
+<text x="394" y="1009" class="d">keeps 10 most recent</text>
+<rect x="645" y="925" width="245" height="125" rx="10" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="659" y="951" class="t">Secret Manager</text>
+<text x="878" y="949" class="b" fill="#2E7D32" text-anchor="end">P2 ✓</text>
+<text x="659" y="973" class="d">db-owner / db-app password</text>
+<text x="659" y="991" class="d">fatsecret-client-id / -secret</text>
+<text x="659" y="1009" class="d">→ env vars on Cloud Run</text>
+<rect x="910" y="925" width="245" height="125" rx="10" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="924" y="951" class="t">Service accounts</text>
+<text x="1143" y="949" class="b" fill="#2E7D32" text-anchor="end">P2 ✓</text>
+<text x="924" y="973" class="d">limon-api · limon-worker</text>
+<text x="924" y="991" class="d">limon-scheduler</text>
+<text x="924" y="1009" class="d">limon-pubsub-push</text>
+<text x="924" y="1027" class="d">limon-deployer</text>
+<rect x="1175" y="925" width="245" height="125" rx="10" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="1189" y="951" class="t">Logging &amp; Monitoring</text>
+<text x="1408" y="949" class="b" fill="#5F6B7A" text-anchor="end">P8</text>
+<text x="1189" y="973" class="d">uptime check on /health</text>
+<text x="1189" y="991" class="d">alerts: 5xx · DLQ ·</text>
+<text x="1189" y="1009" class="d">Cloud SQL CPU and disk</text>
+<rect x="1480" y="690" width="280" height="72" rx="10" fill="#FFFFFF" stroke="#37474F" stroke-width="1.8"/>
+<text x="1494" y="716" class="t">FatSecret API</text>
+<text x="1494" y="738" class="d">whitelists only limon-nat-ip</text>
+<rect x="1480" y="785" width="280" height="72" rx="10" fill="#FFFFFF" stroke="#37474F" stroke-width="1.8"/>
+<text x="1494" y="811" class="t">Stripe</text>
+<text x="1494" y="833" class="d">billing (after the pilot starts)</text>
+<text x="1480" y="200" font-size="15" font-weight="700">Legend</text>
+<rect x="1480" y="220" width="34" height="22" rx="5" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8"/>
+<text x="1526" y="236" font-size="13">Created (phases 0–2)</text>
+<rect x="1480" y="256" width="34" height="22" rx="5" fill="#FFF8E1" stroke="#E09B00" stroke-width="1.8" stroke-dasharray="7 4"/>
+<text x="1526" y="272" font-size="13">Coded, not applied (phase 3)</text>
+<rect x="1480" y="292" width="34" height="22" rx="5" fill="#F4F5F7" stroke="#8A94A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+<text x="1526" y="308" font-size="13">Planned (phases 4–8)</text>
+<rect x="1480" y="328" width="34" height="22" rx="5" fill="#FFFFFF" stroke="#37474F" stroke-width="1.8"/>
+<text x="1526" y="344" font-size="13">Outside GCP</text>
+<text x="1480" y="385" font-size="13" fill="#52606D">P# = migration phase that builds it</text>
+<text x="1480" y="430" font-size="15" font-weight="700">Estimated cost</text>
+<text x="1480" y="452" font-size="13" fill="#52606D">≈ US$27–35 / month</text>
+<text x="1480" y="472" font-size="13" fill="#52606D">budget alert at MXN 1,000 (≈ US$50)</text>
+<path d="M 300 262 L 378 252" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="339" y="248" class="l" text-anchor="middle">HTTPS</text>
+<path d="M 300 425 L 378 290" fill="none" stroke="#455A64" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#a)"/>
+<text x="322" y="372" class="l" text-anchor="middle">resolves</text>
+<path d="M 170 200 L 170 104 L 1305 104 L 1305 198" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="900" y="98" class="l" text-anchor="middle">sign-in · email verification (Firebase Auth SDK)</text>
+<path d="M 620 252 L 678 252" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M 900 232 L 1188 232" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="1045" y="225" class="l" text-anchor="middle">verify tokens · admin</text>
+<path d="M 900 270 L 1188 385" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="1080" y="330" class="l" text-anchor="middle">sign URLs</text>
+<path d="M 890 305 L 990 463" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="968" y="400" class="l" text-anchor="start">private IP</text>
+<path d="M 700 305 L 606 355" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="650" y="324" class="l" text-anchor="end">publish</text>
+<path d="M 620 407 L 678 407" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="649" y="400" class="l" text-anchor="middle">push</text>
+<path d="M 620 562 L 688 462" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M 900 430 L 948 495" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M 900 560 L 948 560" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M 790 635 L 790 698" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="800" y="672" class="l" text-anchor="start">egress</text>
+<path d="M 1057 600 L 1057 700" fill="none" stroke="#455A64" stroke-width="1.6" stroke-dasharray="5 4"/>
+<path d="M 790 810 L 790 865 L 1295 865 L 1295 812" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="1040" y="858" class="l" text-anchor="middle">internet-bound traffic</text>
+<path d="M 1400 735 L 1478 726" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M 1400 775 L 1478 818" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M 300 987 L 378 987" fill="none" stroke="#455A64" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="339" y="980" class="l" text-anchor="middle">push</text>
+</svg>

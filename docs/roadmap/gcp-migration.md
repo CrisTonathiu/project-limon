@@ -120,6 +120,24 @@ New folder `infrastructure/terraform/`, replacing the CDK app (`infrastructure/*
 - [ ] **Migration job:** a **Cloud Run Job** from the existing `packages/database/Dockerfile` that creates the `limon_app` role, runs `prisma migrate deploy` and seeds. Same steps as the ECS migrate task, now `gcloud run jobs execute migrate`.
 - [ ] Connection: the services use the private IP over Direct VPC egress. `DATABASE_URL` is assembled from secrets at start, as today (`apps/api/src/lib/bootstrap-database-url.ts`).
 
+The image's entrypoint exports `DATABASE_URL` and `DATABASE_MIGRATION_URL`, then runs the command, so the same job runs the RLS tests with `--args`. The `limon_owner` password goes to Cloud SQL write-only (never in the Terraform state); after adding a new version of `db-owner-password`, bump `owner_password_version` in `database.tf`.
+
+```bash
+# 1. Create Cloud SQL and the job (the job starts on a placeholder image)
+cd infrastructure/terraform/environments/preproduction && terraform apply
+
+# 2. Build and push the image (from the repo root; Cloud Run runs amd64)
+gcloud auth configure-docker us-east1-docker.pkg.dev
+IMAGE=us-east1-docker.pkg.dev/limon-preproduction/limon/migrate:$(git rev-parse --short HEAD)
+docker build --platform linux/amd64 -f packages/database/Dockerfile -t $IMAGE . && docker push $IMAGE
+gcloud run jobs update migrate --region us-east1 --image $IMAGE
+
+# 3. Migrate + seed, then the RLS tests against the same database
+gcloud run jobs execute migrate --region us-east1 --wait
+gcloud run jobs execute migrate --region us-east1 --wait \
+  --args=npx,vitest,run,test/integration/tenant-isolation.test.ts
+```
+
 **Done when:** the migrate job runs every migration on an empty database, and the RLS isolation tests pass against it from a one-off job.
 
 ### Phase 4 · Authentication: Cognito → Identity Platform (Oct 13–14, the largest piece)
