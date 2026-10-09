@@ -32,7 +32,7 @@ let payload: typeof answers & { dislikedFoodIds: string[] };
 /** Back to the seeded state: no profile, no birth date. */
 async function resetProfile() {
   await withTenant(c.db, await c.registry.getPlacement(tenantId), async (tx) => {
-    const patient = await tx.patient.findFirstOrThrow({ where: { tenantId, user: { cognitoUserId: 'dev|patient|maria-nutrition' } } });
+    const patient = await tx.patient.findFirstOrThrow({ where: { tenantId, user: { authUserId: 'dev|patient|maria-nutrition' } } });
     await tx.patientProfile.deleteMany({ where: { tenantId, patientId: patient.id } });
     await tx.patient.update({ where: { id: patient.id }, data: { dateOfBirth: null } });
   });

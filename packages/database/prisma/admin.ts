@@ -13,10 +13,12 @@
  *   pnpm --filter @limon/database admin default-recipes [dir]   (load the default recipe library from recipes.csv and recipe-ingredients.csv, default ../../private)
  *   pnpm --filter @limon/database admin goal-rules <tenant-slug>   (show the clinic's goal rules)
  *   pnpm --filter @limon/database admin goal-rules <tenant-slug> --file rules.json   (store the nutritionist's rules as the next version)
+ *   GCP_PROJECT_ID=<project> pnpm --filter @limon/database admin identity-tenant <tenant-slug>   (create the practice's Identity Platform tenant, if it has none)
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { FirebaseIdentityAdmin } from '@limon/auth';
 import { effectiveFeatures, generateInviteCode } from '@limon/tenant';
 import { FEATURE_DEPENDENCIES, FeatureKey } from '@limon/types';
 import { GoalRulesSchema, PLATFORM_GUARDRAILS } from '@limon/validation';
@@ -262,9 +264,38 @@ async function goalRules(args: string[]) {
   console.log(JSON.stringify(parsed.data, null, 2));
 }
 
+/**
+ * Practices registered before Identity Platform (or seeded) have no identity tenant, so their
+ * patients can't sign in yet. New sign-ups get one at registration (auth.service.ts).
+ * Needs Identity Platform admin rights: locally your gcloud application-default login.
+ */
+async function identityTenant(args: string[]) {
+  const projectId = process.env.GCP_PROJECT_ID;
+  if (!projectId) fail('Set GCP_PROJECT_ID (e.g. limon-preproduction).');
+  const slug = args[0];
+  const tenant = await tenantBySlug(slug);
+  const { identityTenantId } = await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id }, select: { identityTenantId: true } });
+  if (identityTenantId) {
+    console.log(`${tenant.name} already has identity tenant ${identityTenantId}`);
+    return;
+  }
+  const admin = new FirebaseIdentityAdmin(projectId);
+  const created = await admin.createTenant(slug!);
+  try {
+    await prisma.$transaction([
+      prisma.tenant.update({ where: { id: tenant.id }, data: { identityTenantId: created } }),
+      audit(tenant.id, 'IdentityTenantCreated', 'Tenant', tenant.id, { identityTenantId: created }),
+    ]);
+  } catch (err) {
+    await admin.deleteTenant(created).catch(() => undefined);
+    throw err;
+  }
+  console.log(`✔ ${tenant.name}: identity tenant ${created} (put it in the app's tenant.json as identityTenantId)`);
+}
+
 const [command, ...rest] = process.argv.slice(2);
 const commands: Record<string, (args: string[]) => Promise<void>> = {
-  features, invite, recipes, foods, 'default-recipes': defaultRecipes, 'goal-rules': goalRules,
+  features, invite, recipes, foods, 'default-recipes': defaultRecipes, 'goal-rules': goalRules, 'identity-tenant': identityTenant,
 };
 const run = command ? commands[command] : undefined;
 if (!run) fail(`Usage: admin <${Object.keys(commands).join('|')}> <tenant-slug | csv> [options]`);

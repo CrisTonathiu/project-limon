@@ -5,7 +5,12 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "generate": "prisma generate",
     "build": "prisma generate && tsc -p tsconfig.json",
@@ -19,8 +24,11 @@
     "admin": "dotenv -e ../../.env -- tsx prisma/admin.ts",
     "bootstrap-role": "tsx prisma/bootstrap-role.ts"
   },
-  "prisma": { "schema": "prisma/schema.prisma" },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
   "dependencies": {
+    "@limon/auth": "workspace:*",
     "@limon/config": "workspace:*",
     "@limon/tenant": "workspace:*",
     "@limon/types": "workspace:*",

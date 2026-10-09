@@ -9,7 +9,7 @@ import type { Container } from '../../infrastructure/container.js';
  *  1. Guard: tenant.status must be DELETION_PENDING and scheduledDeletionAt <= now
  *  2. Operational data: messages, conversations, meal_plans, recipes, foods, protocols → hard delete
  *  3. Patients: anonymize or delete (patient_subscriptions are RESTRICT, so financial rows block naive deletes)
- *  4. Users: delete app rows + AdminDeleteUser in Cognito
+ *  4. Users: delete app rows + the tenant's Identity Platform tenant (c.identityAdmin.deleteTenant, which deletes its logins)
  *  5. S3: delete prefix tenants/{tenantId}/
  *  6. Financial records: retain per legal retention, strip PII
  *  7. Audit logs: retain (no patient data by design)

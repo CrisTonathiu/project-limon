@@ -104,21 +104,21 @@ Some resources are still running and some were deleted by hand, so CloudFormatio
 
 New folder `infrastructure/terraform/`, replacing the CDK app (`infrastructure/*.ts`, `cdk.json`), which is deleted in phase 9.
 
-- [ ] Layout: `modules/` (network, database, run-service, jobs, storage, secrets) and `environments/preproduction/` (`main.tf`, `variables.tf`, `backend.tf` pointing at the state bucket). `production` gets its own folder later.
-- [ ] Enable the project APIs: Cloud Run, Cloud SQL Admin, Service Networking, Compute (VPC/NAT), Pub/Sub, Cloud Scheduler, Secret Manager, Artifact Registry, Identity Toolkit (Identity Platform), IAM Credentials, Cloud Monitoring.
-- [ ] **Network:** VPC `limon` with one `us-east1` subnet for Direct VPC egress, a Cloud Router, a **reserved static IP** and **Cloud NAT** using only that IP. Output the IP (`nat_ip`).
-- [ ] **Private Service Access** (peering range) so Cloud SQL gets a private IP.
-- [ ] **Artifact Registry** Docker repo `limon` in `us-east1`.
-- [ ] **Service accounts:** `api` (Cloud SQL client, Pub/Sub publisher, Storage object admin on the tenant bucket, Secret accessor, Identity Platform admin for account deletion, token creator on itself for signed URLs), `worker` (same, plus Pub/Sub subscriber), `scheduler` and `pubsub-push` (Cloud Run invoker on `worker` only), `deployer` (for CI). *(IDs must be 6–30 characters, so they are `limon-api`, `limon-worker`, … Roles on a single resource — topic, bucket, `worker` service — are granted when that resource is created, in phases 5 and 6.)*
-- [ ] **Secret Manager** entries (values set by hand, never in Terraform): `db-app-password`, `db-owner-password`, `fatsecret-client-id`, `fatsecret-client-secret`, later `stripe-secret-key`, `stripe-webhook-secret`.
+- [x] Layout: `modules/` (network, database, run-service, jobs, storage, secrets) and `environments/preproduction/` (`main.tf`, `variables.tf`, `backend.tf` pointing at the state bucket). `production` gets its own folder later. *(network, database and secrets exist; run-service, jobs and storage come with phases 5–7.)*
+- [x] Enable the project APIs: Cloud Run, Cloud SQL Admin, Service Networking, Compute (VPC/NAT), Pub/Sub, Cloud Scheduler, Secret Manager, Artifact Registry, Identity Toolkit (Identity Platform), IAM Credentials, Cloud Monitoring.
+- [x] **Network:** VPC `limon` with one `us-east1` subnet for Direct VPC egress, a Cloud Router, a **reserved static IP** and **Cloud NAT** using only that IP. Output the IP (`nat_ip`).
+- [x] **Private Service Access** (peering range) so Cloud SQL gets a private IP.
+- [x] **Artifact Registry** Docker repo `limon` in `us-east1`.
+- [x] **Service accounts:** `api` (Cloud SQL client, Pub/Sub publisher, Storage object admin on the tenant bucket, Secret accessor, Identity Platform admin for account deletion, token creator on itself for signed URLs), `worker` (same, plus Pub/Sub subscriber), `scheduler` and `pubsub-push` (Cloud Run invoker on `worker` only), `deployer` (for CI). *(IDs must be 6–30 characters, so they are `limon-api`, `limon-worker`, … Roles on a single resource — topic, bucket, `worker` service — are granted when that resource is created, in phases 5 and 6.)*
+- [x] **Secret Manager** entries (values set by hand, never in Terraform): `db-app-password`, `db-owner-password`, `fatsecret-client-id`, `fatsecret-client-secret`, later `stripe-secret-key`, `stripe-webhook-secret`.
 
-**Done when:** `terraform plan` is clean after `apply`, and the NAT IP is known. **Whitelist that IP at FatSecret now.**
+**Done when:** `terraform plan` is clean after `apply`, and the NAT IP is known. **Whitelist that IP at FatSecret now.** *(Applied Oct 8; NAT IP **`35.243.170.34`**, whitelisted at FatSecret Oct 9; FatSecret secrets set.)*
 
 ### Phase 3 · Database (Oct 12)
 
-- [ ] **Cloud SQL** PostgreSQL 16, `db-f1-micro`, 10 GB SSD with auto-grow, private IP only, automated backups (7 days), deletion protection on (it holds pilot health data). Database `limon`, user `limon_owner`.
-- [ ] **Migration job:** a **Cloud Run Job** from the existing `packages/database/Dockerfile` that creates the `limon_app` role, runs `prisma migrate deploy` and seeds. Same steps as the ECS migrate task, now `gcloud run jobs execute migrate`.
-- [ ] Connection: the services use the private IP over Direct VPC egress. `DATABASE_URL` is assembled from secrets at start, as today (`apps/api/src/lib/bootstrap-database-url.ts`).
+- [x] **Cloud SQL** PostgreSQL 16, `db-f1-micro`, 10 GB SSD with auto-grow, private IP only, automated backups (7 days), deletion protection on (it holds pilot health data). Database `limon`, user `limon_owner`.
+- [x] **Migration job:** a **Cloud Run Job** from the existing `packages/database/Dockerfile` that creates the `limon_app` role, runs `prisma migrate deploy` and seeds. Same steps as the ECS migrate task, now `gcloud run jobs execute migrate`.
+- [x] Connection: the services use the private IP over Direct VPC egress. `DATABASE_URL` is assembled from secrets at start, as today (`apps/api/src/lib/bootstrap-database-url.ts`).
 
 The image's entrypoint exports `DATABASE_URL` and `DATABASE_MIGRATION_URL`, then runs the command, so the same job runs the RLS tests with `--args`. The `limon_owner` password goes to Cloud SQL write-only (never in the Terraform state); after adding a new version of `db-owner-password`, bump `owner_password_version` in `database.tf`.
 
@@ -138,20 +138,20 @@ gcloud run jobs execute migrate --region us-east1 --wait \
   --args=npx,vitest,run,test/integration/tenant-isolation.test.ts
 ```
 
-**Done when:** the migrate job runs every migration on an empty database, and the RLS isolation tests pass against it from a one-off job.
+**Done when:** the migrate job runs every migration on an empty database, and the RLS isolation tests pass against it from a one-off job. *(Oct 9: image `migrate:3714be4`, all 16 migrations and the seed applied, 8/8 RLS tests passed.)*
 
 ### Phase 4 · Authentication: Cognito → Identity Platform (Oct 13–14, the largest piece)
 
-Identity Platform with **multi-tenancy on**: one identity tenant per nutritionist. Tokens carry the tenant (`firebase.tenant` claim). The API still resolves the user and tenant **from our database** (authorization pipeline unchanged), and additionally rejects a token whose identity tenant doesn't match the user's tenant row.
+Identity Platform with **multi-tenancy on** (`identity.tf`): one identity tenant per nutritionist. Tokens carry the tenant (`firebase.tenant` claim). The API still resolves the user and tenant **from our database** (authorization pipeline unchanged), and additionally rejects a token whose identity tenant doesn't match the user's tenant row.
 
 API and packages:
-- [ ] `packages/auth`: replace `cognito.ts` (`aws-jwt-verify`) with an Identity Platform verifier (Firebase ID tokens: `firebase-admin` `verifyIdToken`, or `jose` against Google's public keys, checking issuer and audience for the project). Reject unverified emails (`email_verified: false`) except on the registration endpoint. `verifier.ts` keeps its interface; the `dev` provider is unchanged for local work.
-- [ ] Database migration: add `tenants.identity_tenant_id`; rename `users.cognito_user_id` → `auth_user_id` (and `resolveIdentity`, `app_resolve_identity()`, the seed and the tests that use it).
-- [ ] Provisioning: nutritionist sign-up / `admin` creates the Identity Platform tenant (email + password enabled, Spanish email templates, password policy ≥ 10 characters with upper, lower and digits, as on Cognito) and stores its id.
-- [ ] Tenant middleware (`apps/api/src/middleware/tenant-context.ts`): add the token-tenant vs. database-tenant check, with a test in `tenant-isolation.api.test.ts`.
-- [ ] **Account deletion** (`DELETE /patients/me`): the API deletes the Identity Platform user itself, through the tenant-scoped Admin SDK, in the same request. This replaces the app-side Cognito `DeleteUser` (Firebase's client-side delete requires a fresh sign-in, and a server-side delete leaves no orphaned login). Update `account-deletion.api.test.ts`.
-- [ ] `DeleteTenantData` job: delete the tenant's Identity Platform tenant (which deletes its users) instead of Cognito `AdminDeleteUser`.
-- [ ] `packages/config`: replace `COGNITO_*` with `GCP_PROJECT_ID` (and the Identity Platform API key if the verifier needs it).
+- [x] `packages/auth`: replace `cognito.ts` (`aws-jwt-verify`) with an Identity Platform verifier (Firebase ID tokens: `firebase-admin` `verifyIdToken`, or `jose` against Google's public keys, checking issuer and audience for the project). Reject unverified emails (`email_verified: false`) except on the registration endpoint. `verifier.ts` keeps its interface; the `dev` provider is unchanged for local work.
+- [x] Database migration: add `tenants.identity_tenant_id`; rename `users.cognito_user_id` → `auth_user_id` (and `resolveIdentity`, `app_resolve_identity()`, the seed and the tests that use it).
+- [x] Provisioning: nutritionist sign-up / `admin` creates the Identity Platform tenant (email + password enabled, Spanish email templates, password policy ≥ 10 characters with upper, lower and digits, as on Cognito) and stores its id. *(Emails come out in Spanish from the app setting `auth.languageCode = 'es'`. Existing practices: `admin identity-tenant <slug>`. Nutritionists sign in at the project level, outside any identity tenant.)*
+- [x] Tenant middleware (`apps/api/src/middleware/tenant-context.ts`): add the token-tenant vs. database-tenant check, with a test in `tenant-isolation.api.test.ts`.
+- [x] **Account deletion** (`DELETE /patients/me`): the API deletes the Identity Platform user itself, through the tenant-scoped Admin SDK, in the same request. This replaces the app-side Cognito `DeleteUser` (Firebase's client-side delete requires a fresh sign-in, and a server-side delete leaves no orphaned login). Update `account-deletion.api.test.ts`.
+- [ ] `DeleteTenantData` job *(still a skeleton; its plan now names `identityAdmin.deleteTenant`)*: delete the tenant's Identity Platform tenant (which deletes its users) instead of Cognito `AdminDeleteUser`.
+- [x] `packages/config`: replace `COGNITO_*` with `GCP_PROJECT_ID` (and the Identity Platform API key if the verifier needs it).
 
 Patient app:
 - [ ] Replace `amazon-cognito-identity-js` and `crypto-polyfill.ts` with the Firebase JS SDK auth (`initializeAuth` with React Native persistence, `auth.tenantId = <the app's identity tenant>`). `apps/patient/src/features/auth/auth-provider.ts` keeps its interface.

@@ -147,7 +147,7 @@ export function createApiClient(opts: ApiClientOptions) {
       saveMyBodyLog: (date: string, input: BodyLogInput) =>
         request<{ log: BodyLogDto | null }>('PUT', `/patients/me/body-logs/${encodeURIComponent(date)}`, input),
       deleteMyBodyLog: (date: string) => request<void>('DELETE', `/patients/me/body-logs/${encodeURIComponent(date)}`),
-      /** Erases the patient's data. The Cognito login is deleted separately by the app. */
+      /** Erases the patient's data and deletes their login. */
       deleteMyAccount: () => request<void>('DELETE', '/patients/me'),
     },
   };

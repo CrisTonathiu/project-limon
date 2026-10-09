@@ -1,4 +1,4 @@
-import { CognitoTokenVerifier, DevTokenVerifier, type TokenVerifier } from '@limon/auth';
+import { DevTokenVerifier, FirebaseIdentityAdmin, IdentityPlatformTokenVerifier, type IdentityAdmin, type TokenVerifier } from '@limon/auth';
 import type { ServerEnv } from '@limon/config';
 import { createFoodCacheStore, DatabaseRouter, SharedTenantRegistry } from '@limon/database';
 import type { TenantRegistry } from '@limon/tenant';
@@ -16,6 +16,8 @@ export type Container = {
   registry: TenantRegistry;
   verifier: TokenVerifier;
   devVerifier: DevTokenVerifier | null;
+  /** Identity Platform tenants and logins. Null with dev auth: there are no logins to manage. */
+  identityAdmin: IdentityAdmin | null;
   jobs: JobPublisher;
   storage: TenantStorage;
   /** Null when FatSecret credentials aren't configured. */
@@ -25,18 +27,14 @@ export type Container = {
 export function createContainer(env: ServerEnv, overrides: Partial<Container> = {}): Container {
   const db = overrides.db ?? new DatabaseRouter({ url: env.DATABASE_URL });
   const devVerifier = env.AUTH_PROVIDER === 'dev' ? new DevTokenVerifier(env.DEV_AUTH_SECRET!) : null;
-  const verifier =
-    devVerifier ??
-    new CognitoTokenVerifier({
-      userPoolId: env.COGNITO_USER_POOL_ID!,
-      clientIds: [env.COGNITO_NUTRITIONIST_CLIENT_ID, env.COGNITO_PATIENT_CLIENT_ID].filter((x): x is string => !!x),
-    });
+  const verifier = devVerifier ?? new IdentityPlatformTokenVerifier({ projectId: env.GCP_PROJECT_ID! });
   return {
     env,
     db,
     registry: new SharedTenantRegistry(),
     verifier,
     devVerifier,
+    identityAdmin: devVerifier ? null : new FirebaseIdentityAdmin(env.GCP_PROJECT_ID!),
     jobs: createJobPublisher(env),
     storage: createStorage(env),
     fatsecret:

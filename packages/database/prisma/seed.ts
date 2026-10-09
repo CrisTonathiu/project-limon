@@ -7,11 +7,17 @@ import { copyDefaultRecipes } from '../src/recipes.js';
 
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_MIGRATION_URL! } } });
 
-const tenants = [
+const allTenants = [
   // Maria is OPEN (anyone with her app can sign up); Carlos is INVITE ONLY.
   { id: '11111111-1111-4111-8111-111111111111', slug: 'maria-nutrition', name: 'Maria Nutrition', color: '#2E7D32', inviteOnly: false, inviteCode: 'MARIA-DEV1' },
   { id: '22222222-2222-4222-8222-222222222222', slug: 'carlos-nutrition', name: 'Carlos Nutrition', color: '#1565C0', inviteOnly: true, inviteCode: 'CARLOS-DEV1' },
 ];
+
+// SEED_TENANTS (comma-separated slugs) limits the seed, e.g. preproduction keeps only Carlos
+// (set on the migrate job in database.tf). Unset seeds both, as local development needs.
+const only = process.env.SEED_TENANTS?.split(',').map((s) => s.trim()).filter(Boolean);
+const tenants = only?.length ? allTenants.filter((t) => only.includes(t.slug)) : allTenants;
+if (only?.length && tenants.length !== only.length) throw new Error(`SEED_TENANTS has unknown slugs: ${only.join(', ')}`);
 
 async function main() {
   for (const t of tenants) {
@@ -30,9 +36,9 @@ async function main() {
       },
     });
     const user = await prisma.user.upsert({
-      where: { cognitoUserId: `dev|nutritionist|${t.slug}` },
+      where: { authUserId: `dev|nutritionist|${t.slug}` },
       update: {},
-      create: { cognitoUserId: `dev|nutritionist|${t.slug}`, tenantId: t.id, email: `owner@${t.slug}.test`, role: 'NUTRITIONIST' },
+      create: { authUserId: `dev|nutritionist|${t.slug}`, tenantId: t.id, email: `owner@${t.slug}.test`, role: 'NUTRITIONIST' },
     });
     await prisma.nutritionist.upsert({
       where: { userId: user.id },
@@ -40,9 +46,9 @@ async function main() {
       create: { tenantId: t.id, userId: user.id, firstName: t.name.split(' ')[0]!, lastName: 'Owner', isOwner: true },
     });
     const patientUser = await prisma.user.upsert({
-      where: { cognitoUserId: `dev|patient|${t.slug}` },
+      where: { authUserId: `dev|patient|${t.slug}` },
       update: {},
-      create: { cognitoUserId: `dev|patient|${t.slug}`, tenantId: t.id, email: `patient@${t.slug}.test`, role: 'PATIENT' },
+      create: { authUserId: `dev|patient|${t.slug}`, tenantId: t.id, email: `patient@${t.slug}.test`, role: 'PATIENT' },
     });
     await prisma.patient.upsert({
       where: { userId: patientUser.id },

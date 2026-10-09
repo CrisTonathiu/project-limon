@@ -4,7 +4,7 @@ import { accessFor, createTenantContext, type TenantContext } from '@limon/tenan
 import { Errors } from '../lib/errors.js';
 
 export type ResolveDeps = {
-  resolveIdentity: (cognitoSub: string) => Promise<ResolvedIdentity | null>;
+  resolveIdentity: (authUserId: string) => Promise<ResolvedIdentity | null>;
   resolveTenantApp: (appKey: string) => Promise<ResolvedTenantApp | null>;
   /** Does this patient have paid access right now? Checked server-side, never from the client. */
   hasActiveEntitlement: (tenantId: string, userId: string) => Promise<boolean>;
@@ -14,8 +14,9 @@ export type ResolveDeps = {
  * The access-control pipeline (docs/architecture/authorization.md).
  * Pure function of (verified principal, app key header, required permission) → TenantContext.
  *
- *   authenticate → resolve user → resolve tenant → [verify app ↔ tenant]
- *   → validate tenant status → authorize permission → context for tenant-scoped queries
+ *   authenticate → resolve user → resolve tenant → login's identity tenant ↔ tenant
+ *   → [verify app ↔ tenant] → validate tenant status → authorize permission
+ *   → context for tenant-scoped queries
  *
  * Nothing here reads tenantId/userId/role from the request body, query or claims.
  */
@@ -23,12 +24,21 @@ export async function resolveTenantContext(
   deps: ResolveDeps,
   input: { principal: VerifiedPrincipal; appKey: string | undefined; permission: Permission; requestId: string },
 ): Promise<TenantContext> {
-  // 2. Resolve application user from the verified Cognito subject
+  // 1b. Only registration accepts a login whose email isn't verified yet
+  if (!input.principal.emailVerified) throw Errors.emailNotVerified();
+
+  // 2. Resolve application user from the verified login uid
   const identity = await deps.resolveIdentity(input.principal.subject);
   if (!identity || identity.userStatus === 'DISABLED') throw Errors.forbidden();
 
   // 3. Resolve tenant (from the DATABASE, not the client)
   if (!identity.tenantId || !identity.tenantStatus) throw Errors.tenantNotFound();
+
+  // 3b. The login must come from where this user's logins live: patients from their practice's
+  //     identity tenant, nutritionists from the project level (ADR-006). Defense in depth on
+  //     top of the uid lookup: a token from practice A never acts on practice B.
+  const expectedIdentityTenant = identity.role === 'PATIENT' ? identity.identityTenantId : null;
+  if (input.principal.identityTenantId !== expectedIdentityTenant) throw Errors.tenantMismatch();
 
   // 4. App identity: patients must come through a registered tenant app, and it must be THEIR tenant's app
   if (identity.role === 'PATIENT' && !input.appKey) throw Errors.appNotRecognized();

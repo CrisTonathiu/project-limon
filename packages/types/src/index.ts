@@ -103,6 +103,8 @@ export const ErrorCode = {
   SUBSCRIPTION_REQUIRED: 'SUBSCRIPTION_REQUIRED',
   APP_NOT_RECOGNIZED: 'APP_NOT_RECOGNIZED',
   INVITE_CODE_INVALID: 'INVITE_CODE_INVALID',
+  /** The login's email isn't verified yet. Only registration accepts unverified logins. */
+  EMAIL_NOT_VERIFIED: 'EMAIL_NOT_VERIFIED',
   /** The module is switched off for this tenant (tenant_features). */
   FEATURE_DISABLED: 'FEATURE_DISABLED',
   /** The nutrition data provider (FatSecret) is not configured, unreachable or refused the request. */

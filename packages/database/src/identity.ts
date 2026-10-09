@@ -8,6 +8,8 @@ export type ResolvedIdentity = {
   userStatus: 'INVITED' | 'ACTIVE' | 'DISABLED';
   tenantStatus: TenantStatus | null;
   email: string;
+  /** The tenant's Identity Platform tenant; null until provisioned, and with dev auth. */
+  identityTenantId: string | null;
 };
 
 export type ResolvedTenantApp = {
@@ -21,16 +23,24 @@ export type ResolvedTenantApp = {
   supportEmail: string | null;
   /** Admission mode: the tenant's `invite_only` feature flag. */
   inviteOnly: boolean;
+  /** The Identity Platform tenant its patients sign in to (public: it's in the app's build config). */
+  identityTenantId: string | null;
 };
 
-/** Cognito `sub` → application user. Uses a SECURITY DEFINER function (see 0002_rls). */
-export async function resolveIdentity(router: DatabaseRouter, cognitoSub: string): Promise<ResolvedIdentity | null> {
+/** Login uid (token `sub`) → application user. Uses a SECURITY DEFINER function (see 0017_identity_platform). */
+export async function resolveIdentity(router: DatabaseRouter, authUserId: string): Promise<ResolvedIdentity | null> {
   const rows = await router.controlPlane().$queryRaw<
-    { user_id: string; tenant_id: string | null; role: UserRole; user_status: ResolvedIdentity['userStatus']; tenant_status: TenantStatus | null; email: string }[]
-  >`SELECT * FROM app_resolve_identity(${cognitoSub})`;
+    {
+      user_id: string; tenant_id: string | null; role: UserRole; user_status: ResolvedIdentity['userStatus'];
+      tenant_status: TenantStatus | null; email: string; identity_tenant_id: string | null;
+    }[]
+  >`SELECT * FROM app_resolve_identity(${authUserId})`;
   const r = rows[0];
   if (!r) return null;
-  return { userId: r.user_id, tenantId: r.tenant_id, role: r.role, userStatus: r.user_status, tenantStatus: r.tenant_status, email: r.email };
+  return {
+    userId: r.user_id, tenantId: r.tenant_id, role: r.role, userStatus: r.user_status, tenantStatus: r.tenant_status,
+    email: r.email, identityTenantId: r.identity_tenant_id,
+  };
 }
 
 /** Public build-time app key → tenant context + runtime branding + admission mode. */
@@ -39,6 +49,7 @@ export async function resolveTenantApp(router: DatabaseRouter, appKey: string): 
     {
       tenant_id: string; tenant_status: TenantStatus; app_status: TenantAppStatus; app_name: string; logo_key: string | null;
       primary_color: string; secondary_color: string | null; support_email: string | null; invite_only: boolean;
+      identity_tenant_id: string | null;
     }[]
   >`SELECT * FROM app_resolve_tenant_app(${appKey})`;
   const r = rows[0];
@@ -46,7 +57,7 @@ export async function resolveTenantApp(router: DatabaseRouter, appKey: string): 
   return {
     tenantId: r.tenant_id, tenantStatus: r.tenant_status, appStatus: r.app_status, appName: r.app_name,
     logoKey: r.logo_key, primaryColor: r.primary_color, secondaryColor: r.secondary_color, supportEmail: r.support_email,
-    inviteOnly: r.invite_only,
+    inviteOnly: r.invite_only, identityTenantId: r.identity_tenant_id,
   };
 }
 
