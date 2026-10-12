@@ -47,8 +47,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     appKeys: tenant.appKeys,
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:4000',
     authProvider: process.env.EXPO_PUBLIC_AUTH_PROVIDER ?? 'dev',
-    cognitoUserPoolId: process.env.EXPO_PUBLIC_COGNITO_USER_POOL_ID,
-    cognitoPatientClientId: process.env.EXPO_PUBLIC_COGNITO_PATIENT_CLIENT_ID,
+    identityTenantId: tenant.identityTenantId,
+    // The GCP project's web config, per environment (EAS profile env or the shell).
+    firebaseApiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+    firebaseAuthDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
     ...(tenant.easProjectId ? { eas: { projectId: tenant.easProjectId } } : {}),
   },
 });

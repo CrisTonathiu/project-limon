@@ -154,10 +154,11 @@ API and packages:
 - [x] `packages/config`: replace `COGNITO_*` with `GCP_PROJECT_ID` (and the Identity Platform API key if the verifier needs it).
 
 Patient app:
-- [ ] Replace `amazon-cognito-identity-js` and `crypto-polyfill.ts` with the Firebase JS SDK auth (`initializeAuth` with React Native persistence, `auth.tenantId = <the app's identity tenant>`). `apps/patient/src/features/auth/auth-provider.ts` keeps its interface.
-- [ ] Build config: `tenants/<slug>/tenant.json` and `tenants/schema.ts` gain the Firebase web config (public API key, auth domain) and the nutritionist's `identityTenantId`; `tenantUsername()` is no longer used for sign-in. Update `app.config.ts` and `eas.json`.
-- [ ] `ConfirmSignUpScreen` → "Te enviamos un enlace a tu correo": resend link, then "Ya lo confirmé" reloads the user and continues. Update `session-context.tsx` (verification step and the error-code mapping to Spanish messages).
-- [ ] Password reset through Identity Platform's email.
+- [x] Replace `amazon-cognito-identity-js` and `crypto-polyfill.ts` with the Firebase JS SDK auth (`initializeAuth` with React Native persistence, `auth.tenantId = <the app's identity tenant>`). `apps/patient/src/features/auth/auth-provider.ts` keeps its role. *(The Firebase session is persisted in SecureStore, chunked, not AsyncStorage; the API client asks the provider for a fresh token per request.)*
+- [x] Build config: `tenants/<slug>/tenant.json` and `tenants/schema.ts` gain the Firebase web config (public API key, auth domain) and the nutritionist's `identityTenantId`; `tenantUsername()` is no longer used for sign-in. Update `app.config.ts` and `eas.json`. *(Only `identityTenantId` went into `tenant.json`: the API key and auth domain belong to the GCP project, so they come from the build environment, `EXPO_PUBLIC_FIREBASE_API_KEY` / `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`. The key stays out of the repo: `terraform output -json identity_platform`. Carlos: `carlos-nutrition-rp44h`.)*
+- [x] `ConfirmSignUpScreen` → "Te enviamos un enlace a tu correo": resend link, then "Ya lo confirmé" reloads the user and continues. Update `session-context.tsx` (verification step and the error-code mapping to Spanish messages).
+- [x] Password reset through Identity Platform's email.
+- [ ] **Known gap, fix later:** if a patient closes the app on the confirm screen, the sign-up details held in memory are lost. Their login then exists without an account, and signing in fails until that's handled. This deserves its own fix.
 
 Docs: ADR-006 (identity tenant per nutritionist instead of namespaced usernames), `authentication.md`, `authorization.md`, `multi-tenancy.md`, `mobile-white-label.md`.
 

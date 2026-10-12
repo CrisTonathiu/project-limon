@@ -7,9 +7,10 @@ type Extra = {
   tenantId?: string;
   appKeys: { ios: string; android: string };
   apiBaseUrl: string;
-  authProvider: 'dev' | 'cognito';
-  cognitoUserPoolId?: string;
-  cognitoPatientClientId?: string;
+  authProvider: 'dev' | 'identity-platform';
+  identityTenantId?: string;
+  firebaseApiKey?: string;
+  firebaseAuthDomain?: string;
 };
 const extra = Constants.expoConfig?.extra as Extra;
 
@@ -26,12 +27,15 @@ function resolveApiBaseUrl(url: string): string {
 
 export const buildConfig = {
   tenantSlug: extra.tenantSlug,
-  /** Used to namespace the Cognito username so one email can exist in several tenants (ADR-006). */
+  /** Namespaces dev token subjects, as it did Cognito usernames. */
   tenantId: extra.tenantId,
   appKey: Platform.OS === 'ios' ? extra.appKeys.ios : extra.appKeys.android,
   apiBaseUrl: resolveApiBaseUrl(extra.apiBaseUrl),
-  /** "dev" (local dev-token API) or "cognito" (real user pool). Mirrors the API's AUTH_PROVIDER. */
+  /** "dev" (local dev-token API) or "identity-platform". Mirrors the API's AUTH_PROVIDER. */
   authProvider: extra.authProvider,
-  cognitoUserPoolId: extra.cognitoUserPoolId,
-  cognitoPatientClientId: extra.cognitoPatientClientId,
+  /** This practice's Identity Platform tenant: its patients' logins live there (ADR-006). */
+  identityTenantId: extra.identityTenantId,
+  /** The GCP project's public web config (per environment, not per practice). */
+  firebaseApiKey: extra.firebaseApiKey,
+  firebaseAuthDomain: extra.firebaseAuthDomain,
 } as const;

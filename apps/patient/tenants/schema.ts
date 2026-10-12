@@ -7,8 +7,13 @@
  * GET /api/v1/apps/bootstrap and can change without a release.
  */
 export type TenantBuildConfig = {
-  /** Immutable tenant UUID (public). Written at provisioning; used to namespace Cognito usernames (ADR-006). */
+  /** Immutable tenant UUID (public). Written at provisioning. */
   tenantId?: string;
+  /**
+   * The practice's Identity Platform tenant (public), where its patients' logins live (ADR-006).
+   * Printed by `admin identity-tenant <slug>`. It's the preproduction one during the MVP.
+   */
+  identityTenantId?: string;
   /** Folder name; selects this config via APP_TENANT=<slug>. */
   slug: string;
   /** Public TenantApp.appKey sent as X-App-Key. Identifies context — NOT authorization. */

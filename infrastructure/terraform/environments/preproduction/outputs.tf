@@ -31,6 +31,6 @@ output "identity_platform" {
   sensitive = true
   value = {
     api_key     = google_identity_platform_config.main.client[0].api_key
-    auth_domain = google_identity_platform_config.main.client[0].firebase_subdomain
+    auth_domain = "${google_identity_platform_config.main.client[0].firebase_subdomain}.firebaseapp.com"
   }
 }
