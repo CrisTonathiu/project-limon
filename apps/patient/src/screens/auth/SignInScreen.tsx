@@ -3,6 +3,7 @@ import { Pressable, Text, TextInput } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button } from '../../components/Button';
 import { Screen } from '../../components/Screen';
+import { authErrorMessage } from '../../features/auth/auth-errors';
 import { t } from '../../i18n/es-MX';
 import { useSession } from '../../state/session-context';
 import { useTenantTheme } from '../../theme/theme-context';
@@ -14,6 +15,7 @@ export function SignInScreen({ navigation }: NativeStackScreenProps<AuthStackPar
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [resetNotice, setResetNotice] = useState<{ text: string; error: boolean }>();
   const input = { borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.sm, padding: theme.spacing.sm };
 
   return (
@@ -29,6 +31,22 @@ export function SignInScreen({ navigation }: NativeStackScreenProps<AuthStackPar
         }}
       />
       {session.status === 'signedOut' && session.error ? <Text style={{ color: theme.colors.danger }}>{session.error}</Text> : null}
+      {/* Uses the email typed above; the answer is the same whether or not the account exists. */}
+      <Pressable
+        disabled={busy}
+        onPress={async () => {
+          if (!email.trim()) return setResetNotice({ text: t.auth.forgotPasswordNeedsEmail, error: true });
+          try {
+            await session.sendPasswordReset(email.trim());
+            setResetNotice({ text: t.auth.forgotPasswordSent, error: false });
+          } catch (err) {
+            setResetNotice({ text: authErrorMessage(err), error: true });
+          }
+        }}
+      >
+        <Text style={{ color: theme.colors.primary }}>{t.auth.forgotPassword}</Text>
+      </Pressable>
+      {resetNotice ? <Text style={{ color: resetNotice.error ? theme.colors.danger : theme.colors.textMuted }}>{resetNotice.text}</Text> : null}
       {/* Invite-only nutritionists: new patients start with their personal invite code. */}
       <Pressable onPress={() => navigation.navigate(config?.requiresInviteCode ? 'InviteCode' : 'SignUp')}>
         <Text style={{ color: theme.colors.primary }}>{t.auth.toSignUp}</Text>

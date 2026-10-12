@@ -2,15 +2,14 @@ import { ApiError } from '@limon/api-client';
 import { UserRole, type FeatureKey, type MeResponse } from '@limon/types';
 import type { RegisterPatientInput } from '@limon/validation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { authErrorMessage } from '../features/auth/auth-errors';
 import { patientAuthProvider } from '../features/auth/auth-provider';
 import { api } from '../services/api';
-import { tokenStore } from '../services/token-store';
-import { t } from '../i18n/es-MX';
 
 type SessionState =
   | { status: 'loading' }
   | { status: 'signedOut'; error?: string }
-  // Cognito requires email verification before sign-in; the dev provider never reaches this.
+  // Identity Platform: the patient must open the emailed link before registering; dev never reaches this.
   | { status: 'awaitingConfirmation'; email: string }
   // hasProfile: the patient finished the onboarding questionnaire (always true for other roles).
   | { status: 'signedIn'; me: MeResponse; hasProfile: boolean };
@@ -24,8 +23,15 @@ type SessionApi = SessionState & {
   hasFeature: (feature: FeatureKey) => boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<void>;
-  /** Completes signUp after the emailed code is entered. Only used on the Cognito path. */
-  confirmSignUp: (code: string) => Promise<void>;
+  /**
+   * Completes signUp once the patient has opened the emailed link. False while they haven't;
+   * throws if checking fails, so the confirmation screen can say so.
+   */
+  checkConfirmation: () => Promise<boolean>;
+  /** Sends the confirmation link again. Throws on failure (e.g. too many requests). */
+  resendConfirmation: () => Promise<void>;
+  /** Emails a link to choose a new password. Throws on failure. */
+  sendPasswordReset: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** Erases the patient's data and login, then signs out. Throws if the API call fails. */
   deleteAccount: () => Promise<void>;
@@ -34,45 +40,9 @@ type SessionApi = SessionState & {
 
 const SessionContext = createContext<SessionApi | null>(null);
 
-function messageFor(err: unknown): string {
-  if (err instanceof ApiError) {
-    switch (err.code) {
-      case 'TENANT_MISMATCH':
-        return t.auth.errors.otherPractice;
-      case 'TENANT_SUSPENDED':
-        return t.auth.errors.unavailable;
-      case 'CONFLICT':
-        return t.auth.errors.accountExists;
-      case 'INVITE_CODE_INVALID':
-        return t.auth.errors.inviteExpired;
-      case 'VALIDATION_ERROR':
-        return t.auth.errors.invalidData;
-      default:
-        return t.common.genericError;
-    }
-  }
-  // Cognito errors (amazon-cognito-identity-js) carry an exception name in `code`.
-  switch ((err as { code?: string } | null)?.code) {
-    case 'NotAuthorizedException':
-    case 'UserNotFoundException':
-      return t.auth.errors.wrongCredentials;
-    case 'UserNotConfirmedException':
-      return t.auth.errors.notConfirmed;
-    case 'InvalidPasswordException':
-      return t.auth.errors.weakPassword;
-    case 'UsernameExistsException':
-      return t.auth.errors.accountExists;
-    case 'LimitExceededException':
-    case 'TooManyRequestsException':
-      return t.auth.errors.tooManyAttempts;
-    default:
-      return t.common.genericError;
-  }
-}
-
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: 'loading' });
-  // Held only in memory between signUp() and confirmSignUp() — never persisted.
+  // Held only in memory between signUp() and checkConfirmation() — never persisted.
   const pendingSignUp = useRef<SignUpInput | null>(null);
 
   // "Verify tenant": /auth/me succeeds only if the user belongs to THIS app's tenant,
@@ -83,31 +53,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const hasProfile = me.user.role !== UserRole.PATIENT || (await api.patients.myProfile()).profile !== null;
       setState({ status: 'signedIn', me, hasProfile });
     } catch (err) {
-      await tokenStore.clear();
-      setState({ status: 'signedOut', error: err instanceof ApiError && err.status === 401 ? undefined : messageFor(err) });
+      await patientAuthProvider.signOut();
+      setState({ status: 'signedOut', error: err instanceof ApiError && err.status === 401 ? undefined : authErrorMessage(err) });
     }
   }, []);
 
   useEffect(() => {
-    tokenStore.get().then((t) => (t ? verify() : setState({ status: 'signedOut' })));
+    patientAuthProvider.getToken().then((token) => (token ? verify() : setState({ status: 'signedOut' })));
   }, [verify]);
 
-  const run = async (fn: () => Promise<string>) => {
+  const run = async (fn: () => Promise<void>) => {
     try {
-      await tokenStore.set(await fn());
+      await fn();
       await verify();
     } catch (err) {
       console.error('[session] auth flow failed', err);
-      setState({ status: 'signedOut', error: messageFor(err) });
+      setState({ status: 'signedOut', error: authErrorMessage(err) });
     }
   };
 
   // Consent versions are recorded server-side against these exact documents.
-  const completeRegistration = async (input: SignUpInput, token: string) => {
+  const completeRegistration = async (input: SignUpInput) => {
     const { password: _password, ...profile } = input;
-    await tokenStore.set(token);
     await api.auth.registerPatient({ ...profile, privacyNoticeVersion: PRIVACY_NOTICE_VERSION, termsVersion: TERMS_VERSION });
-    return token;
   };
 
   const value: SessionApi = {
@@ -123,39 +91,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           setState({ status: 'awaitingConfirmation', email: input.email });
           return;
         }
-        await run(() => completeRegistration(input, result.token));
+        await run(() => completeRegistration(input));
       } catch (err) {
         console.error('[session] sign-up failed', err);
-        setState({ status: 'signedOut', error: messageFor(err) });
+        setState({ status: 'signedOut', error: authErrorMessage(err) });
       }
     },
-    confirmSignUp: async (code) => {
+    checkConfirmation: async () => {
       const input = pendingSignUp.current;
       if (!input) throw new Error('No sign-up in progress');
-      // Left un-caught here (unlike signUp/run) so a wrong code surfaces on the confirmation
+      // Left un-caught here (unlike signUp/run) so a failed check surfaces on the confirmation
       // screen itself instead of bouncing back to Sign In.
-      await patientAuthProvider.confirmSignUp(input.email, code);
-      const token = await patientAuthProvider.signIn(input.email, input.password);
+      if (!(await patientAuthProvider.checkConfirmed())) return false;
       pendingSignUp.current = null;
-      await run(() => completeRegistration(input, token));
+      await run(() => completeRegistration(input));
+      return true;
     },
+    resendConfirmation: () => patientAuthProvider.resendConfirmation(),
+    sendPasswordReset: (email) => patientAuthProvider.sendPasswordReset(email),
     signOut: async () => {
       await patientAuthProvider.signOut();
-      await tokenStore.clear();
       pendingSignUp.current = null;
       setState({ status: 'signedOut' });
     },
     deleteAccount: async () => {
-      const token = await tokenStore.get();
-      // The data goes first: if the app stops halfway, a leftover login leads to nothing.
+      // The API erases the data and deletes the login in one request (or neither).
       await api.patients.deleteMyAccount();
-      try {
-        if (token) await patientAuthProvider.deleteUser(token);
-      } catch (err) {
-        // The account is already deleted for the API; only the bare login remains.
-        console.error('[session] deleting the login failed', err);
-      }
-      await tokenStore.clear();
+      await patientAuthProvider.signOut();
       setState({ status: 'signedOut' });
     },
     refresh: verify,

@@ -4,7 +4,7 @@
     "development": { "developmentClient": true, "distribution": "internal", "env": { "APP_ENV": "development" } },
     "preproduction": {
       "distribution": "internal",
-      "env": { "APP_ENV": "preproduction", "EXPO_PUBLIC_API_BASE_URL": "https://api.projectlimon.com", "EXPO_PUBLIC_AUTH_PROVIDER": "cognito" }
+      "env": { "APP_ENV": "preproduction", "EXPO_PUBLIC_API_BASE_URL": "https://api.projectlimon.com", "EXPO_PUBLIC_AUTH_PROVIDER": "identity-platform", "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "limon-preproduction.firebaseapp.com" }
     },
     "production": { "env": { "APP_ENV": "production" } }
   },
