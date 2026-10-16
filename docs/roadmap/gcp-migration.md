@@ -30,7 +30,7 @@ One GCP project, **`limon-preproduction`**, in `us-east1`. Same role as on AWS: 
 
 ```
 Patient apps ─HTTPS─▶ api.projectlimon.com (Cloud Run domain mapping, Google-managed certificate)
-                         └─▶ Cloud Run service "api" (public, min 1 instance)
+                         └─▶ Cloud Run service "api" (public, scales to zero)
                                 ├─▶ Cloud SQL PostgreSQL 16 (private IP)
                                 ├─▶ Pub/Sub topic "jobs" ─push─▶ Cloud Run service "worker" (private, IAM only)
                                 └─▶ Cloud Storage bucket (tenant files, V4 signed URLs)
@@ -43,15 +43,15 @@ Estimated monthly cost (us-east1 list prices — verify in the [GCP pricing calc
 
 | Item | ≈ USD / month |
 |---|---|
-| Cloud Run `api`: 1 vCPU / 512 MiB, **min 1 instance** (avoids cold starts, which Cloud NAT can stretch past 30 s) | 10–15 |
+| Cloud Run `api`: 1 vCPU / 512 MiB, **min 0 instances** for the pilot; pilot traffic fits the free tier (min 1, which avoids cold starts, would add ≈ US$10) | 0–2 |
 | Cloud Run `worker`: scales to zero; ~3,000 short runs a month fit the free tier | 0–2 |
 | Cloud SQL PostgreSQL 16, `db-f1-micro` (shared core), 10 GB SSD, 7-day backups | 10–12 |
 | Cloud NAT + reserved static IP (the IP FatSecret whitelists) | 5–6 |
 | Secret Manager, Artifact Registry | 1–2 |
 | Identity Platform (free tier covers the pilot), Pub/Sub, Cloud Scheduler (3 free jobs), Cloud Storage, Logging, uptime checks | ~0 |
-| **Total** | **≈ 27–35** |
+| **Total** | **≈ 17–24** |
 
-Accepted for the pilot, as on AWS: one database without high availability, no WAF (Fastify rate limits only), a preview custom-domain feature, and no staging environment.
+Accepted for the pilot, as on AWS: one database without high availability, no WAF (Fastify rate limits only), a preview custom-domain feature, no staging environment, and an `api` that scales to zero (the first request after a quiet period waits for a cold start).
 
 ## To-do
 
@@ -188,14 +188,36 @@ Docs: ADR-006 (identity tenant per nutritionist instead of namespaced usernames)
 
 ### Phase 7 · Deploy, domain and DNS (Oct 16)
 
-- [ ] Cloud Run `api`: 1 vCPU / 512 MiB, min 1 / max 3 instances, Direct VPC egress with **all traffic** through the VPC (so every outbound call uses the NAT IP), secrets mounted as environment variables, `APP_ENV=preproduction`. `worker`: same image, min 0, deployed with `--command=node --args=dist/jobs/worker.js` (Terraform leaves the command to the deploy: its placeholder image has no Node.js).
-- [ ] **Domain** `api.projectlimon.com` with a Cloud Run domain mapping (us-east1 supports it):
-  1. Verify `projectlimon.com` in Google Search Console: add the **TXT** record it gives you at Hostinger (name `@`).
-  2. Create the mapping (`gcloud beta run domain-mappings create --service api --domain api.projectlimon.com --region us-east1`).
-  3. At Hostinger, replace the old AWS `api` record with **CNAME** `api` → `ghs.googlehosted.com`, and delete the old ACM validation CNAME (`_<hash>.api`).
-  4. Wait for the Google-managed certificate (usually ~15 minutes, up to 24 hours).
-- [ ] Hostinger CAA records, if any: add `0 issue "pki.goog"` (Google's certificate authority); the `amazon.com` one can go.
-- [ ] Run the migrate job, then `curl https://api.projectlimon.com/health`.
+- [x] Cloud Run `api`: 1 vCPU / 512 MiB, min 0 / max 3 instances, Direct VPC egress with **all traffic** through the VPC (so every outbound call uses the NAT IP), secrets mounted as environment variables, `APP_ENV=preproduction`. `worker`: same image, min 0, deployed with `--command=node --args=dist/jobs/worker.js` (Terraform leaves the command to the deploy: its placeholder image has no Node.js). *(`api.tf`, public, startup probe on `/health`, request-based billing. Min 0 instead of 1 for the pilot, decided Oct 16 to save ≈ US$10/month; see [Before production](#before-production). Both services share one set of environment variables and secrets, `local.service_env` and `local.service_secrets`.)*
+- [x] **Domain** `api.projectlimon.com` with a Cloud Run domain mapping (us-east1 supports it). The mapping is in `api.tf` (`google_cloud_run_domain_mapping.api`); the verification and the DNS records stay manual:
+  1. Verify `projectlimon.com` in Google Search Console **with the account that runs Terraform**: add the **TXT** record it gives you at Hostinger (name `@`). Until then `terraform apply` fails on the mapping.
+  2. At Hostinger, add **CNAME** `api` → `ghs.googlehosted.com` (check `terraform output api_domain_dns_records`), and delete the old ACM validation CNAME (`_<hash>.api`) if it's still there.
+  3. Wait for the Google-managed certificate (usually ~15 minutes, up to 24 hours): `gcloud beta run domain-mappings describe --domain api.projectlimon.com --region us-east1`.
+
+  *(Oct 16: verified, CNAME added, certificate issued.)*
+- [x] Hostinger CAA: **required**. `projectlimon.com` had `0 issue "amazon.com"`, which blocks every other certificate authority. Replaced with `0 issue "pki.goog"`.
+- [x] Run the migrate job, then `curl https://api.projectlimon.com/health`. *(Oct 16: images `api` and `migrate` at `f124ead-phase7`, migration succeeded, `/health` answers 200.)*
+
+```bash
+# 1. After the Search Console verification and the CAA record: create api and its domain mapping
+cd infrastructure/terraform/environments/preproduction && terraform apply
+
+# 2. Build and push the api image (from the repo root; Cloud Run runs amd64)
+TAG=$(git rev-parse --short HEAD)
+REPO=us-east1-docker.pkg.dev/limon-preproduction/limon
+docker build --platform linux/amd64 -f apps/api/Dockerfile -t $REPO/api:$TAG . && docker push $REPO/api:$TAG
+docker build --platform linux/amd64 -f packages/database/Dockerfile -t $REPO/migrate:$TAG . && docker push $REPO/migrate:$TAG
+
+# 3. Migrate first, then deploy both services from the same image
+gcloud run jobs update migrate --region us-east1 --image $REPO/migrate:$TAG
+gcloud run jobs execute migrate --region us-east1 --wait
+gcloud run deploy api --region us-east1 --image $REPO/api:$TAG
+gcloud run deploy worker --region us-east1 --image $REPO/api:$TAG --command=node --args=dist/jobs/worker.js
+
+# 4. Check, first on the run.app URL, then on the domain once its certificate is issued
+curl "$(terraform -chdir=infrastructure/terraform/environments/preproduction output -raw api_url)/health"
+curl https://api.projectlimon.com/health
+```
 
 **Done when:** the app, built with the `preproduction` profile, signs up, onboards and loads a meal plan with macros (FatSecret reached through the NAT IP).
 
@@ -217,6 +239,13 @@ Docs: ADR-006 (identity tenant per nutritionist instead of namespaced usernames)
 - [ ] Replace `docs/architecture/aws.md` with `gcp.md` (architecture, costs, deploy and teardown steps, Hostinger DNS). Update `overview.md`, `tenant-lifecycle.md`, `README.md` and `.env.example`.
 
 **Done when:** `grep -ri "cognito\|aws-sdk\|cdk" --exclude-dir=node_modules .` finds only historical mentions in ADR-005 and this document.
+
+## Before production
+
+Settings accepted for the pilot that the `production` project must not copy:
+
+- [ ] **`api` min instances back to 1** (`min_instance_count` in `api.tf`), so no patient waits on a cold start. ≈ US$10/month.
+- [ ] Custom domain through a global external load balancer instead of the preview domain mapping (≈ US$18+/month, brings Cloud Armor).
 
 ## Terraform in five minutes
 

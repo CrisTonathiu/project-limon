@@ -21,7 +21,7 @@ data "google_project" "this" {}
 
 # ─── worker ────────────────────────────────────────────────────────────────────────────
 
-# Same image as the api, different command. Private: no allUsers invoker, only the
+# Same image and environment as the api (api.tf), different command. Private: no allUsers invoker, only the
 # Pub/Sub push and Scheduler service accounts below.
 resource "google_cloud_run_v2_service" "worker" {
   name                = "worker"
@@ -58,37 +58,16 @@ resource "google_cloud_run_v2_service" "worker" {
         cpu_idle = true
       }
 
-      env {
-        name  = "APP_ENV"
-        value = "preproduction"
-      }
-      env {
-        name  = "AUTH_PROVIDER"
-        value = "identity-platform"
-      }
-      env {
-        name  = "GCP_PROJECT_ID"
-        value = var.project_id
-      }
-      env {
-        name  = "PUBSUB_JOBS_TOPIC"
-        value = google_pubsub_topic.jobs.name
-      }
-      env {
-        name  = "GCS_TENANT_BUCKET"
-        value = google_storage_bucket.tenant_assets.name
-      }
-      env {
-        name  = "DB_HOST"
-        value = module.database.private_ip
+      dynamic "env" {
+        for_each = local.service_env
+        content {
+          name  = env.key
+          value = env.value
+        }
       }
 
       dynamic "env" {
-        for_each = {
-          DB_APP_PASSWORD         = "db-app-password"
-          FATSECRET_CLIENT_ID     = "fatsecret-client-id"
-          FATSECRET_CLIENT_SECRET = "fatsecret-client-secret"
-        }
+        for_each = local.service_secrets
         content {
           name = env.key
           value_source {
