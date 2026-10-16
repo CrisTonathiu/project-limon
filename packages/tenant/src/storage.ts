@@ -1,5 +1,5 @@
 /**
- * Canonical S3 key builder. All tenant objects live under tenants/{tenantId}/.
+ * Canonical storage key builder. All tenant objects live under tenants/{tenantId}/.
  * tenantId must come from TenantContext; user-provided file names are sanitized.
  */
 export type TenantObjectArea = 'branding' | 'recipes' | 'patients' | 'documents' | 'exports';

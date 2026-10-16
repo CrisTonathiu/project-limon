@@ -75,6 +75,10 @@ resource "google_cloud_run_v2_service" "worker" {
         value = google_pubsub_topic.jobs.name
       }
       env {
+        name  = "GCS_TENANT_BUCKET"
+        value = google_storage_bucket.tenant_assets.name
+      }
+      env {
         name  = "DB_HOST"
         value = module.database.private_ip
       }

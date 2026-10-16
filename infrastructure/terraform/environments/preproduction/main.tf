@@ -13,6 +13,7 @@ locals {
     "secretmanager.googleapis.com",
     "artifactregistry.googleapis.com",
     "identitytoolkit.googleapis.com",
+    "storage.googleapis.com",
     "iamcredentials.googleapis.com",
     "iam.googleapis.com",
     "monitoring.googleapis.com",
