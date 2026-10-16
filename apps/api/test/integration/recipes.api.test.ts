@@ -10,7 +10,7 @@ import { createContainer } from '../../src/infrastructure/container.js';
 import { FatSecretClient } from '../../src/infrastructure/fatsecret.js';
 import { createTestFoods } from './test-foods.js';
 
-const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', SQS_JOBS_QUEUE_URL: '' });
+const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', PUBSUB_JOBS_TOPIC: '' });
 
 /** Every test food: a 100 g serving "1" with these macros, except `failing`, to test an outage. */
 let failing = '';

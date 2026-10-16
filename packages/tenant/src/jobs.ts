@@ -1,5 +1,5 @@
 /**
- * SQS job envelope. Every job carries the tenant + actor context it was
+ * Job envelope (a Pub/Sub message on GCP). Every job carries the tenant + actor context it was
  * created under so workers can rebuild a TenantContext and re-check status
  * before doing anything (a tenant may have been suspended since enqueue).
  */

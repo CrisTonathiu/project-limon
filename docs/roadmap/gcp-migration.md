@@ -166,14 +166,16 @@ Docs: ADR-006 (identity tenant per nutritionist instead of namespaced usernames)
 
 ### Phase 5 · Jobs: SQS → Pub/Sub + Cloud Scheduler (Oct 15)
 
-- [ ] `apps/api/src/infrastructure/queue.ts`: publish the same job envelope (`packages/tenant/src/jobs.ts`) to the Pub/Sub topic `jobs`.
-- [ ] Turn `apps/api/src/jobs/worker.ts` into **HTTP endpoints**, served by the same image as a second Cloud Run service `worker` (`--no-allow-unauthenticated`; only the `pubsub-push` and `scheduler` service accounts can invoke it, so no auth code is needed):
+- [x] `apps/api/src/infrastructure/queue.ts`: publish the same job envelope (`packages/tenant/src/jobs.ts`) to the Pub/Sub topic `jobs`.
+- [x] Turn `apps/api/src/jobs/worker.ts` into **HTTP endpoints**, served by the same image as a second Cloud Run service `worker` (`--no-allow-unauthenticated`; only the `pubsub-push` and `scheduler` service accounts can invoke it, so no auth code is needed):
   - `POST /jobs`: receives a Pub/Sub push, runs the handler. A `2xx` acknowledges it; any other status retries with backoff, and after 5 attempts the message goes to the dead-letter topic `jobs-dlq`. Handlers stay idempotent.
   - `POST /maintenance/food-cache`: the FatSecret cache refresh, called by Cloud Scheduler every 15 minutes (replaces the `setInterval` in the worker).
   - `POST /maintenance/weekly-plans`: the **Sunday plan job** still open in week 4, called by Cloud Scheduler on Sundays (time zone `America/Mexico_City`).
-- [ ] Terraform: topic, push subscription with OIDC auth, dead-letter topic, the Scheduler jobs, and the `worker` service.
-- [ ] Local development: keep running handlers in-process (no Pub/Sub emulator needed), behind the same publisher interface.
-- [ ] `packages/config`: `SQS_JOBS_QUEUE_URL` → `PUBSUB_JOBS_TOPIC`.
+
+  *(Routes in `apps/api/src/jobs/worker-app.ts`; `worker.ts` is the entrypoint, listening on `WORKER_PORT`, 4001. `/maintenance/weekly-plans` answers 501 until week 4 builds it, and its Scheduler job is created **paused**, Sundays at 03:00.)*
+- [x] Terraform: topic, push subscription with OIDC auth, dead-letter topic, the Scheduler jobs, and the `worker` service. *(`jobs.tf`. `jobs-dlq` has its own pull subscription, or dead-lettered messages would be dropped. The worker needs no subscriber role, since Pub/Sub pushes to it, but it can publish follow-up jobs. The service starts on a placeholder image until phase 7 deploys the real one.)*
+- [x] Local development: keep running handlers in-process (no Pub/Sub emulator needed), behind the same publisher interface. *(With `PUBSUB_JOBS_TOPIC` unset, the api runs each job right after the request that published it. `worker:dev` refreshes the food cache on a 15-minute timer, standing in for Cloud Scheduler.)*
+- [x] `packages/config`: `SQS_JOBS_QUEUE_URL` → `PUBSUB_JOBS_TOPIC`; `@aws-sdk/client-sqs` removed.
 
 **Done when:** a published job runs once on `worker`; a failing job lands in `jobs-dlq`; the food cache refreshes every 15 minutes in the logs.
 
@@ -188,7 +190,7 @@ Docs: ADR-006 (identity tenant per nutritionist instead of namespaced usernames)
 
 ### Phase 7 · Deploy, domain and DNS (Oct 16)
 
-- [ ] Cloud Run `api`: 1 vCPU / 512 MiB, min 1 / max 3 instances, Direct VPC egress with **all traffic** through the VPC (so every outbound call uses the NAT IP), secrets mounted as environment variables, `APP_ENV=preproduction`. `worker`: same image, min 0.
+- [ ] Cloud Run `api`: 1 vCPU / 512 MiB, min 1 / max 3 instances, Direct VPC egress with **all traffic** through the VPC (so every outbound call uses the NAT IP), secrets mounted as environment variables, `APP_ENV=preproduction`. `worker`: same image, min 0, deployed with `--command=node --args=dist/jobs/worker.js` (Terraform leaves the command to the deploy: its placeholder image has no Node.js).
 - [ ] **Domain** `api.projectlimon.com` with a Cloud Run domain mapping (us-east1 supports it):
   1. Verify `projectlimon.com` in Google Search Console: add the **TXT** record it gives you at Hostinger (name `@`).
   2. Create the mapping (`gcloud beta run domain-mappings create --service api --domain api.projectlimon.com --region us-east1`).

@@ -12,7 +12,7 @@ import { FatSecretClient } from '../../src/infrastructure/fatsecret.js';
 import { localToday, weekDates, weekStartOf } from '../../src/modules/meal-plans/week.js';
 import { createTestFoods } from './test-foods.js';
 
-const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', SQS_JOBS_QUEUE_URL: '' });
+const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', PUBSUB_JOBS_TOPIC: '' });
 
 /** Every food: 150 kcal, 10 g protein, 20 g carbs and 5 g fat per 100 g. */
 const fakeFetch = (async (url: string) => {

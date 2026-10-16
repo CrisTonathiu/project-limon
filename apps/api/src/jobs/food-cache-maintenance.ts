@@ -4,7 +4,8 @@ import { FatSecretError } from '../infrastructure/fatsecret.js';
 
 /**
  * Keeps the shared FatSecret cache (fatsecret_food_cache) fresh and compliant.
- * Runs in the worker every MAINTENANCE_INTERVAL_MS (see worker.ts), or once with
+ * Runs in the worker every MAINTENANCE_INTERVAL_MS: Cloud Scheduler calls
+ * `POST /maintenance/food-cache` on GCP, a timer does locally (see worker.ts). Or once with
  * `pnpm --filter @limon/api fatsecret refresh`.
  *
  * 1. Purge: delete every row past FatSecret's 24 h limit. Always runs, even when
@@ -13,7 +14,7 @@ import { FatSecretError } from '../infrastructure/fatsecret.js';
  *    values are rarely more than ~6 h old and a FatSecret outage of up to ~18 h
  *    goes unnoticed. If FatSecret fails, the current rows stay valid until they expire.
  *
- * One worker process is assumed; two would only duplicate FatSecret calls.
+ * Two runs at once (two worker instances) would only duplicate FatSecret calls.
  */
 export const MAINTENANCE_INTERVAL_MS = 15 * 60 * 1000;
 export const REFRESH_AFTER_MS = 6 * 60 * 60 * 1000;

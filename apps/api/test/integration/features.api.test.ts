@@ -13,7 +13,7 @@ import { createContainer } from '../../src/infrastructure/container.js';
 import { requireFeature, requireTenant } from '../../src/middleware/auth.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 
-const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', SQS_JOBS_QUEUE_URL: '' });
+const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', PUBSUB_JOBS_TOPIC: '' });
 const c = createContainer(env);
 let app: Awaited<ReturnType<typeof buildApp>>;
 // A bare app with one gated route, standing in for the modules that will use the guard.

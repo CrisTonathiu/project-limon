@@ -1,42 +1,54 @@
 import { randomUUID } from 'node:crypto';
-import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
+import { PubSub, type Topic } from '@google-cloud/pubsub';
 import type { ServerEnv } from '@limon/config';
 import type { JobEnvelope, JobType } from '@limon/tenant';
+import { runJob } from '../jobs/run-job.js';
+import type { Container } from './container.js';
+
+type JobInput = { type: JobType; tenantId: string; actorUserId: string | null; payload: unknown; requestId?: string; resource?: JobEnvelope['resource'] };
 
 export interface JobPublisher {
-  publish<T>(job: { type: JobType; tenantId: string; actorUserId: string | null; payload: T; requestId?: string; resource?: JobEnvelope['resource'] }): Promise<string>;
+  publish<T>(job: JobInput & { payload: T }): Promise<string>;
 }
 
-class SqsJobPublisher implements JobPublisher {
-  private readonly sqs: SQSClient;
-  constructor(private readonly queueUrl: string, region: string) {
-    this.sqs = new SQSClient({ region });
+const envelopeOf = (job: JobInput): JobEnvelope => ({ jobId: randomUUID(), enqueuedAt: new Date().toISOString(), attempt: 0, ...job });
+
+/** Publishes to the `jobs` topic; its push subscription delivers each job to the worker's `POST /jobs`. */
+class PubSubJobPublisher implements JobPublisher {
+  private readonly topic: Topic;
+  constructor(topicName: string, projectId: string | undefined) {
+    this.topic = new PubSub({ projectId }).topic(topicName);
   }
-  async publish<T>(job: Parameters<JobPublisher['publish']>[0] & { payload: T }): Promise<string> {
-    const envelope: JobEnvelope<T> = { jobId: randomUUID(), enqueuedAt: new Date().toISOString(), attempt: 0, ...job };
-    await this.sqs.send(
-      new SendMessageCommand({
-        QueueUrl: this.queueUrl,
-        MessageBody: JSON.stringify(envelope),
-        MessageAttributes: {
-          jobType: { DataType: 'String', StringValue: job.type },
-          tenantId: { DataType: 'String', StringValue: job.tenantId },
-        },
-      }),
-    );
+  async publish(job: JobInput): Promise<string> {
+    const envelope = envelopeOf(job);
+    await this.topic.publishMessage({
+      json: envelope,
+      attributes: { jobType: job.type, tenantId: job.tenantId },
+    });
     return envelope.jobId;
   }
 }
 
-/** Local dev without SQS: jobs are logged, not executed. */
-class LoggingJobPublisher implements JobPublisher {
-  async publish(job: Parameters<JobPublisher['publish']>[0]): Promise<string> {
-    const id = randomUUID();
-    console.info(JSON.stringify({ msg: 'job.enqueued(local)', jobId: id, type: job.type, tenantId: job.tenantId }));
-    return id;
+/**
+ * Local dev and tests, without Pub/Sub: runs the handler in this process, after the
+ * request that published it. A failure is logged, never retried.
+ */
+class InProcessJobPublisher implements JobPublisher {
+  constructor(private readonly container: () => Container) {}
+  async publish(job: JobInput): Promise<string> {
+    const envelope = envelopeOf(job);
+    const log = { jobId: envelope.jobId, type: envelope.type, tenantId: envelope.tenantId };
+    console.info(JSON.stringify({ msg: 'job.enqueued(local)', ...log }));
+    setImmediate(() => {
+      runJob(this.container(), envelope).then(
+        () => console.info(JSON.stringify({ msg: 'job.done(local)', ...log })),
+        (err: Error) => console.error(JSON.stringify({ msg: 'job.failed(local)', ...log, error: err.message })),
+      );
+    });
+    return envelope.jobId;
   }
 }
 
-export function createJobPublisher(env: ServerEnv): JobPublisher {
-  return env.SQS_JOBS_QUEUE_URL ? new SqsJobPublisher(env.SQS_JOBS_QUEUE_URL, env.AWS_REGION) : new LoggingJobPublisher();
+export function createJobPublisher(env: ServerEnv, container: () => Container): JobPublisher {
+  return env.PUBSUB_JOBS_TOPIC ? new PubSubJobPublisher(env.PUBSUB_JOBS_TOPIC, env.GCP_PROJECT_ID) : new InProcessJobPublisher(container);
 }
