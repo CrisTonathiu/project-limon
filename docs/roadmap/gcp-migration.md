@@ -60,7 +60,6 @@ Check items off here as they land. Each phase ends with a **Done when**.
 ### Phase 0 · Accounts and tools (Oct 8, ~1 h)
 
 - [x] Create the GCP project `limon-preproduction`, link a billing account, and set a **budget of US$50/month** with email alerts at 50 / 90 / 100 %. *(The billing account is in MXN, so the budget is **MXN 1,000/month**, ≈ US$50.)*
-- [ ] Apply for the [Google for Startups Cloud Program](https://cloud.google.com/startup) credits.
 - [x] Install the `gcloud` CLI and **Terraform** (≥ 1.9) locally; `gcloud auth login` and `gcloud auth application-default login`.
 - [x] Create a versioned Cloud Storage bucket for the Terraform state (`limon-tfstate-<random>`), by hand, once. *(Bucket: **`limon-tfstate-a175b1`**, us-east1, public access prevented.)*
 
@@ -96,7 +95,6 @@ Some resources are still running and some were deleted by hand, so CloudFormatio
    - [x] **VPCs** named `limon-*` (deleting a VPC removes its subnets, endpoints and security groups).
 6. **Remove the CDK bootstrap**, if nothing else in the account uses CDK: empty and delete the `cdk-hnb659fds-assets-*` S3 bucket and the `cdk-hnb659fds-container-assets-*` ECR repository, then delete the `CDKToolkit` stack.
 7. **Confirm zero.** Keep an AWS budget of US$1/month for one month. If no alert fires, either leave the empty account or **close it** (Account → *Close account*; AWS keeps it suspended for 90 days and then deletes it).
-8. [ ] Remove the old AWS IP from the FatSecret whitelist, if it was ever added.
 
 **Done when:** Cost Explorer shows no new AWS charges for 2 consecutive days, and the tag search returns nothing in every region.
 
@@ -181,10 +179,10 @@ Docs: ADR-006 (identity tenant per nutritionist instead of namespaced usernames)
 
 ### Phase 6 · File storage: S3 → Cloud Storage (Oct 15)
 
-- [ ] `apps/api/src/infrastructure/storage.ts`: `@google-cloud/storage` with **V4 signed URLs** (the `api` service account signs through IAM, hence the token-creator role). Same `TenantStorage` interface, same `tenants/{tenantId}/…` keys.
-- [ ] Bucket `limon-pre-tenant-assets`: uniform access, public access prevention, versioning, the `tmp/` 1-day lifecycle rule (as on S3).
-- [ ] `DeleteTenantData`: delete the `tenants/{tenantId}/` prefix in Cloud Storage.
-- [ ] `packages/config`: `S3_TENANT_BUCKET` → `GCS_TENANT_BUCKET`; remove `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`.
+- [x] `apps/api/src/infrastructure/storage.ts`: `@google-cloud/storage` with **V4 signed URLs** (the `api` service account signs through IAM, hence the token-creator role). Same `TenantStorage` interface, same `tenants/{tenantId}/…` keys. *(URLs last 5 minutes, as on S3; an upload URL is bound to its content type. Locally, signing needs `gcloud auth application-default login`.)*
+- [x] Bucket `limon-pre-tenant-assets`: uniform access, public access prevention, versioning, the `tmp/` 1-day lifecycle rule (as on S3). *(`storage.tf`, with object admin for `api` and `worker` on the bucket. Old versions are removed after 30 days, as on S3.)*
+- [x] `DeleteTenantData`: delete the `tenants/{tenantId}/` prefix in Cloud Storage. *(`TenantStorage.deleteTenantFiles` deletes every object and old version under the prefix. The job is still a skeleton and calls it once the retention policy is decided.)*
+- [x] `packages/config`: `S3_TENANT_BUCKET` → `GCS_TENANT_BUCKET`; remove `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`. *(`AWS_REGION` is gone too: storage was its last user.)*
 
 **Done when:** an upload URL works from the app and a download URL expires as configured.
 

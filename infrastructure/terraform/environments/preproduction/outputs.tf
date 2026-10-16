@@ -13,6 +13,10 @@ output "worker_url" {
   value       = google_cloud_run_v2_service.worker.uri
 }
 
+output "tenant_bucket" {
+  value = google_storage_bucket.tenant_assets.name
+}
+
 output "database" {
   value = {
     instance   = module.database.instance_name

@@ -20,8 +20,8 @@ const ServerEnvSchema = z
     DEV_AUTH_SECRET: z.string().optional(),
     /** The GCP project: Identity Platform tokens must be issued for it. */
     GCP_PROJECT_ID: optional,
-    AWS_REGION: z.string().default('us-east-1'),
-    S3_TENANT_BUCKET: z.string().default('limon-dev-tenant-assets'),
+    /** Private Cloud Storage bucket for tenant files (keys under tenants/{tenantId}/). */
+    GCS_TENANT_BUCKET: z.string().default('limon-dev-tenant-assets'),
     /** Pub/Sub topic for background jobs. Unset → jobs run inside the publishing process (local dev, tests). */
     PUBSUB_JOBS_TOPIC: optional,
     // FatSecret Platform API (nutrition data). Unset → the foods endpoints answer NUTRITION_PROVIDER_UNAVAILABLE.
