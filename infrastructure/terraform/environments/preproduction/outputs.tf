@@ -8,6 +8,16 @@ output "artifact_registry" {
   value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.limon.repository_id}"
 }
 
+output "api_url" {
+  description = "The api's own run.app URL; the public one is var.api_domain."
+  value       = google_cloud_run_v2_service.api.uri
+}
+
+# What to add at Hostinger (normally CNAME api → ghs.googlehosted.com).
+output "api_domain_dns_records" {
+  value = google_cloud_run_domain_mapping.api.status[0].resource_records
+}
+
 output "worker_url" {
   description = "Private (IAM only). Pub/Sub and Cloud Scheduler call it."
   value       = google_cloud_run_v2_service.worker.uri

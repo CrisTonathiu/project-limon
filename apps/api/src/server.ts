@@ -12,7 +12,7 @@ const shutdown = async (signal: string) => {
   await container.db.disconnect();
   process.exit(0);
 };
-process.on('SIGTERM', () => void shutdown('SIGTERM')); // ECS task stop
+process.on('SIGTERM', () => void shutdown('SIGTERM')); // Cloud Run instance shutdown
 process.on('SIGINT', () => void shutdown('SIGINT'));
 
 await app.listen({ host: '0.0.0.0', port: env.API_PORT });

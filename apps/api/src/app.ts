@@ -20,7 +20,7 @@ const REQUEST_ID = /^[a-zA-Z0-9-]{8,64}$/;
 
 export async function buildApp(c: Container) {
   const app = Fastify({
-    trustProxy: true, // behind ALB/CloudFront
+    trustProxy: true, // behind the Cloud Run front end (client IP in X-Forwarded-For)
     bodyLimit: 1_048_576,
     disableRequestLogging: true, // replaced by the tenant-aware access log below
     genReqId: (req) => {
