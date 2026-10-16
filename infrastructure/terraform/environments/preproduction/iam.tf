@@ -1,7 +1,8 @@
 # Service accounts and their project-level roles. Roles scoped to a single resource are
 # granted next to that resource when it's created:
-#   - Pub/Sub publisher (api) and subscriber (worker) on the `jobs` topic: phase 5
-#   - Cloud Run invoker on `worker` for `scheduler` and `pubsub-push`: phase 5
+#   - Pub/Sub publisher (api, worker) on the `jobs` topic, and Cloud Run invoker on `worker`
+#     for `scheduler` and `pubsub-push`: jobs.tf. The worker needs no subscriber role: Pub/Sub
+#     pushes to it.
 #   - Storage object admin on the tenant bucket (api, worker): phase 6
 #   - Workload Identity Federation for `deployer`: phase 8
 # Secret access is granted per secret in modules/secrets.

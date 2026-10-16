@@ -3,7 +3,7 @@ import type { JobEnvelope } from '@limon/tenant';
 import type { Container } from '../../infrastructure/container.js';
 
 /**
- * DeleteTenantData — SKELETON. Must be idempotent (SQS is at-least-once).
+ * DeleteTenantData — SKELETON. Must be idempotent (Pub/Sub delivers at least once).
  *
  * Planned order (docs/architecture/tenant-lifecycle.md):
  *  1. Guard: tenant.status must be DELETION_PENDING and scheduledDeletionAt <= now

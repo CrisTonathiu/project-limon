@@ -8,6 +8,11 @@ output "artifact_registry" {
   value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.limon.repository_id}"
 }
 
+output "worker_url" {
+  description = "Private (IAM only). Pub/Sub and Cloud Scheduler call it."
+  value       = google_cloud_run_v2_service.worker.uri
+}
+
 output "database" {
   value = {
     instance   = module.database.instance_name

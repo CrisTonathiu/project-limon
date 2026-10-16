@@ -11,7 +11,7 @@ import { FatSecretClient } from '../../src/infrastructure/fatsecret.js';
 import { createMealPlansService } from '../../src/modules/meal-plans/meal-plans.service.js';
 import { createTestFoods } from './test-foods.js';
 
-const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', SQS_JOBS_QUEUE_URL: '' });
+const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', PUBSUB_JOBS_TOPIC: '' });
 
 /** Every food: 150 kcal and 10 g protein per 100 g, whatever its id. */
 const fakeFetch = (async (url: string) => {

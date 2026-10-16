@@ -9,7 +9,7 @@ import { generateInviteCode } from '@limon/tenant';
 import { buildApp } from '../../src/app.js';
 import { createContainer } from '../../src/infrastructure/container.js';
 
-const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', SQS_JOBS_QUEUE_URL: '' });
+const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', PUBSUB_JOBS_TOPIC: '' });
 const c = createContainer(env);
 let app: Awaited<ReturnType<typeof buildApp>>;
 const token = (sub: string) => c.devVerifier!.issue(sub);

@@ -10,7 +10,7 @@ import { buildApp } from '../../src/app.js';
 import { createContainer } from '../../src/infrastructure/container.js';
 import { localToday } from '../../src/modules/meal-plans/week.js';
 
-const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', SQS_JOBS_QUEUE_URL: '' });
+const env = loadServerEnv({ ...process.env, AUTH_PROVIDER: 'dev', DEV_AUTH_SECRET: 'test', PUBSUB_JOBS_TOPIC: '' });
 const c = createContainer(env);
 const owner = new DatabaseRouter({ url: process.env.DATABASE_MIGRATION_URL });
 let app: Awaited<ReturnType<typeof buildApp>>;

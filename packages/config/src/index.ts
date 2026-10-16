@@ -13,6 +13,7 @@ const ServerEnvSchema = z
     APP_ENV: z.enum(['development', 'staging', 'preproduction', 'production']).default('development'),
     NODE_ENV: z.string().default('development'),
     API_PORT: z.coerce.number().int().default(4000),
+    WORKER_PORT: z.coerce.number().int().default(4001),
     CORS_ORIGINS: z.string().default('http://localhost:3000'),
     DATABASE_URL: z.string().url(),
     AUTH_PROVIDER: z.enum(['identity-platform', 'dev']).default('dev'),
@@ -21,7 +22,8 @@ const ServerEnvSchema = z
     GCP_PROJECT_ID: optional,
     AWS_REGION: z.string().default('us-east-1'),
     S3_TENANT_BUCKET: z.string().default('limon-dev-tenant-assets'),
-    SQS_JOBS_QUEUE_URL: z.string().optional(),
+    /** Pub/Sub topic for background jobs. Unset → jobs run inside the publishing process (local dev, tests). */
+    PUBSUB_JOBS_TOPIC: optional,
     // FatSecret Platform API (nutrition data). Unset → the foods endpoints answer NUTRITION_PROVIDER_UNAVAILABLE.
     FATSECRET_CLIENT_ID: optional,
     FATSECRET_CLIENT_SECRET: optional,

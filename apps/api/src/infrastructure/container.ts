@@ -28,14 +28,14 @@ export function createContainer(env: ServerEnv, overrides: Partial<Container> = 
   const db = overrides.db ?? new DatabaseRouter({ url: env.DATABASE_URL });
   const devVerifier = env.AUTH_PROVIDER === 'dev' ? new DevTokenVerifier(env.DEV_AUTH_SECRET!) : null;
   const verifier = devVerifier ?? new IdentityPlatformTokenVerifier({ projectId: env.GCP_PROJECT_ID! });
-  return {
+  const container: Container = {
     env,
     db,
     registry: new SharedTenantRegistry(),
     verifier,
     devVerifier,
     identityAdmin: devVerifier ? null : new FirebaseIdentityAdmin(env.GCP_PROJECT_ID!),
-    jobs: createJobPublisher(env),
+    jobs: createJobPublisher(env, () => container),
     storage: createStorage(env),
     fatsecret:
       env.FATSECRET_CLIENT_ID && env.FATSECRET_CLIENT_SECRET
@@ -50,4 +50,5 @@ export function createContainer(env: ServerEnv, overrides: Partial<Container> = 
         : null,
     ...overrides,
   };
+  return container;
 }
