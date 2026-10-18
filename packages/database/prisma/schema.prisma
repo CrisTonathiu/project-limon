@@ -80,10 +80,13 @@ enum PlatformSubscriptionStatus {
 /// Where a patient's payment is processed. Store billing is mandatory for digital
 /// access sold inside the apps (Apple 3.1.1 / Google Play Billing); STRIPE is kept
 /// for out-of-app sales (e.g. in-person or web checkout). See ADR-008.
+/// MANUAL is access granted by the platform team with `admin subscription` (test accounts,
+/// the App Review demo account); no money moves and no provider ever syncs it.
 enum PaymentProvider {
   APPLE_APP_STORE
   GOOGLE_PLAY
   STRIPE
+  MANUAL
 }
 
 enum PatientSubscriptionStatus {

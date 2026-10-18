@@ -132,6 +132,8 @@ export const PaymentProvider = {
   APPLE_APP_STORE: 'APPLE_APP_STORE',
   GOOGLE_PLAY: 'GOOGLE_PLAY',
   STRIPE: 'STRIPE',
+  /** Granted by the platform team (`admin subscription`); no money moves. */
+  MANUAL: 'MANUAL',
 } as const;
 export type PaymentProvider = (typeof PaymentProvider)[keyof typeof PaymentProvider];
 
