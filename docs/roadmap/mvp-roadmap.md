@@ -35,7 +35,7 @@ Nutritionist web dashboard · per-tenant store builds · AI assistant · calenda
 | App distribution | **One branded app per nutritionist**, published from the nutritionist's own developer accounts (ADR-009) | Apple 4.2.6 requires template apps to be submitted by the content owner. Each pilot must enroll with Apple and Google in week 1; builds and submissions are manual for the pilots. |
 | Store accounts for nutritionists without a business | **Individual** (Apple) / **personal** (Google) accounts | No registered business or D-U-N-S number needed. The seller shows as the nutritionist's legal name, and Google adds a 14-day closed test before the app can go public. See [Nutritionist onboarding](#nutritionist-onboarding-store-accounts). |
 | Patient payments | **Stripe** (Connect, so the money goes to the nutritionist) | See [App Store risk](#1-stripe-vs-app-store-rules-high) — the app itself must not sell anything. |
-| Tenant billing | Base rate + add-ons | Pricing model still open — see [Tenant pricing options](#tenant-pricing-options). Invoice manually through Stripe Billing during the pilot. |
+| Tenant billing | Base rate + add-ons, charged from a **separate Project Limon Stripe account** | Pricing model still open — see [Tenant pricing options](#tenant-pricing-options). Invoice manually through Stripe Billing during the pilot. |
 | Recipe ownership | Global default library → **copied** into each tenant at provisioning | Nutritionists edit their own copies; updates to the library never overwrite tenant edits. |
 | Nutrition data | **FatSecret Premier (Mexico region, Spanish)** for nutrients; **SMAE 5th ed. (v2.0, 2024)** for equivalents | FatSecret values differ from other sources, so it stays the source. Mexico data needs the paid Premier plan, and FatSecret only lets us store **IDs**: nutrients are fetched live and cached ≤ 24 h. See [Nutrition data](#nutrition-data-fatsecret--smae) and [Risks](#2-nutrition-data-fatsecret-premier-high). |
 | Meal plan generation | Rule-based, no AI | Favourites are recorded now so a preference model can be trained later. |
@@ -76,7 +76,7 @@ Close the blockers first so nothing stalls later.
 
 - [ ] **FatSecret:** create the free Basic account and API key, whitelist the dev machine's IP, try `foods.search` v3 / `food.get` v4 (US data, English — enough to build against). Ask sales for a **Premier quote for Mexico only** and whether a contract can allow storing nutrient values. Premier must be active **before week 3's recipe curation**.
 - [ ] **SMAE:** buy the *Sistema Mexicano de Alimentos Equivalentes*, 5th ed. v2.0 (2024; Pérez Lizaur et al., ISBN of the 5th ed. 9786072938403, about MX$350). Ask the publisher about using the equivalent tables (group and grams per equivalent) in a commercial app.
-- [ ] **Stripe:** open the Stripe Mexico account, enable Connect (Express), and decide the patient payment flow (see Risk 1).
+- [ ] **Stripe:** open the Stripe Mexico account, enable Connect (Standard-type accounts, so chargebacks stay with the nutritionist; see [payments](stripe-payments.md#decisions)), and decide the patient payment flow (see Risk 1).
 - [ ] **Store accounts:** each pilot nutritionist starts enrolling in Apple Developer + Google Play (ADR-009), as an **individual / personal** account unless they have a registered business. Follow [Nutritionist onboarding](#nutritionist-onboarding-store-accounts); Apple identity checks can take days, so start this now.
 - [x] **Admission modes:** `invite_only` flag (open or invite only), per-patient single-use invite codes, admin command to issue them.
 - [x] **Feature flags:** `tenant_features` table (`tenant_id`, `feature_key`, `enabled`, `config` JSON). `/auth/me` returns the effective flags (dependencies such as `shopping_list` → `meal_plan` applied), the API guard `requireFeature(c, FeatureKey.MEAL_PLAN)` returns `FEATURE_DISABLED`, and the app hides disabled screens. Toggle with `pnpm --filter @limon/database admin features <slug> --enable … --disable …`.
@@ -180,7 +180,9 @@ Needs FatSecret Premier (Mexico) active, so curated foods use Mexican `food_id`s
 
 ### Week 7 · Nov 9 – 13 — Payments (Stripe)
 
-- [ ] Stripe Connect Express onboarding link per nutritionist (sent by our team). Save the account id on the tenant.
+Detailed plan, with race conditions, idempotency, webhook retries and reconciliation: [Patient payments with Stripe](stripe-payments.md).
+
+- [ ] Stripe Connect (Standard-type) onboarding link per nutritionist (sent by our team). Save the account id on the tenant.
 - [ ] One Stripe Price per tenant (their monthly patient fee), created on the connected account. The platform fee is collected via `application_fee_percent` if the pricing option uses it.
 - [ ] Patient payment flow (web, outside the app — see Risk 1): Stripe Checkout (cards) → webhook (`checkout.session.completed`, `customer.subscription.*`, `invoice.payment_failed`) → `PatientSubscription` rows → existing entitlement gating.
 - [ ] Stripe customer portal for cancellation and card updates (web).
@@ -237,7 +239,7 @@ Because patients pay through Stripe outside the app, the apps are free: no Apple
 3. They create a Google Play **personal** developer account.
 4. We get build access. On Apple, an **App Store Connect API key** created during onboarding lets EAS build, sign and submit without needing their two-factor code each time. On Google, we are added as an admin user.
 5. Their first **12 patients join the Android closed test**. The 14-day clock starts when the 12th tester opts in.
-6. They open a **Stripe Connect Express** account as an individual, with their bank account (CLABE) and likely their RFC. Most practicing nutritionists already have an RFC because they issue receipts.
+6. They open a **Stripe Connect** account (Standard type, with the full Stripe Dashboard; chargebacks and refunds are theirs) as an individual, with their bank account (CLABE) and likely their RFC. Most practicing nutritionists already have an RFC because they issue receipts.
 
 **Open question (confirm with the first pilot):** whether an Individual Apple account can create the App Store Connect API key EAS needs for signing. If it can't, every signing session needs a two-factor code from the nutritionist. Workable for the pilots, but it doesn't scale.
 
@@ -361,6 +363,7 @@ Deployment and teardown steps will live in `docs/architecture/gcp.md` ([migratio
 | v1.1 | Dec 2026 | Anything past the cut line, pilot feedback, ARCO request flow in-app, analytics |
 | Production environment | Before onboarding nutritionists beyond the pilot | Separate GCP project `limon-production` (same Terraform modules): global load balancer + Cloud Armor, Cloud SQL with high availability, min 2 `api` instances, a `limon-staging` project, data and Identity Platform users exported from `preproduction` (password hashes included), the new NAT IP whitelisted at FatSecret, then `preproduction` destroyed |
 | Nutritionist dashboard | Jan – Feb 2027 | Recipe editor, patient list and progress, meal plan review/override, invite codes, Stripe Connect self-onboarding, feature/add-on self-upgrade |
+| Platform admin dashboard | Not scheduled | Cross-tenant alerts, payment records for support and payment-pipeline metrics, without patient health data. See [Platform admin dashboard](admin-dashboard.md) |
 | Build automation | Feb – Mar 2027 | Automated per-tenant build and submit pipeline (the MVP pilots are built by hand), OTA updates per tenant, guided store-account onboarding, CFDI invoicing (e.g. Facturapi) |
 | AI add-on (`ai_assistant`) | Q2 2027 | Preference-aware plan generation trained on `meal_feedback`; patient assistant (recipe Q&A, swaps); nutritionist plan drafting; usage-metered billing. See [AI add-on](ai-addon.md), including data to start collecting before the pilot |
 | Booking add-on (`booking`) | Q2 2027 | Calendar, availability, video-call links, reminders |
