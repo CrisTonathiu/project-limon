@@ -14,6 +14,7 @@
  *   pnpm --filter @limon/database admin goal-rules <tenant-slug>   (show the clinic's goal rules)
  *   pnpm --filter @limon/database admin goal-rules <tenant-slug> --file rules.json   (store the nutritionist's rules as the next version)
  *   GCP_PROJECT_ID=<project> pnpm --filter @limon/database admin identity-tenant <tenant-slug>   (create the practice's Identity Platform tenant, if it has none)
+ *   pnpm --filter @limon/database admin subscription <tenant-slug> --email <login email> [--days 30 | --revoke]   (free access for a test account; no flag shows status)
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -265,6 +266,65 @@ async function goalRules(args: string[]) {
 }
 
 /**
+ * Free access for testing and for the App Review demo account: a MANUAL patient subscription,
+ * which the entitlement check treats like a paid one. No money moves and no provider syncs it.
+ * --days grants or extends it, counted from today; --revoke ends it now; neither shows status.
+ */
+async function subscription(args: string[]) {
+  const { values, positionals } = parseArgs({
+    args, allowPositionals: true,
+    options: { email: { type: 'string' }, patient: { type: 'string' }, days: { type: 'string' }, revoke: { type: 'boolean' } },
+  });
+  const tenant = await tenantBySlug(positionals[0]);
+  if (Boolean(values.email) === Boolean(values.patient)) fail('Give --email <login email> or --patient <patient-id>.');
+  if (values.days && values.revoke) fail('Give --days or --revoke, not both.');
+
+  const patient = await prisma.patient.findFirst({
+    where: values.patient
+      ? { tenantId: tenant.id, id: values.patient, deletedAt: null }
+      : { tenantId: tenant.id, deletedAt: null, user: { email: { equals: values.email!.trim(), mode: 'insensitive' }, role: 'PATIENT', deletedAt: null } },
+  });
+  if (!patient) fail(`No patient with that ${values.patient ? 'id' : 'login email'} in ${tenant.name}.`);
+  const key = { provider: 'MANUAL' as const, providerSubscriptionId: `manual:${patient.id}` };
+
+  if (values.days) {
+    const days = Number(values.days);
+    if (!Number.isInteger(days) || days < 1 || days > 365) fail('--days must be a whole number from 1 to 365.');
+    const currentPeriodEnd = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.patientSubscription.upsert({
+        where: { provider_providerSubscriptionId: key },
+        update: { status: 'ACTIVE', currentPeriodEnd },
+        create: { ...key, tenantId: tenant.id, patientId: patient.id, productId: 'manual', status: 'ACTIVE', currentPeriodEnd, cancelAtPeriodEnd: true },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId: tenant.id, userId: null, requestId: `admin-cli-${Date.now()}`, action: 'ManualSubscriptionGranted',
+          resourceType: 'PatientSubscription', resourceId: row.id, metadata: { patientId: patient.id, days, via: 'admin-cli' },
+        },
+      });
+    });
+  } else if (values.revoke) {
+    const existing = await prisma.patientSubscription.findUnique({ where: { provider_providerSubscriptionId: key } });
+    if (!existing) fail(`${patient.firstName} ${patient.lastName} has no manual access to revoke.`);
+    await prisma.$transaction([
+      prisma.patientSubscription.update({ where: { id: existing.id }, data: { status: 'CANCELED', currentPeriodEnd: new Date() } }),
+      audit(tenant.id, 'ManualSubscriptionRevoked', 'PatientSubscription', existing.id, { patientId: patient.id }),
+    ]);
+  }
+
+  // Same rule as entitlement.service.ts: a live status and a period end still ahead.
+  const subs = await prisma.patientSubscription.findMany({ where: { tenantId: tenant.id, patientId: patient.id }, orderBy: { createdAt: 'asc' } });
+  const live = (s: (typeof subs)[number]) =>
+    ['ACTIVE', 'TRIALING', 'GRACE_PERIOD'].includes(s.status) && (!s.currentPeriodEnd || s.currentPeriodEnd.getTime() > Date.now());
+  console.log(`${patient.firstName} ${patient.lastName} (${tenant.name}) — ${subs.some(live) ? '● has access' : '○ no access'}`);
+  for (const s of subs) {
+    console.log(`  ${s.provider.padEnd(15)} ${s.status.padEnd(12)} until ${s.currentPeriodEnd?.toISOString().slice(0, 10) ?? '—'}`);
+  }
+  if (!subs.length) console.log('  no subscriptions');
+}
+
+/**
  * Practices registered before Identity Platform (or seeded) have no identity tenant, so their
  * patients can't sign in yet. New sign-ups get one at registration (auth.service.ts).
  * Needs Identity Platform admin rights: locally your gcloud application-default login.
@@ -295,7 +355,7 @@ async function identityTenant(args: string[]) {
 
 const [command, ...rest] = process.argv.slice(2);
 const commands: Record<string, (args: string[]) => Promise<void>> = {
-  features, invite, recipes, foods, 'default-recipes': defaultRecipes, 'goal-rules': goalRules, 'identity-tenant': identityTenant,
+  features, invite, recipes, foods, 'default-recipes': defaultRecipes, 'goal-rules': goalRules, 'identity-tenant': identityTenant, subscription,
 };
 const run = command ? commands[command] : undefined;
 if (!run) fail(`Usage: admin <${Object.keys(commands).join('|')}> <tenant-slug | csv> [options]`);
