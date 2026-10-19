@@ -53,3 +53,8 @@ output "identity_platform" {
     auth_domain = "${google_identity_platform_config.main.client[0].firebase_subdomain}.firebaseapp.com"
   }
 }
+
+# The deploy workflow's `workload_identity_provider` (.github/workflows/deploy.yml).
+output "github_workload_identity_provider" {
+  value = google_iam_workload_identity_pool_provider.github_actions.name
+}

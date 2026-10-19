@@ -35,9 +35,25 @@ jobs:
         run: pnpm turbo run test
       - name: Build
         run: pnpm turbo run build --filter=!@limon/patient
-      - name: CDK synth (preproduction)
-        working-directory: infrastructure
-        run: npx cdk synth -c env=preproduction --quiet
+
+  terraform:
+    name: Terraform fmt · validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.4
+      - name: Format
+        working-directory: infrastructure/terraform
+        run: terraform fmt -check -recursive
+      # No backend and no credentials: validate only checks the configuration itself.
+      - name: Validate (preproduction)
+        working-directory: infrastructure/terraform/environments/preproduction
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
 
   tenant-isolation:
     name: Tenant isolation (integration)

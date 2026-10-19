@@ -223,11 +223,17 @@ curl https://api.projectlimon.com/health
 
 ### Phase 8 · CI/CD and monitoring (Oct 19–20)
 
-- [ ] GitHub Actions authenticates to GCP with **Workload Identity Federation** (no JSON keys in GitHub secrets).
-- [ ] `ci.yml`: replace the `cdk synth` step with `terraform fmt -check` and `terraform validate`.
-- [ ] Deploy workflow (on merge to `main`, or by hand while solo): build the image, push it to Artifact Registry, run the migrate job, deploy `api` and `worker`.
-- [ ] `mobile-build.yml`: the Firebase config and identity tenant per app, instead of the Cognito ids.
-- [ ] Monitoring: an **uptime check** on `/health` with an email alert; alerts for `api` 5xx rate, undelivered messages in `jobs-dlq`, and Cloud SQL CPU and disk.
+- [x] GitHub Actions authenticates to GCP with **Workload Identity Federation** (no JSON keys in GitHub secrets). *(`cicd.tf`: pool `github`, provider `github-actions`. The provider only accepts tokens from `main` of this repository, so pull requests get no credentials. It impersonates `limon-deployer`.)*
+- [x] `ci.yml`: replace the `cdk synth` step with `terraform fmt -check` and `terraform validate`. *(A separate `terraform` job; `init -backend=false`, so it needs no credentials.)*
+- [x] Deploy workflow (on merge to `main`, or by hand while solo): build the image, push it to Artifact Registry, run the migrate job, deploy `api` and `worker`. *(`deploy.yml`: runs after CI passes on a push to `main`, or from the Actions tab, then checks `/health`. One deploy at a time, never cancelled midway. Images are tagged with the short commit hash.)*
+- [x] `mobile-build.yml`: the Firebase config and identity tenant per app, instead of the Cognito ids. *(Still a placeholder. It now fails when the tenant has no `identityTenantId`, or when the `FIREBASE_API_KEY` repository variable isn't set.)*
+- [x] Monitoring: an **uptime check** on `/health` with an email alert; alerts for `api` 5xx rate, undelivered messages in `jobs-dlq`, and Cloud SQL CPU and disk. *(`monitoring.tf`: uptime every 5 minutes; 5xx when there are more than 5 in 5 minutes; any message in `jobs-dlq`; CPU or disk above 80% for 10 minutes. The address is `var.alert_email`, with no default because the repository is public: set it in `terraform.tfvars`, which is gitignored.)*
+
+To finish it by hand:
+
+1. `terraform apply` with `alert_email` set (9 resources to add, nothing else changes).
+2. In GitHub, set the repository variable `FIREBASE_API_KEY`. The deploy workflow needs no secrets.
+3. Merge to `main` and watch the deploy. To test the uptime alert, take away public access so `/health` answers 403: `gcloud run services remove-iam-policy-binding api --region us-east1 --member=allUsers --role=roles/run.invoker`. Wait for the email (about 5–10 minutes), then `terraform apply` puts the binding back.
 
 **Done when:** a merge to `main` deploys without manual steps, and stopping the `api` service triggers the uptime alert.
 
