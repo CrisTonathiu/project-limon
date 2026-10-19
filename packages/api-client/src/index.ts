@@ -1,8 +1,8 @@
 import type {
-  ApiErrorBody, BodyLogDto, BodyLogListResponse, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, FoodSwapOptionsResponse, MealPlanResponse, MealType, MeResponse, MyGoalResponse, PatientDto, PatientEntitlement, PatientProfileResponse, ProgressPeriod, ProgressResponse, SetGoalResponse,
+  ApiErrorBody, BodyLogDto, BodyLogListResponse, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, FoodSwapOptionsResponse, MealLogResponse, MealPlanResponse, MealProgressResponse, MealType, MeResponse, MyGoalResponse, PatientDto, PatientEntitlement, PatientProfileResponse, ProgressPeriod, ProgressResponse, SetGoalResponse,
   PlannedMealDetailDto, RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, ShoppingListResponse, TenantAppConfig, WaterResponse, WaterTodayDto,
 } from '@limon/types';
-import type { BodyLogInput, CreatePatientInput, PatientProfileInput, SetGoalInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
+import type { BodyLogInput, CreatePatientInput, MealLogInput, PatientProfileInput, SetGoalInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
 
 /**
  * Typed client shared by the dashboard (web) and patient apps (React Native).
@@ -108,6 +108,12 @@ export function createApiClient(opts: ApiClientOptions) {
       /** Eat `foodId` instead (today or later); the recipe's own food undoes the swap. Returns the updated meal. */
       swap: (mealId: string, ingredientId: string, foodId: string) =>
         request<PlannedMealDetailDto>('PUT', `/meal-plans/current/meals/${encodeURIComponent(mealId)}/ingredients/${encodeURIComponent(ingredientId)}/swap`, { foodId }),
+      /** Today's check-offs, the week's adherence and the streak. */
+      progress: () => request<MealProgressResponse>('GET', '/meal-plans/progress'),
+      /** Check off a meal of today or yesterday: eaten, skipped or something else. Replaces an earlier answer. */
+      logMeal: (mealId: string, input: MealLogInput) => request<MealLogResponse>('PUT', `/meal-plans/meals/${encodeURIComponent(mealId)}/log`, input),
+      /** Undo a check-off; returns the progress without it. */
+      unlogMeal: (mealId: string) => request<MealProgressResponse>('DELETE', `/meal-plans/meals/${encodeURIComponent(mealId)}/log`),
     },
     shoppingList: {
       /** This week's list, from the plan (generated on the first visit of the week, like `mealPlans.current`). */

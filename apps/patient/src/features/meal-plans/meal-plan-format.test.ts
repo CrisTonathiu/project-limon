@@ -35,7 +35,7 @@ describe('dayChip', () => {
 
 describe('withFavourite', () => {
   const meal = (id: string, recipeId: string | null): PlannedMealDto => ({
-    id, mealType: 'LUNCH', recipe: recipeId ? { id: recipeId, title: recipeId, totalMinutes: null } : null, servings: recipeId ? 1 : null, macros: null, favourite: false,
+    id, mealType: 'LUNCH', recipe: recipeId ? { id: recipeId, title: recipeId, totalMinutes: null } : null, servings: recipeId ? 1 : null, macros: null, favourite: false, log: null,
   });
   const plan: MealPlanDto = {
     id: 'plan', weekStart: week[0]!,

@@ -1,4 +1,4 @@
-import { ActivityLevel, Allergen, BiologicalSex, GoalIntention, GoalPace, MealType, ProgressPeriod, RecentWeightChange } from '@limon/types';
+import { ActivityLevel, Allergen, BiologicalSex, GoalIntention, GoalPace, MealLogSource, MealLogStatus, MealType, ProgressPeriod, RecentWeightChange } from '@limon/types';
 import { z } from 'zod';
 
 /**
@@ -339,6 +339,21 @@ export type MealPlanFavouriteParam = z.infer<typeof MealPlanFavouriteParamSchema
 /** GET /meal-plans/current/meals/:mealId */
 export const MealPlanMealParamSchema = z.object({ mealId: z.string().uuid() }).strict();
 export type MealPlanMealParam = z.infer<typeof MealPlanMealParamSchema>;
+
+/** PUT /meal-plans/meals/:mealId/log. A note only goes with OTHER ("ate something else"). */
+export const MEAL_LOG_NOTE_MAX = 140;
+export const MealLogSchema = z
+  .object({
+    status: z.nativeEnum(MealLogStatus),
+    note: z.string().trim().max(MEAL_LOG_NOTE_MAX).nullish().transform((n) => n || null),
+    source: z.nativeEnum(MealLogSource).default(MealLogSource.APP),
+  })
+  .strict()
+  .refine((v) => v.status === MealLogStatus.OTHER || v.note === null, { message: 'A note only goes with OTHER', path: ['note'] });
+/** What the client sends: `note` and `source` are optional. */
+export type MealLogInput = z.input<typeof MealLogSchema>;
+/** What the API works with after parsing: `note` is null and `source` APP unless given. */
+export type MealLogData = z.output<typeof MealLogSchema>;
 
 /** GET …/ingredients/:ingredientId/swaps and PUT …/ingredients/:ingredientId/swap */
 export const MealPlanIngredientParamSchema = z.object({ mealId: z.string().uuid(), ingredientId: z.string().uuid() }).strict();

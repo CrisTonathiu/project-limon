@@ -8,7 +8,7 @@ const meal = (id: string, mealType: MealType, title: string | null = id): Planne
   recipe: title ? { id: `r-${id}`, title, totalMinutes: null } : null,
   servings: 1,
   macros: null,
-  favourite: false,
+  favourite: false, log: null,
 });
 
 const day = (date: string) => ({

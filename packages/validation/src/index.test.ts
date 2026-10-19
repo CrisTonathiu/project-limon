@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ageInYears, BodyLogSchema, CreatePatientSchema, GoalRulesSchema, IsoDateParamSchema, PatientProfileSchema, RegisterNutritionistSchema, SetGoalSchema, WaterIntakeSchema, WaterQuerySchema, WaterTargetSchema } from './index.js';
+import { ageInYears, BodyLogSchema, MealLogSchema, CreatePatientSchema, GoalRulesSchema, IsoDateParamSchema, PatientProfileSchema, RegisterNutritionistSchema, SetGoalSchema, WaterIntakeSchema, WaterQuerySchema, WaterTargetSchema } from './index.js';
 
 describe('validation schemas', () => {
   it('rejects client-supplied tenantId (never trusted from clients)', () => {
@@ -118,5 +118,16 @@ describe('water', () => {
     expect(WaterTargetSchema.safeParse({ targetMl: 2420 }).success).toBe(false);
     expect(WaterQuerySchema.parse({})).toEqual({ days: 7 });
     expect(WaterQuerySchema.safeParse({ days: '31' }).success).toBe(false);
+  });
+
+  it('checks a meal check-off: note only with OTHER, trimmed and capped', () => {
+    expect(MealLogSchema.parse({ status: 'EATEN' })).toEqual({ status: 'EATEN', note: null, source: 'APP' });
+    expect(MealLogSchema.parse({ status: 'OTHER', note: '  tacos ', source: 'NOTIFICATION' })).toEqual({ status: 'OTHER', note: 'tacos', source: 'NOTIFICATION' });
+    // A blank note is no note.
+    expect(MealLogSchema.parse({ status: 'OTHER', note: '   ' }).note).toBeNull();
+    expect(MealLogSchema.safeParse({ status: 'EATEN', note: 'rico' }).success).toBe(false);
+    expect(MealLogSchema.safeParse({ status: 'OTHER', note: 'x'.repeat(141) }).success).toBe(false);
+    expect(MealLogSchema.safeParse({ status: 'MAYBE' }).success).toBe(false);
+    expect(MealLogSchema.safeParse({ status: 'EATEN', loggedAt: '2026-10-19' }).success).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { Permission } from '@limon/auth';
 import { FeatureKey } from '@limon/types';
 import {
-  FoodSwapSchema, MealPlanDayParamSchema, MealPlanFavouriteParamSchema, MealPlanIngredientParamSchema, MealPlanMealParamSchema,
+  FoodSwapSchema, MealLogSchema, MealPlanDayParamSchema, MealPlanFavouriteParamSchema, MealPlanIngredientParamSchema, MealPlanMealParamSchema,
 } from '@limon/validation';
 import type { FastifyInstance } from 'fastify';
 import type { Container } from '../../infrastructure/container.js';
@@ -47,6 +47,21 @@ export async function mealPlansRoutes(app: FastifyInstance, c: Container) {
   app.get('/meal-plans/current/meals/:mealId', { preHandler: [requireTenant(c, Permission.SELF_MEAL_PLANS_READ), feature] }, async (req, reply) => {
     const { mealId } = MealPlanMealParamSchema.parse(req.params);
     return reply.header('Cache-Control', 'no-store').send(await service.meal(ctxOf(req), mealId, req.log));
+  });
+
+  // Meal check-off: today and yesterday. Responses carry kcal from FatSecret, so `no-store` too.
+  app.get('/meal-plans/progress', { preHandler: [requireTenant(c, Permission.SELF_MEAL_PLANS_READ), feature] }, async (req, reply) =>
+    reply.header('Cache-Control', 'no-store').send(await service.progress(ctxOf(req), req.log)),
+  );
+
+  app.put('/meal-plans/meals/:mealId/log', { preHandler: writeOwn }, async (req, reply) => {
+    const { mealId } = MealPlanMealParamSchema.parse(req.params);
+    return reply.header('Cache-Control', 'no-store').send(await service.logMeal(ctxOf(req), mealId, MealLogSchema.parse(req.body), req.log));
+  });
+
+  app.delete('/meal-plans/meals/:mealId/log', { preHandler: writeOwn }, async (req, reply) => {
+    const { mealId } = MealPlanMealParamSchema.parse(req.params);
+    return reply.header('Cache-Control', 'no-store').send(await service.unlogMeal(ctxOf(req), mealId, req.log));
   });
 
   // SMAE swaps are their own module on top of the meal plan.

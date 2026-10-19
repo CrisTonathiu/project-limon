@@ -4,7 +4,7 @@
  */
 import { loadServerEnv } from '@limon/config';
 import { DatabaseRouter } from '@limon/database';
-import type { FoodSwapOptionsResponse, MealPlanResponse, PlannedMealDetailDto } from '@limon/types';
+import type { FoodSwapOptionsResponse, MealLogResponse, MealPlanResponse, MealProgressResponse, PlannedMealDetailDto } from '@limon/types';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { createContainer } from '../../src/infrastructure/container.js';
@@ -90,7 +90,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const db = owner.controlPlane();
-  // Plans and favourites first: a recipe they use can't be deleted.
+  // Plans, check-offs and favourites first: a recipe they use can't be deleted.
+  await db.mealLog.deleteMany({ where: { tenantId, patient: { email: { startsWith: tag } } } });
   await db.mealPlan.deleteMany({ where: { tenantId, patient: { email: { startsWith: tag } } } });
   await db.mealFeedback.deleteMany({ where: { tenantId, patient: { email: { startsWith: tag } } } });
   await db.recipe.deleteMany({ where: { id: { in: recipeIds } } });
@@ -168,7 +169,7 @@ describe('POST /meal-plans/current/days/:date/regenerate', () => {
       if (i !== day) expect(after.plan.days[i]).toEqual(before.plan.days[i]);
     });
     const audit = await owner.controlPlane().auditLog.findFirst({ where: { tenantId, action: 'MealPlanDayRegenerated', resourceId: after.plan.id } });
-    expect(audit?.metadata).toEqual({ date: today });
+    expect(audit?.metadata).toEqual({ date: today, keptSlots: 0 });
   });
 
   it('refuses dates outside the current week, past days and bad dates', async () => {
@@ -323,5 +324,113 @@ describe('meal detail and SMAE swaps', () => {
     expect((await app.inject({ method: 'POST', url: `/api/v1/meal-plans/current/days/${sunday}/regenerate`, headers })).statusCode).toBe(200);
     expect((await meal(headers, mealId)).statusCode).toBe(404);
     expect(await owner.controlPlane().mealPlanMealSwap.count({ where: { mealPlanMealId: mealId } })).toBe(0);
+  });
+
+  it('updates a checked-off meal with the swap it was eaten with', async () => {
+    const headers = await signUp('swap-log', { profile: true, subscribed: true });
+    const mealId = await planWithSwapMeal(headers, today);
+    const [drink] = ((await meal(headers, mealId)).json() as PlannedMealDetailDto).ingredients;
+    expect((await app.inject({ method: 'PUT', url: `/api/v1/meal-plans/meals/${mealId}/log`, headers, payload: { status: 'EATEN' } })).statusCode).toBe(200);
+    const logSwaps = async () => (await owner.controlPlane().mealLog.findFirstOrThrow({ where: { tenantId, patient: { email: { startsWith: `${tag}-swap-log` } } } })).swaps;
+    expect(await logSwaps()).toEqual([]);
+
+    expect((await swap(headers, mealId, drink!.id, cerveza().id)).statusCode).toBe(200);
+    expect(await logSwaps()).toEqual([{ recipeIngredientId: drink!.id, foodId: cerveza().id }]);
+    expect((await swap(headers, mealId, drink!.id, pulque().id)).statusCode).toBe(200);
+    expect(await logSwaps()).toEqual([]);
+  });
+});
+
+describe('meal check-off', () => {
+  const logMeal = (headers: Record<string, string>, mealId: string, payload: object) =>
+    app.inject({ method: 'PUT', url: `/api/v1/meal-plans/meals/${mealId}/log`, headers, payload });
+  const unlogMeal = (headers: Record<string, string>, mealId: string) =>
+    app.inject({ method: 'DELETE', url: `/api/v1/meal-plans/meals/${mealId}/log`, headers });
+  const plan = async (headers: Record<string, string>) => {
+    const body = (await app.inject({ url: '/api/v1/meal-plans/current', headers })).json() as MealPlanResponse;
+    if (body.status !== 'READY') throw new Error(body.status);
+    return body.plan;
+  };
+  const progress = async (headers: Record<string, string>) => {
+    const body = (await app.inject({ url: '/api/v1/meal-plans/progress', headers })).json() as MealProgressResponse;
+    if (body.status !== 'READY') throw new Error(body.status);
+    return body;
+  };
+  const day = week.indexOf(today);
+
+  it("logs today's meals, shows them on the plan and in the progress, and undoes one", async () => {
+    const headers = await signUp('log', { profile: true, subscribed: true });
+    const meals = (await plan(headers)).days[day]!.meals;
+
+    const eaten = await logMeal(headers, meals[0]!.id, { status: 'EATEN' });
+    expect(eaten.statusCode).toBe(200);
+    const body = eaten.json() as MealLogResponse;
+    expect(body.log).toMatchObject({ status: 'EATEN', note: null });
+    if (body.progress.status !== 'READY') throw new Error(body.progress.status);
+    expect(body.progress.today).toMatchObject({ date: today, meals: 4, answered: 1, eaten: 1, kcal: meals[0]!.macros!.calories });
+    expect(body.progress.week).toEqual({ score: 1, counted: 1 + day * 4, adherence: 1 / (1 + day * 4) });
+
+    expect((await logMeal(headers, meals[1]!.id, { status: 'OTHER', note: '  tacos con la familia ' })).statusCode).toBe(200);
+    expect((await logMeal(headers, meals[2]!.id, { status: 'SKIPPED', source: 'NOTIFICATION' })).statusCode).toBe(200);
+    // Answering again replaces the answer.
+    expect((await logMeal(headers, meals[2]!.id, { status: 'EATEN' })).statusCode).toBe(200);
+
+    const after = (await plan(headers)).days[day]!.meals;
+    expect(after.map((m) => m.log?.status ?? null)).toEqual(['EATEN', 'OTHER', 'EATEN', null]);
+    expect(after[1]!.log?.note).toBe('tacos con la familia');
+    const p = await progress(headers);
+    expect(p.today).toMatchObject({ answered: 3, eaten: 2, kcal: meals[0]!.macros!.calories + meals[2]!.macros!.calories });
+    expect(p.week.score).toBe(2.5);
+
+    // A complete day starts the streak.
+    expect((await logMeal(headers, meals[3]!.id, { status: 'SKIPPED' })).statusCode).toBe(200);
+    expect((await progress(headers)).streak.days).toBe(1);
+
+    const undone = await unlogMeal(headers, meals[3]!.id);
+    expect(undone.statusCode).toBe(200);
+    expect((undone.json() as MealProgressResponse & { status: 'READY' }).today.answered).toBe(3);
+    expect((await unlogMeal(headers, meals[3]!.id)).statusCode).toBe(200);
+  });
+
+  it('refuses future and older days, notes without OTHER, other patients’ meals, and is paywalled', async () => {
+    const headers = await signUp('log-bad', { profile: true, subscribed: true });
+    const days = (await plan(headers)).days;
+    const todays = days[day]!.meals[0]!.id;
+
+    expect((await logMeal(headers, todays, { status: 'EATEN', note: 'rico' })).statusCode).toBe(400);
+    expect((await logMeal(headers, todays, { status: 'MAYBE' })).statusCode).toBe(400);
+    expect((await logMeal(headers, todays, { status: 'OTHER', note: 'x'.repeat(141) })).statusCode).toBe(400);
+    if (day < 6) expect((await logMeal(headers, days[day + 1]!.meals[0]!.id, { status: 'EATEN' })).statusCode).toBe(400);
+    if (day >= 1) expect((await logMeal(headers, days[day - 1]!.meals[0]!.id, { status: 'EATEN' })).statusCode).toBe(200);
+    if (day >= 2) expect((await logMeal(headers, days[day - 2]!.meals[0]!.id, { status: 'EATEN' })).statusCode).toBe(400);
+
+    const other = await signUp('log-other', { profile: true, subscribed: true });
+    expect((await logMeal(other, todays, { status: 'EATEN' })).statusCode).toBe(404);
+    expect((await unlogMeal(other, todays)).statusCode).toBe(404);
+
+    const unpaid = await signUp('log-unpaid', { profile: true, subscribed: false });
+    expect((await logMeal(unpaid, todays, { status: 'EATEN' })).statusCode).toBe(402);
+    expect((await app.inject({ url: '/api/v1/meal-plans/progress', headers: unpaid })).statusCode).toBe(402);
+  });
+
+  it('keeps checked-off meals when the day is regenerated', async () => {
+    const headers = await signUp('log-regen', { profile: true, subscribed: true });
+    const before = (await plan(headers)).days[day]!.meals;
+    expect((await logMeal(headers, before[0]!.id, { status: 'EATEN' })).statusCode).toBe(200);
+
+    const res = await app.inject({ method: 'POST', url: `/api/v1/meal-plans/current/days/${today}/regenerate`, headers });
+    expect(res.statusCode).toBe(200);
+    const after = (res.json() as MealPlanResponse & { status: 'READY' }).plan.days[day]!.meals;
+    expect(after[0]).toEqual(before[0] && { ...before[0], log: after[0]!.log });
+    expect(after[0]!.log?.status).toBe('EATEN');
+    expect(after.slice(1).map((m) => m.log)).toEqual([null, null, null]);
+    const audit = await owner.controlPlane().auditLog.findFirst({
+      where: { tenantId, action: 'MealPlanDayRegenerated', resourceId: (await plan(headers)).id }, orderBy: { createdAt: 'desc' },
+    });
+    expect(audit?.metadata).toEqual({ date: today, keptSlots: 1 });
+
+    // Every meal answered: nothing left to regenerate.
+    for (const m of after.slice(1)) expect((await logMeal(headers, m.id, { status: 'SKIPPED' })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: `/api/v1/meal-plans/current/days/${today}/regenerate`, headers })).statusCode).toBe(409);
   });
 });
