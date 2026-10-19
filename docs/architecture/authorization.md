@@ -5,9 +5,12 @@ Implemented in `apps/api/src/middleware/tenant-context.ts` (pure, unit-tested) a
 
 ```
 Request
-  │ 1 Authenticate      verify Cognito access token → sub
-  │ 2 Resolve user      users by cognito_user_id (DB)         → FORBIDDEN if unknown/disabled
+  │ 1 Authenticate      verify Identity Platform ID token → uid → UNAUTHENTICATED
+  │                     email not verified                    → EMAIL_NOT_VERIFIED
+  │ 2 Resolve user      users by auth_user_id (DB)            → FORBIDDEN if unknown/disabled
   │ 3 Resolve tenant    user.tenant_id (DB)                   → TENANT_NOT_FOUND
+  │   Identity tenant   token's tenant = the practice's       → TENANT_MISMATCH
+  │                     (patients), none (nutritionists)
   │ 4 App identity      X-App-Key → tenant_apps.tenant_id     → APP_NOT_RECOGNIZED / TENANT_MISMATCH
   │                     (required for PATIENT role)
   │ 5 Tenant status     accessFor(status, audience)           → TENANT_SUSPENDED

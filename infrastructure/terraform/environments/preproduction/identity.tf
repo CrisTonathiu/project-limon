@@ -1,4 +1,4 @@
-# Identity Platform (phase 4): patients' and nutritionists' logins, replacing Cognito.
+# Identity Platform: patients' and nutritionists' logins.
 # Multi-tenancy on: each practice gets its own identity tenant, created by the API at
 # nutritionist sign-up (or `admin identity-tenant` for existing practices), never here,
 # so the same email can be a patient of several nutritionists (ADR-006).

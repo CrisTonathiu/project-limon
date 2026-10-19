@@ -1,9 +1,7 @@
-# Keeps `docker build` (and CDK's ContainerImage.fromAsset, which stages this same
-# directory) from copying build artifacts, caches, and its own output back into itself.
+# Keeps `docker build` from copying build artifacts and caches into the image.
 **/node_modules
 **/dist
 **/.next
 **/.turbo
 packages/database/generated
 .git
-infrastructure/cdk.out

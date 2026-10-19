@@ -7,8 +7,8 @@ import { devLogin } from '@/features/auth/dev-login';
 import { session } from '@/services/session';
 
 /**
- * Foundation login. Dev: exchanges a seeded Cognito-style subject for a dev token.
- * Production: replaced by Cognito Hosted UI redirect (see services/session.ts).
+ * Foundation login. Dev: exchanges a seeded subject for a dev token.
+ * Production: replaced by Identity Platform sign-in (see services/session.ts).
  */
 export default function LoginPage() {
   const router = useRouter();

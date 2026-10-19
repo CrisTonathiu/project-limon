@@ -1,10 +1,9 @@
 /**
- * Tenant-scoped Cognito usernames (ADR-006).
+ * Tenant-namespaced login names, used for dev token subjects.
  *
- * One user pool holds users from every tenant, and the same person may be a patient
- * of two nutritionists, so email cannot be the unique login key. The username is
- * namespaced with the tenant's immutable UUID; clients compose it from their build
- * config, and the user only ever types their email address.
+ * The same person may be a patient of two nutritionists, so email alone cannot identify
+ * a login. With Identity Platform each nutritionist has their own identity tenant (ADR-006);
+ * dev auth has no tenants, so the subject is namespaced with the tenant's immutable UUID.
  *
  * This is namespacing, NOT a security boundary — the API always re-checks tenant
  * membership against the database.

@@ -9,7 +9,7 @@ import { api } from '@/services/api';
 import { session } from '@/services/session';
 
 /**
- * Nutritionist signup: (1) Cognito sign-up (dev: token for a new subject) → (2) POST /auth/register/nutritionist,
+ * Nutritionist signup: (1) Identity Platform sign-up (dev: token for a new subject) → (2) POST /auth/register/nutritionist,
  * which atomically creates Tenant + Nutritionist + TenantApps.
  */
 export default function RegisterPage() {

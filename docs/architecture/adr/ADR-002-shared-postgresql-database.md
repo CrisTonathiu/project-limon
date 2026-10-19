@@ -1,6 +1,6 @@
-# ADR-002: Shared PostgreSQL (Aurora) database
+# ADR-002: Shared PostgreSQL database
 
-**Status:** Accepted · 2026-09-17
+**Status:** Accepted · 2026-09-17 · Hosting amended by [ADR-010](ADR-010-gcp-infrastructure.md): one Cloud SQL PostgreSQL 16 instance per environment instead of Aurora. The rest stands.
 
 ## Context
 Relational domain (patients, plans, payments), strong consistency, FK integrity, team familiarity with Prisma. Some future enterprise tenants may require dedicated databases.

@@ -1,7 +1,7 @@
 /**
  * Cloud DB bootstrap: creates the `limon_app` runtime role the same way
  * packages/database/docker/init.sql does for local dev (NOSUPERUSER NOBYPASSRLS, so RLS
- * always applies), since nothing does this for Aurora automatically. Idempotent — safe to
+ * always applies), since nothing does this for Cloud SQL automatically. Idempotent — safe to
  * run on every deploy. Runs as the owner role (DATABASE_MIGRATION_URL), before migrations,
  * so ALTER DEFAULT PRIVILEGES covers every table `prisma migrate deploy` then creates.
  */
@@ -28,7 +28,7 @@ async function main() {
     await prisma.$executeRawUnsafe(`ALTER DEFAULT PRIVILEGES FOR ROLE limon_owner IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO limon_app`);
     console.log('Created limon_app role.');
   } else {
-    // Secrets Manager may have rotated the password since the role was created.
+    // A new Secret Manager version may have changed the password since the role was created.
     await prisma.$executeRawUnsafe(`ALTER ROLE limon_app WITH PASSWORD ${literal(appPassword)}`);
     console.log('limon_app role already exists; password synced.');
   }

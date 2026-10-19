@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 /**
  * Server-side environment loader. Fails fast on boot if configuration is invalid.
- * Secrets are injected into the process env by ECS from Secrets Manager — the
- * application never reads Secrets Manager directly for boot config.
+ * Secrets are injected into the process env by Cloud Run from Secret Manager — the
+ * application never reads Secret Manager directly for boot config.
  */
 /** `FOO=` in a .env file means "not set", not "set to the empty string". */
 const optional = z.string().optional().transform((v) => (v ? v : undefined));
@@ -63,8 +63,8 @@ export function loadServerEnv(source: Record<string, string | undefined> = proce
 export const isProduction = (env: Pick<ServerEnv, 'APP_ENV'>) => env.APP_ENV === 'production';
 
 /**
- * ECS injects DB_HOST + a role password as separate Secrets Manager secrets (see
- * compute-stack.ts); nothing assembles the single DATABASE_URL the app/prisma expect.
+ * Cloud Run injects DB_HOST + a role password as separate variables (see api.tf and
+ * database.tf); nothing assembles the single DATABASE_URL the app/prisma expect.
  * Called before `loadServerEnv()` so it can fill `process.env.DATABASE_URL` in place.
  */
 function assembleUrl(source: Record<string, string | undefined>, role: 'limon_app' | 'limon_owner', passwordVar: string): string | undefined {

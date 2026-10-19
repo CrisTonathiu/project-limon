@@ -32,7 +32,7 @@ Each nutritionist chooses, and the platform team sets it with the `invite_only` 
 
 - `GET /apps/bootstrap` returns the mode as `requiresInviteCode`.
 - Invite codes are **per patient and single use**. `pnpm --filter @limon/database admin invite <tenant> --first-name … --last-name …` pre-registers the patient and prints their code (random `XXXX-XXXX`, 30-day expiry by default).
-- The app checks the code with `GET /invites/:code` (yes/no only, scoped to the app's tenant, rate-limited) **before** creating the Cognito login, so a typo doesn't leave an orphaned login.
+- The app checks the code with `GET /invites/:code` (yes/no only, scoped to the app's tenant, rate-limited) **before** creating the Identity Platform login, so a typo doesn't leave an orphaned login.
 - `POST /auth/register/patient` checks it again and redeems it in the same transaction: the new account is linked to the pre-registered patient, and a failed sign-up leaves the code unused.
 
 Approval mode (anyone signs up, the nutritionist approves by an emailed link) is agreed as the next admission mode, not built yet.
@@ -46,17 +46,17 @@ Approval mode (anyone signs up, the nutritionist approves by an emailed link) is
 ## App provisioning (boundary only)
 `apps/api/src/modules/apps/provisioning/` defines `AppProvisioningService`; `.github/workflows/mobile-build.yml` is the pipeline placeholder.
 
-Future flow: signup → TenantApp rows (done) → branding configured → generate `tenant.json` + icon/splash from S3 → EAS Build → sign → submit (App Store Connect API / Play Developer API) → status callbacks → `PUBLISHED`.
+Future flow: signup → TenantApp rows (done) → branding configured → generate `tenant.json` + icon/splash from Cloud Storage → EAS Build → sign → submit (App Store Connect API / Play Developer API) → status callbacks → `PUBLISHED`.
 
-At scale, generated tenant configs should come from the API/S3 at build time instead of being committed folders; `app.config.ts` is the only place that changes.
+At scale, generated tenant configs should come from the API/Cloud Storage at build time instead of being committed folders; `app.config.ts` is the only place that changes.
 
 ## Store accounts (decided — ADR-009)
-Each tenant app is published from **that nutritionist's own developer account**, enrolled with a platform-provisioned mailbox (`maria@apps.<domain>`) so the platform can operate builds and submissions. Tracked in `TenantStoreAccount`; credentials live in Secrets Manager.
+Each tenant app is published from **that nutritionist's own developer account**, enrolled with a platform-provisioned mailbox (`maria@apps.<domain>`) so the platform can operate builds and submissions. Tracked in `TenantStoreAccount`; credentials live in Secret Manager.
 
 Consequences for onboarding: identity verification per nutritionist, an annual Apple fee per account, a D-U-N-S number for organization accounts, and Google Play's testing requirements for new personal accounts. Build the onboarding timeline around this.
 
 ## Still to decide
-1. **Signing credentials** per tenant app (EAS-managed vs Secrets Manager).
+1. **Signing credentials** per tenant app (EAS-managed vs Secret Manager).
 2. **OTA updates** (EAS Update): channels per tenant or a shared runtime version.
 3. **Push notifications**: APNs/FCM credentials per app bundle.
 4. **In-app purchases** are configured per store account — see [ADR-008](adr/ADR-008-patient-payments.md).

@@ -8,7 +8,7 @@ Each nutritionist gets an independently published app. Apple guideline 4.2.6 say
 ## Decision
 For each tenant the platform provisions a mailbox on its own domain (e.g. `maria@apps.<platform-domain>`) and uses it to enrol a developer account **owned by that nutritionist** (or their business), per store. The platform holds delegated access (App Store Connect users/API keys, Play Console users) to run builds, submissions and releases.
 
-Modelled as `TenantStoreAccount` (one per tenant per platform): `accountType` (`INDIVIDUAL` | `ORGANIZATION`), `accountEmail`, `externalAccountId` (Apple Team ID / Play developer ID), `status` (`MAILBOX_CREATED → ENROLLMENT_INVITED → ENROLLED → ACCESS_GRANTED → SUSPENDED`), and `apiCredentialRef` pointing at Secrets Manager — credentials are never stored in the database. `tenants.operations_email` holds the provisioned mailbox.
+Modelled as `TenantStoreAccount` (one per tenant per platform): `accountType` (`INDIVIDUAL` | `ORGANIZATION`), `accountEmail`, `externalAccountId` (Apple Team ID / Play developer ID), `status` (`MAILBOX_CREATED → ENROLLMENT_INVITED → ENROLLED → ACCESS_GRANTED → SUSPENDED`), and `apiCredentialRef` pointing at Secret Manager — credentials are never stored in the database. `tenants.operations_email` holds the provisioned mailbox.
 
 ## Alternatives considered
 - **All apps under one platform developer account** — simplest, but runs directly into 4.2.6 and risks the whole portfolio on one account's standing.
@@ -23,7 +23,7 @@ Modelled as `TenantStoreAccount` (one per tenant per platform): `accountType` (`
 − Offboarding needs a defined path for transferring or retiring the account and mailbox.
 
 ## Open operational questions
-1. Mailbox infrastructure: SES receiving with forwarding, or hosted mail (Workspace/Microsoft 365)?
+1. Mailbox infrastructure: a receiving service with forwarding (e.g. Resend inbound), or hosted mail (Workspace/Microsoft 365)?
 2. Who pays the Apple Developer Program fee — platform (bundled in the subscription) or nutritionist?
 3. Individual vs organization accounts by default in Mexico (organization requires a D-U-N-S number and a registered entity).
 4. Offboarding: transfer the app to the nutritionist, or delist?

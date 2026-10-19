@@ -15,7 +15,7 @@ export interface IdentityAdmin {
   deleteTenant(identityTenantId: string): Promise<void>;
 }
 
-/** Same rules as Cognito had: at least 10 characters, with upper, lower and digits. */
+/** At least 10 characters, with upper, lower and digits. */
 const PASSWORD_POLICY = {
   enforcementState: 'ENFORCE',
   forceUpgradeOnSignin: false,

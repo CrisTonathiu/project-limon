@@ -356,7 +356,7 @@ What was cut, and when to bring it back:
 | One `api` instance minimum, max 3 | A restart is a short gap; the second instance starts cold | Production (min 2) |
 | Staging / development environments | Changes are tested locally, then go straight to the pilot | Production exists (a staging project comes with it) |
 
-Deployment and teardown steps will live in `docs/architecture/gcp.md` ([migration phase 9](gcp-migration.md#phase-9--remove-aws-from-the-repo-and-docs-oct-21)); until then the migration checklist is the reference.
+Deployment and teardown steps: [docs/architecture/gcp.md](../architecture/gcp.md).
 
 ## After the MVP
 

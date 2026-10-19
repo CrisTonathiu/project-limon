@@ -1,4 +1,4 @@
--- Local only. In AWS these roles are created by the migration bootstrap using Secrets Manager credentials.
+-- Local only. In the cloud the migrate job creates limon_app (prisma/bootstrap-role.ts) with the password from Secret Manager.
 -- limon_owner  : owns schema, runs migrations (container superuser locally).
 -- limon_app    : runtime role used by API/workers. NOT owner, NOT BYPASSRLS → RLS always applies.
 CREATE ROLE limon_app LOGIN PASSWORD 'limon_app' NOSUPERUSER NOBYPASSRLS;

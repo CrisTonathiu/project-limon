@@ -29,7 +29,7 @@ export async function buildApp(c: Container) {
     },
     logger: {
       level: c.env.APP_ENV === 'production' ? 'info' : 'debug',
-      // Structured JSON → CloudWatch. Never log bodies or auth headers.
+      // Structured JSON → Cloud Logging. Never log bodies or auth headers.
       redact: ['req.headers.authorization', 'req.headers.cookie', '*.email', '*.password'],
       serializers: {
         req: (req) => ({ method: req.method, url: req.url, requestId: req.id }),
