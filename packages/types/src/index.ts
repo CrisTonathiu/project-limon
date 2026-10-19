@@ -654,6 +654,8 @@ export type PlannedMealDetailDto = {
   /** For the portion, after swaps. Null when unknown, like PlannedMealDto.macros. */
   macros: RecipeMacros | null;
   favourite: boolean;
+  /** The patient's check-off of this meal, like PlannedMealDto.log. */
+  log: MealLogDto | null;
   ingredients: PlannedMealIngredientDto[];
 };
 

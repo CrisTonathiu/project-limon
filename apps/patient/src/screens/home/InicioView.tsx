@@ -109,11 +109,16 @@ export function InicioView(props: InicioViewProps) {
       {props.ring ? (
         <Hero ring={props.ring} adherence={props.planAdherence} delay={next()} />
       ) : null}
+      {/* One row of up to three tiles; four go in a 2×2 grid so each number stays readable. */}
       {tiles.length > 0 ? (
-        <Box flexDirection="row" gap="s">
-          {tiles.map(({ key, ...tile }) => (
-            <Box key={key} flex={1}>
-              <StatTile {...tile} delay={next()} />
+        <Box gap="s">
+          {(tiles.length === 4 ? [tiles.slice(0, 2), tiles.slice(2)] : [tiles]).map((row) => (
+            <Box key={row[0]!.key} flexDirection="row" gap="s">
+              {row.map(({ key, ...tile }) => (
+                <Box key={key} flex={1}>
+                  <StatTile {...tile} delay={next()} />
+                </Box>
+              ))}
             </Box>
           ))}
         </Box>

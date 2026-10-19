@@ -170,8 +170,9 @@ This model feeds the streak, adherence, conditional nudges, the dashboard, analy
   - Swapping an ingredient of a meal already checked off updates the check-off's swaps.
   - Check-offs aren't audited, like water: they're the patient's own diary, and frequent.
 - [x] Regenerate-a-day keeps logged meals (decision 9): only the unlogged slots get new recipes (the kept ones count for variety), and a day with every meal answered returns 409. The audit entry records `keptSlots`.
-- [ ] App: "Comí / Otra cosa / No comí" on each meal card in Comidas and Detalle de comida (optimistic, with undo), the optional text sheet for `OTHER`, past days in the strip read-only beyond yesterday. Inicio: meals today, streak, adherence ring, calories today.
-- [ ] Close the UI brief's open question about meal check-off.
+- [x] App: the meal card's tile is the check-off button for today's and yesterday's meals (empty ring until answered; ✓ eaten, ≈ something else, – skipped, with the answer in the caption). It opens a sheet: "Comí" and "No comí" save at once, "Comí otra cosa" shows the optional note first, and an answer can be cleared. Optimistic, with undo on failure. The meal detail has the same check-off as a row at the top.
+- [x] Inicio: the inner ring is the week's adherence; tiles for the streak, meals eaten today and calories eaten. Without a weight goal the outer ring shows today's calories. Four tiles go in a 2×2 grid.
+- [x] Close the UI brief's open question about meal check-off.
 - Known gap: on a Monday, Sunday's meals can still be logged (API), but Comidas only shows the current week. The app needs a way to reach them (a "¿Y ayer?" prompt on Inicio, or the notification).
 
 **Done when:** a patient logs a day of meals, the Inicio tiles and the ring update, and regenerating a day doesn't lose a log.

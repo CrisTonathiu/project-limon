@@ -358,6 +358,27 @@ export const es = {
     saveFailed: 'No pudimos cambiar el alimento. Inténtalo de nuevo.',
   },
 
+  /** Meal check-off: supportive, never shaming (docs/roadmap/mvp-2.md, Notification copy). */
+  mealLog: {
+    /** "¿Comiste tu desayuno?" */
+    question: (meal: string) => `¿Comiste tu ${midSentence(meal)}?`,
+    subtitle: 'Tu respuesta le ayuda a tu nutriólogo a ajustar tu plan.',
+    options: { EATEN: 'Comí', OTHER: 'Comí otra cosa', SKIPPED: 'No comí' },
+    /** After the meal on its card: "Desayuno · Comiste". */
+    status: { EATEN: 'Comiste', OTHER: 'Comiste otra cosa', SKIPPED: 'No comiste' },
+    notePlaceholder: '¿Qué comiste? (opcional)',
+    noRecipe: 'Esta comida no tenía receta. Si quieres, cuéntanos qué comiste.',
+    save: 'Guardar',
+    clear: 'Quitar respuesta',
+    saveFailed: 'No pudimos guardar tu respuesta. Inténtalo de nuevo.',
+    /** Accessibility labels of the check-off tile. */
+    open: (meal: string) => `Registrar ${midSentence(meal)}`,
+    change: (meal: string, status: string) => `${meal}: ${midSentence(status)}. Cambiar respuesta`,
+    /** The meal detail's check-off row. */
+    action: 'Registrar',
+    changeAction: 'Cambiar',
+  },
+
   shoppingList: {
     intro: 'Todo lo que necesitas para las comidas de esta semana, ya con tus porciones y cambios.',
     /** "3 de 12 en el carrito" */

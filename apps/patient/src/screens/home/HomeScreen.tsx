@@ -1,4 +1,4 @@
-import { FeatureKey, type MealPlanDto, type ProgressResponse, type WaterTodayDto } from '@limon/types';
+import { FeatureKey, type MealPlanDto, type MealProgressDto, type ProgressResponse, type WaterTodayDto } from '@limon/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import { Box } from '../../design-system';
@@ -15,9 +15,9 @@ import { InicioView } from './InicioView';
 const WEIGHT_WEEKS = 8;
 
 /**
- * Inicio, with what the API has today: the greeting, the weight goal ring and weight card
- * (goal tracker), today's water (water tracker) and the next meal of the plan. Plan adherence,
- * the streak and meals eaten stay hidden until meal check-off ships.
+ * Inicio: the greeting, the weight goal ring and weight card (goal tracker), today's water
+ * (water tracker), and from the meal plan its check-offs (week adherence, streak, meals and
+ * calories eaten today) and the next meal. Without a weight goal, the ring shows today's calories.
  */
 export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const session = useSession();
@@ -28,6 +28,7 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   // undefined while loading, so the greeting doesn't change from "Hola" to "Hola, Ana" on screen.
   const [firstName, setFirstName] = useState<string | null | undefined>(undefined);
   const [plan, setPlan] = useState<MealPlanDto | null>(null);
+  const [meals, setMeals] = useState<MealProgressDto | null>(null);
   const [progress, setProgress] = useState<ProgressResponse | null>(null);
   const [water, setWater] = useState<WaterTodayDto | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -50,8 +51,13 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
       if (mealPlanOn) {
         api.mealPlans
           .current()
-          .then((week) => setPlan(week.status === 'READY' ? week.plan : null))
-          .catch((err) => console.error('[home] loading the plan failed', err));
+          .then((week) => {
+            setPlan(week.status === 'READY' ? week.plan : null);
+            // After the plan, not alongside it: both generate the week when it doesn't exist yet.
+            return week.status === 'READY' ? api.mealPlans.progress() : null;
+          })
+          .then((res) => setMeals(res?.status === 'READY' ? res : null))
+          .catch((err) => console.error('[home] loading the plan or its check-offs failed', err));
       }
       if (goalsOn) {
         api.patients
@@ -69,6 +75,8 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   );
 
   const next = plan ? nextMeal(plan, now) : null;
+  // Null when FatSecret can't give an eaten meal's kcal: no partial number.
+  const calories = meals && meals.today.kcal !== null ? { eaten: meals.today.kcal, target: meals.today.targetKcal } : null;
   const mealLabel = next ? t.recipes.mealTypes[next.meal.mealType] : '';
 
   return (
@@ -77,11 +85,11 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
         <InicioView
           today={now}
           firstName={firstName}
-          ring={progress ? goalRing(progress) : null}
-          planAdherence={null}
-          streakDays={null}
-          mealsToday={null}
-          calories={null}
+          ring={(progress && goalRing(progress)) ?? (calories ? { kind: 'calories', ...calories } : null)}
+          planAdherence={meals?.week.adherence ?? null}
+          streakDays={meals ? meals.streak.days : null}
+          mealsToday={meals && meals.today.meals > 0 ? { eaten: meals.today.eaten, planned: meals.today.meals } : null}
+          calories={calories}
           weight={
             progress
               ? { valuesKg: weeklyWeights(progress.weights, toDateOnly(now)), weeks: WEIGHT_WEEKS }

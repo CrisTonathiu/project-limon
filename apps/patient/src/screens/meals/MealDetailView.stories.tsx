@@ -37,6 +37,7 @@ const meal: MealDetailData = {
     'Mezcla todo y aliña con el aceite y limón.',
   ],
   canSwap: true,
+  checkOff: { mealLabel: 'Comida', status: null, loggable: true, failed: false },
 };
 
 const options: SwapOption[] = [

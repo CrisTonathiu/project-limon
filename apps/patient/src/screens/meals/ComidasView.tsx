@@ -1,4 +1,4 @@
-import type { RecipeMacros } from '@limon/types';
+import type { MealLogStatus, RecipeMacros } from '@limon/types';
 import { Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
@@ -9,7 +9,6 @@ import {
   Entering,
   fonts,
   HeartButton,
-  Icon,
   LoadState,
   ProgressRing,
   RoundButton,
@@ -20,6 +19,7 @@ import {
 } from '../../design-system';
 import { t } from '../../i18n/es-MX';
 import { formatGrams, formatKcal, formatNumber, formatPercent } from '../../i18n/format';
+import { LogTile, MealLogSheet, type MealLogSheetProps, type MealLogTarget } from './MealLogParts';
 
 export type WeekDay = {
   date: string;
@@ -40,6 +40,10 @@ export type MealRow = {
   /** "380 kcal", or null when FatSecret didn't give the portion's calories. */
   kcal: string | null;
   favourite: boolean;
+  /** The patient's check-off, or null when not answered. */
+  status: MealLogStatus | null;
+  /** Today or yesterday: the tile checks the meal off. */
+  loggable: boolean;
 };
 
 export type ComidasWeek = {
@@ -56,6 +60,7 @@ export type ComidasWeek = {
   regenerating: boolean;
   regenerateFailed: boolean;
   favouriteFailed: boolean;
+  logFailed: boolean;
 };
 
 export type ComidasViewProps = {
@@ -71,46 +76,57 @@ export type ComidasViewProps = {
   onRegenerate?: () => void;
   /** Leave out when the tenant has no shopping list. */
   onOpenShoppingList?: () => void;
-};
+  onLogMeal?: (meal: MealRow) => void;
+  /** The meal being checked off in the sheet, or null when it's closed. */
+  logSheet?: MealLogTarget | null;
+} & Partial<Pick<MealLogSheetProps, 'onSave' | 'onClear' | 'onClose'>>;
 
 /** Comidas (docs/ui/mockups/02-comidas.html): the week strip, the day's summary and its meals. */
 export function ComidasView(props: ComidasViewProps) {
   const { state } = props;
   return (
-    <ScreenScroll>
-      <ScreenHeader
-        caption={state.status === 'ready' ? state.weekLabel : undefined}
-        title={t.meals.title}
-        trailing={
-          props.onOpenShoppingList ? (
-            <RoundButton
-              icon="cart"
-              accessibilityLabel={t.nav.shoppingList}
-              onPress={props.onOpenShoppingList}
-            />
-          ) : null
-        }
-        delay={0}
-      />
-      {state.status === 'loading' ? <LoadState status="loading" /> : null}
-      {state.status === 'failed' ? (
-        <LoadState
-          status="failed"
-          message={t.meals.loadFailed}
-          retryLabel={t.meals.retry}
-          onRetry={state.onRetry}
+    <>
+      <ScreenScroll>
+        <ScreenHeader
+          caption={state.status === 'ready' ? state.weekLabel : undefined}
+          title={t.meals.title}
+          trailing={
+            props.onOpenShoppingList ? (
+              <RoundButton
+                icon="cart"
+                accessibilityLabel={t.nav.shoppingList}
+                onPress={props.onOpenShoppingList}
+              />
+            ) : null
+          }
+          delay={0}
         />
-      ) : null}
-      {state.status === 'consult' ? (
-        <Card variant="tint" gap="s" delay={80}>
-          <Text variant="bodyStrong">{state.message}</Text>
-          <Text variant="label" color="textOnTint">
-            {t.meals.consult}
-          </Text>
-        </Card>
-      ) : null}
-      {state.status === 'ready' ? <Week {...props} week={state} /> : null}
-    </ScreenScroll>
+        {state.status === 'loading' ? <LoadState status="loading" /> : null}
+        {state.status === 'failed' ? (
+          <LoadState
+            status="failed"
+            message={t.meals.loadFailed}
+            retryLabel={t.meals.retry}
+            onRetry={state.onRetry}
+          />
+        ) : null}
+        {state.status === 'consult' ? (
+          <Card variant="tint" gap="s" delay={80}>
+            <Text variant="bodyStrong">{state.message}</Text>
+            <Text variant="label" color="textOnTint">
+              {t.meals.consult}
+            </Text>
+          </Card>
+        ) : null}
+        {state.status === 'ready' ? <Week {...props} week={state} /> : null}
+      </ScreenScroll>
+      <MealLogSheet
+        meal={props.logSheet ?? null}
+        onSave={(status, note) => props.onSave?.(status, note)}
+        onClear={() => props.onClear?.()}
+        onClose={() => props.onClose?.()}
+      />
+    </>
   );
 }
 
@@ -138,9 +154,15 @@ function Week({ week, ...props }: ComidasViewProps & { week: ComidasWeek }) {
             delay={240 + i * 80}
             onOpen={() => props.onOpenMeal?.(meal)}
             onToggleFavourite={() => props.onToggleFavourite?.(meal)}
+            onLog={() => props.onLogMeal?.(meal)}
           />
         ))}
       </Box>
+      {week.logFailed ? (
+        <Text variant="label" color="danger">
+          {t.mealLog.saveFailed}
+        </Text>
+      ) : null}
       {week.favouriteFailed ? (
         <Text variant="label" color="danger">
           {t.meals.favouriteFailed}
@@ -251,35 +273,22 @@ function MealCard({
   delay,
   onOpen,
   onToggleFavourite,
+  onLog,
 }: {
   meal: MealRow;
   delay: number;
   onOpen: () => void;
   onToggleFavourite: () => void;
+  onLog: () => void;
 }) {
   const press = usePressScale();
   const { recipe } = meal;
+  const status = meal.status ? t.mealLog.status[meal.status] : null;
+  const caption = status ? `${meal.label} · ${status}` : meal.label;
   const summary = (
-    <Box
-      flexDirection="row"
-      alignItems="center"
-      gap="m"
-      minHeight={64}
-      paddingVertical="s"
-      paddingLeft="m"
-    >
-      <Box
-        width={44}
-        height={44}
-        borderRadius="s"
-        backgroundColor="primaryTint"
-        alignItems="center"
-        justifyContent="center"
-      >
-        <Icon name="meals" color="primary" />
-      </Box>
+    <Box flexDirection="row" alignItems="center" gap="m" minHeight={64} paddingVertical="s">
       <Box flex={1} minWidth={0}>
-        <Text variant="caption">{meal.label}</Text>
+        <Text variant="caption">{caption}</Text>
         {recipe ? (
           <Text variant="bodyStrong" numberOfLines={1}>
             {recipe.title}
@@ -303,7 +312,18 @@ function MealCard({
           backgroundColor="surface"
           borderRadius="m"
           paddingRight="xs"
+          paddingLeft="m"
+          gap="m"
         >
+          {/* Its own button, beside the card's, so screen readers reach the check-off too. */}
+          <LogTile
+            status={meal.status}
+            loggable={meal.loggable}
+            accessibilityLabel={
+              status ? t.mealLog.change(meal.label, status) : t.mealLog.open(meal.label)
+            }
+            onPress={onLog}
+          />
           <Box flex={1}>
             {recipe ? (
               <Pressable
@@ -311,9 +331,7 @@ function MealCard({
                 onPressIn={press.onPressIn}
                 onPressOut={press.onPressOut}
                 accessibilityRole="button"
-                accessibilityLabel={[meal.label, recipe.title, meal.kcal]
-                  .filter(Boolean)
-                  .join(', ')}
+                accessibilityLabel={[caption, recipe.title, meal.kcal].filter(Boolean).join(', ')}
               >
                 {summary}
               </Pressable>
