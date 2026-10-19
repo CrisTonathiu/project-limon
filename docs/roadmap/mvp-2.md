@@ -150,7 +150,7 @@ This model feeds the streak, adherence, conditional nudges, the dashboard, analy
 ### What these mean for the build
 
 - **FatSecret only lets us store IDs** ([Nutrition data](mvp-roadmap.md#nutrition-data-fatsecret--smae)), so the "snapshot" can't hold kcal or macros. It holds what's needed to recalculate them: recipe id, servings and the swapped food ids at log time. Kcal is worked out on read, the same way the plan's meals are today, through the ≤ 24 h cache. To-do: confirm with the FatSecret terms whether calculated daily totals (not per-food values) may be stored, which would make adherence and the dashboard cheaper to read.
-- **Regenerate-a-day changes:** `MealPlanMeal` rows with a log are no longer deleted. The generator gets the kept meals as fixed, and Comidas still shows "Cambiar el menú de este día" when some slots are logged.
+- **Regenerate-a-day changes:** `MealPlanMeal` rows with a log are no longer deleted. Each slot already has its share of the day's target, so the new meals fill the rest of the day without recalculating. Comidas still shows "Cambiar el menú de este día" while some slots are unlogged.
 - **The streak and adherence are calculated on read** from `meal_logs` and the plan, not stored, so changing a rule later doesn't need a data fix.
 - **The `OTHER` text is free text written by the patient,** so treat it as health data: never logged, never in audit metadata, and capped in length.
 - Using logs as training data later needs to be covered by the consent and the privacy notice (see [AI add-on](ai-addon.md)).
@@ -158,16 +158,21 @@ This model feeds the streak, adherence, conditional nudges, the dashboard, analy
 ### To-do
 
 - [x] Answer the design questions (above).
-- [ ] `meal_logs` model and migration (tenant-scoped, RLS, composite tenant keys):
-  - `tenantId`, `patientId`, `date`, `slot`, `mealType`, unique on (`tenantId`, `patientId`, `date`, `slot`)
-  - `mealPlanMealId` (nullable; the row survives if the plan meal is ever removed)
-  - `status` (`EATEN | SKIPPED | OTHER`), `note` (only with `OTHER`, ≤ 140 characters)
-  - snapshot: `recipeId` (nullable), `servings`, swapped food ids
+- [x] `meal_logs` model and migration `0019_meal_logs` (tenant-scoped, RLS, composite tenant keys):
+  - `tenantId`, `patientId`, `date`, `slot`, `mealType`, unique on (`tenantId`, `patientId`, `date`, `slot`). **Keyed by the day and slot, with no foreign key to the plan meal**: the answer belongs to the slot, so it survives a regenerated day or week without a nullable key.
+  - `status` (`EATEN | SKIPPED | OTHER`), `note` (only with `OTHER`, ≤ 140 characters, checked in the database too)
+  - snapshot: `recipeId` (null only for an empty slot, which only allows `OTHER`), `servings`, `swaps` (`[{ recipeIngredientId, foodId }]`)
   - `source` (`APP | NOTIFICATION`), `loggedAt`, `updatedAt`
-- [ ] API: `PUT /meal-plans/current/meals/:id/log` (status + optional note; today or yesterday only), `DELETE` to undo, check-offs included in `GET /meal-plans/current`, and today's kcal, the week's adherence and the streak in a progress endpoint. Behind `meal_plan`, paywalled (`self:meal-plans:*`).
-- [ ] Regenerate-a-day keeps logged meals (decision 9).
+- [x] API, behind `meal_plan` and paywalled (`self:meal-plans:*`):
+  - `PUT /meal-plans/meals/:mealId/log` (`{ status, note?, source? }`; today or yesterday, which may be last week's meal on a Monday) returns the answer and the progress. `DELETE` undoes it.
+  - `GET /meal-plans/current` gives each meal its `log` (or null).
+  - `GET /meal-plans/progress`: today (meals, answered, eaten, kcal of the eaten meals, target), the week (score, counted, adherence) and the streak (days, whether this week's forgiven day is used). Worked out on read (`meal-log-stats.ts`, unit-tested); the streak looks back 365 days.
+  - Swapping an ingredient of a meal already checked off updates the check-off's swaps.
+  - Check-offs aren't audited, like water: they're the patient's own diary, and frequent.
+- [x] Regenerate-a-day keeps logged meals (decision 9): only the unlogged slots get new recipes (the kept ones count for variety), and a day with every meal answered returns 409. The audit entry records `keptSlots`.
 - [ ] App: "Comí / Otra cosa / No comí" on each meal card in Comidas and Detalle de comida (optimistic, with undo), the optional text sheet for `OTHER`, past days in the strip read-only beyond yesterday. Inicio: meals today, streak, adherence ring, calories today.
 - [ ] Close the UI brief's open question about meal check-off.
+- Known gap: on a Monday, Sunday's meals can still be logged (API), but Comidas only shows the current week. The app needs a way to reach them (a "¿Y ayer?" prompt on Inicio, or the notification).
 
 **Done when:** a patient logs a day of meals, the Inicio tiles and the ring update, and regenerating a day doesn't lose a log.
 

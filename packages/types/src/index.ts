@@ -542,6 +542,8 @@ export type PlannedMealDto = {
   macros: RecipeMacros | null;
   /** The patient ♥ this recipe (in any week). False when there's no recipe. */
   favourite: boolean;
+  /** The patient's check-off of this meal, or null when not answered yet. */
+  log: MealLogDto | null;
 };
 
 export type MealPlanDayDto = {
@@ -564,6 +566,63 @@ export type MealPlanTargetDto = { kcal: number; proteinG: number; carbsG: number
 export type MealPlanResponse =
   | { status: 'READY'; plan: MealPlanDto; target: MealPlanTargetDto }
   | { status: 'CONSULT_NUTRITIONIST'; reason: EnergyTargetHoldReason };
+
+/** Meal check-off: ate it, skipped it, or ate something else. */
+export const MealLogStatus = { EATEN: 'EATEN', SKIPPED: 'SKIPPED', OTHER: 'OTHER' } as const;
+export type MealLogStatus = (typeof MealLogStatus)[keyof typeof MealLogStatus];
+
+/** Where a check-off was made: in the app, or by answering a notification. */
+export const MealLogSource = { APP: 'APP', NOTIFICATION: 'NOTIFICATION' } as const;
+export type MealLogSource = (typeof MealLogSource)[keyof typeof MealLogSource];
+
+export type MealLogDto = {
+  status: MealLogStatus;
+  /** What the patient ate instead, in their words (OTHER only). */
+  note: string | null;
+  /** ISO timestamp of the latest answer. */
+  loggedAt: string;
+};
+
+/**
+ * Meal check-off progress for Inicio. Today: meals answered and kcal of the meals eaten.
+ * Week: adherence over the week so far (past days, plus today's meals already answered),
+ * where eaten counts 1 and something else 0.5. Streak: days in a row with every meal answered,
+ * forgiving one missed day per week; today and yesterday can still be logged, so they never break it.
+ */
+export type MealProgressDto = {
+  today: {
+    /** YYYY-MM-DD */
+    date: string;
+    /** Meal slots today. */
+    meals: number;
+    answered: number;
+    eaten: number;
+    /** Kcal of today's eaten meals; null when FatSecret can't give one of them. */
+    kcal: number | null;
+    targetKcal: number;
+  };
+  week: {
+    /** Eaten = 1, something else = 0.5 ("12 de 15 comidas"). */
+    score: number;
+    /** Planned meals counted so far. */
+    counted: number;
+    /** score / counted, 0–1. Null when nothing counts yet. */
+    adherence: number | null;
+  };
+  streak: {
+    days: number;
+    /** This week's forgiven day is already used. */
+    graceUsed: boolean;
+  };
+};
+
+/** GET /meal-plans/progress. CONSULT_NUTRITIONIST like MealPlanResponse. */
+export type MealProgressResponse =
+  | ({ status: 'READY' } & MealProgressDto)
+  | { status: 'CONSULT_NUTRITIONIST'; reason: EnergyTargetHoldReason };
+
+/** PUT /meal-plans/meals/:mealId/log */
+export type MealLogResponse = { log: MealLogDto; progress: MealProgressResponse };
 
 /** One ingredient of a planned meal, for the patient's portion, after any swap. */
 export type PlannedMealIngredientDto = {

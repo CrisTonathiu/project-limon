@@ -34,3 +34,13 @@ export function weekDates(weekStart: string): string[] {
   const start = toDate(weekStart).getTime();
   return Array.from({ length: 7 }, (_, i) => toIso(new Date(start + i * DAY_MS)));
 }
+
+/** `iso` moved by `days` (negative goes back). */
+export function addDays(iso: string, days: number): string {
+  return toIso(new Date(toDate(iso).getTime() + days * DAY_MS));
+}
+
+/** The Monday of the week a date falls in. */
+export function mondayOf(iso: string): string {
+  return addDays(iso, -((toDate(iso).getUTCDay() + 6) % 7));
+}

@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { withTenant, writeAudit, type TenantTx } from '@limon/database';
 import type { TenantContext } from '@limon/tenant';
 import type {
-  EnergyTargetHoldReason, FoodSwapOptionsResponse, MealPlanDayDto, MealPlanResponse, MealType, PlannedMealDetailDto, RecipeMacros,
+  EnergyTargetHoldReason, FoodSwapOptionsResponse, MealLogDto, MealLogResponse, MealLogStatus, MealPlanDayDto, MealPlanResponse, MealProgressResponse,
+  MealType, PlannedMealDetailDto, RecipeMacros,
 } from '@limon/types';
+import type { MealLogData } from '@limon/validation';
 import type { Container } from '../../infrastructure/container.js';
 import { Errors } from '../../lib/errors.js';
 import { createFoodsService } from '../foods/foods.service.js';
@@ -11,9 +13,10 @@ import { createPatientsService } from '../patients/patients.service.js';
 import { macrosPerServing } from '../recipes/recipe-nutrition.js';
 import { createRecipesService } from '../recipes/recipes.service.js';
 import { applySwaps, canSwap, equivalentGrams, swapOptions } from './food-swaps.js';
+import { canLog, mealStreak, weekAdherence, type SlotState } from './meal-log-stats.js';
 import { generateMealPlan, type GeneratorInput } from './meal-plan-generator.js';
-import { mealPlansRepository } from './meal-plans.repository.js';
-import { isIsoDate, isMonday, localToday, weekDates, weekStartOf } from './week.js';
+import { mealPlansRepository, type MealLogSwap } from './meal-plans.repository.js';
+import { addDays, isIsoDate, isMonday, localToday, weekDates, weekStartOf } from './week.js';
 
 type Logger = { warn: (obj: object, msg: string) => void };
 
@@ -62,6 +65,7 @@ const sum = (all: RecipeMacros[]): RecipeMacros => {
 type SavedMeal = {
   id: string;
   date: Date;
+  slot: number;
   mealType: MealType;
   recipeId: string | null;
   servings: number | null;
@@ -70,6 +74,20 @@ type SavedMeal = {
 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 const round = (n: number, decimals: number) => Math.round(n * 10 ** decimals) / 10 ** decimals;
+const slotKey = (date: Date | string, slot: number) => `${typeof date === 'string' ? date : isoDate(date)}:${slot}`;
+
+/** How far back the streak looks. A longer streak shows as this many days. */
+const STREAK_LOOKBACK_DAYS = 365;
+
+/** A check-off's snapshot of the meal's swaps, as stored (JSON). */
+const logSwaps = (json: unknown): MealLogSwap[] =>
+  Array.isArray(json)
+    ? json.filter((s): s is MealLogSwap => typeof s?.recipeIngredientId === 'string' && typeof s?.foodId === 'string')
+    : [];
+
+const toLogDto = (log: { status: MealLogStatus; note: string | null; loggedAt: Date }): MealLogDto => ({
+  status: log.status, note: log.note, loggedAt: log.loggedAt.toISOString(),
+});
 
 export function createMealPlansService(c: Container) {
   const patients = createPatientsService(c);
@@ -263,7 +281,11 @@ export function createMealPlansService(c: Container) {
     if (target.status !== 'READY') return { status: 'CONSULT_NUTRITIONIST', reason: target.reason };
 
     const plan = await ensureWeek(ctx, patientId, weekStart, log);
-    const favourites = new Set(await scoped(ctx.tenantId, (tx) => mealPlansRepository.favouriteRecipeIds(tx, ctx.tenantId, patientId)));
+    const { favourites, logs } = await scoped(ctx.tenantId, async (tx) => ({
+      favourites: new Set(await mealPlansRepository.favouriteRecipeIds(tx, ctx.tenantId, patientId)),
+      logs: await mealPlansRepository.logsBetween(tx, ctx.tenantId, patientId, new Date(weekStart), new Date(addDays(weekStart, 6))),
+    }));
+    const logBySlot = new Map(logs.map((l) => [slotKey(l.date, l.slot), toLogDto(l)]));
 
     const view = await mealViews(ctx.tenantId, plan.meals, log);
     const days: MealPlanDayDto[] = weekDates(weekStart).map((date) => {
@@ -278,6 +300,7 @@ export function createMealPlansService(c: Container) {
             servings: v ? m.servings : null,
             macros: v?.macros ?? null,
             favourite: v ? favourites.has(v.recipe.id) : false,
+            log: logBySlot.get(slotKey(m.date, m.slot)) ?? null,
           };
         });
       const planned = meals.filter((m) => m.recipe);
@@ -291,6 +314,58 @@ export function createMealPlansService(c: Container) {
       plan: { id: plan.id, weekStart, days },
       target: { kcal: target.targetKcal, proteinG: target.proteinG, carbsG: target.carbsG, fatG: target.fatG },
     };
+  };
+
+  /**
+   * Today's check-offs, the week's adherence and the streak, from the plans and the logs
+   * (nothing of it is stored). Generates the week first if needed, like `current`.
+   */
+  const progressOf = async (ctx: TenantContext, patientId: string, log: Logger): Promise<MealProgressResponse> => {
+    const target = await weekTarget(ctx.tenantId, patientId);
+    if (target.status !== 'READY') return { status: 'CONSULT_NUTRITIONIST', reason: target.reason };
+    const now = new Date();
+    const today = localToday(now);
+    const weekStart = weekStartOf(now);
+    await ensureWeek(ctx, patientId, weekStart, log);
+
+    const from = new Date(addDays(today, -STREAK_LOOKBACK_DAYS));
+    const { slots, logs } = await scoped(ctx.tenantId, async (tx) => ({
+      slots: await mealPlansRepository.slotsBetween(tx, ctx.tenantId, patientId, from, new Date(today)),
+      logs: await mealPlansRepository.logsBetween(tx, ctx.tenantId, patientId, from, new Date(today)),
+    }));
+    const logBySlot = new Map(logs.map((l) => [slotKey(l.date, l.slot), l]));
+    const states: SlotState[] = slots.map((s) => ({
+      date: isoDate(s.date), planned: s.recipeId !== null, status: logBySlot.get(slotKey(s.date, s.slot))?.status ?? null,
+    }));
+    const todays = states.filter((s) => s.date === today);
+
+    // Kcal of what was eaten, from each check-off's snapshot of the meal (after swaps).
+    const eaten = logs.filter((l) => isoDate(l.date) === today && l.status === 'EATEN');
+    const view = await mealViews(ctx.tenantId, eaten.map((l) => ({ ...l, swaps: logSwaps(l.swaps) })), log);
+    const kcal = eaten.map((l) => view({ ...l, swaps: logSwaps(l.swaps) })?.macros?.calories ?? null);
+
+    return {
+      status: 'READY',
+      today: {
+        date: today,
+        meals: todays.length,
+        answered: todays.filter((s) => s.status).length,
+        eaten: todays.filter((s) => s.status === 'EATEN').length,
+        // Like the plan's totals: no partial sum when a meal's kcal is unknown.
+        kcal: kcal.every((k) => k !== null) ? kcal.reduce((sum, k) => sum + k!, 0) : null,
+        targetKcal: target.targetKcal,
+      },
+      week: weekAdherence(states.filter((s) => s.date >= weekStart), today),
+      streak: mealStreak(states, today),
+    };
+  };
+
+  /** A meal of the patient's that can still be checked off (today or yesterday), or an error. */
+  const loggableMeal = async (tx: TenantTx, tenantId: string, patientId: string, mealId: string) => {
+    const meal = await mealPlansRepository.findPatientMeal(tx, tenantId, patientId, mealId);
+    if (!meal) throw Errors.notFound('Meal');
+    if (!canLog(isoDate(meal.date), localToday(new Date()))) throw Errors.validation('Only meals of today and yesterday can be checked off');
+    return meal;
   };
 
   return {
@@ -343,7 +418,15 @@ export function createMealPlansService(c: Container) {
       if (planning.status === 'NO_PROFILE') throw Errors.conflict('Finish the onboarding questionnaire first.');
       if (planning.status === 'CONSULT_NUTRITIONIST') return planning;
       const plan = await ensureWeek(ctx, patientId, weekStart, log);
-      const recipeIdsOn = (d: string) => plan.meals.filter((m) => m.recipeId && m.date.toISOString().slice(0, 10) === d).map((m) => m.recipeId!);
+      const recipeIdsOn = (d: string) => plan.meals.filter((m) => m.recipeId && isoDate(m.date) === d).map((m) => m.recipeId!);
+
+      // Meals already checked off stay: only the rest of the day gets new recipes.
+      const loggedSlots = async (tx: TenantTx) =>
+        new Set((await mealPlansRepository.logsBetween(tx, ctx.tenantId, patientId, new Date(date), new Date(date))).map((l) => l.slot));
+      const dayMeals = plan.meals.filter((m) => isoDate(m.date) === date);
+      const logged = await scoped(ctx.tenantId, loggedSlots);
+      const kept = dayMeals.filter((m) => logged.has(m.slot));
+      if (dayMeals.length > 0 && kept.length === dayMeals.length) throw Errors.conflict('Every meal of this day is already checked off');
 
       const [meals] = generateMealPlan({
         ...planning.input,
@@ -351,16 +434,24 @@ export function createMealPlansService(c: Container) {
         seed: randomUUID(),
         days: 1,
         startDay: day,
-        alreadyPlanned: dates.flatMap((d, i) => (i === day ? [] : [{ day: i, recipeIds: recipeIdsOn(d) }])),
-        avoidRecipeIds: recipeIdsOn(date),
+        alreadyPlanned: dates.flatMap((d, i) =>
+          i === day ? [{ day: i, recipeIds: kept.flatMap((m) => (m.recipeId ? [m.recipeId] : [])) }] : [{ day: i, recipeIds: recipeIdsOn(d) }],
+        ),
+        avoidRecipeIds: dayMeals.filter((m) => !logged.has(m.slot) && m.recipeId).map((m) => m.recipeId!),
       });
 
       await scoped(ctx.tenantId, async (tx) => {
+        // Read again inside the transaction: a meal checked off meanwhile is kept too.
+        const now = await loggedSlots(tx);
+        const keepSlots = dayMeals.filter((m) => now.has(m.slot)).map((m) => m.slot);
         await mealPlansRepository.replaceDay(
           tx, ctx.tenantId, plan.id, new Date(date),
           meals!.map((m, slot) => ({ slot, mealType: m.mealType, recipeId: m.recipeId, servings: m.recipeId ? m.servings : null })),
+          keepSlots,
         );
-        await writeAudit(tx, ctx, { action: 'MealPlanDayRegenerated', resourceType: 'MealPlan', resourceId: plan.id, metadata: { date } });
+        await writeAudit(tx, ctx, {
+          action: 'MealPlanDayRegenerated', resourceType: 'MealPlan', resourceId: plan.id, metadata: { date, keptSlots: keepSlots.length },
+        });
       });
       return readWeek(ctx, patientId, weekStart, log);
     },
@@ -441,6 +532,9 @@ export function createMealPlansService(c: Container) {
           if (!(await mealPlansRepository.findMeal(tx, ctx.tenantId, patientId, new Date(weekStart), mealId))) throw Errors.notFound('Meal');
           if (foodId === original.id) await mealPlansRepository.removeSwap(tx, ctx.tenantId, mealId, ingredientId);
           else await mealPlansRepository.setSwap(tx, ctx.tenantId, mealId, ingredientId, foodId);
+          // A meal already checked off as eaten was eaten with this swap.
+          const swapped = (await mealPlansRepository.findMeal(tx, ctx.tenantId, patientId, new Date(weekStart), mealId))!.swaps;
+          await mealPlansRepository.updateLogSwaps(tx, ctx.tenantId, patientId, meal.date, meal.slot, swapped);
           await writeAudit(tx, ctx, {
             action: 'MealIngredientSwapped', resourceType: 'MealPlanMeal', resourceId: mealId,
             metadata: { recipeIngredientId: ingredientId, fromFoodId: ingredient.food.id, toFoodId: foodId },
@@ -450,6 +544,37 @@ export function createMealPlansService(c: Container) {
 
       const updated = await findMeal(ctx, mealId, log);
       return toDetail(updated.meal, updated.view, await isFavourite(ctx.tenantId, patientId, updated.view.recipe.id));
+    },
+
+    /** GET /meal-plans/progress */
+    progress: async (ctx: TenantContext, log: Logger): Promise<MealProgressResponse> => progressOf(ctx, (await me(ctx)).patientId, log),
+
+    /**
+     * PUT /meal-plans/meals/:mealId/log: check off a meal of today or yesterday (which may be
+     * last week's). Keeps what the meal held (recipe, servings, swaps), so the answer survives
+     * a regenerated day. Replaces an earlier answer. Not audited, like water: it's the patient's own diary.
+     */
+    logMeal: async (ctx: TenantContext, mealId: string, input: MealLogData, log: Logger): Promise<MealLogResponse> => {
+      const { patientId } = await me(ctx);
+      const saved = await scoped(ctx.tenantId, async (tx) => {
+        const meal = await loggableMeal(tx, ctx.tenantId, patientId, mealId);
+        if (!meal.recipeId && input.status !== 'OTHER') throw Errors.validation('A meal with no recipe can only be logged as something else');
+        return mealPlansRepository.saveLog(tx, ctx.tenantId, patientId, {
+          date: meal.date, slot: meal.slot, mealType: meal.mealType, status: input.status, note: input.note,
+          recipeId: meal.recipeId, servings: meal.recipeId ? meal.servings : null, swaps: meal.swaps, source: input.source,
+        });
+      });
+      return { log: toLogDto(saved), progress: await progressOf(ctx, patientId, log) };
+    },
+
+    /** DELETE /meal-plans/meals/:mealId/log: undo a check-off of today or yesterday. Idempotent. */
+    unlogMeal: async (ctx: TenantContext, mealId: string, log: Logger): Promise<MealProgressResponse> => {
+      const { patientId } = await me(ctx);
+      await scoped(ctx.tenantId, async (tx) => {
+        const meal = await loggableMeal(tx, ctx.tenantId, patientId, mealId);
+        await mealPlansRepository.removeLog(tx, ctx.tenantId, patientId, meal.date, meal.slot);
+      });
+      return progressOf(ctx, patientId, log);
     },
   };
 }

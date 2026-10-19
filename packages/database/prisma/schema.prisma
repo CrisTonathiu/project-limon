@@ -183,6 +183,20 @@ enum UserStatus {
   DISABLED
 }
 
+/// The patient's answer for one meal slot (meal check-off). No row means no answer yet.
+enum MealLogStatus {
+  EATEN
+  SKIPPED
+  /// Ate something else. Only state allowed for a slot with no recipe.
+  OTHER
+}
+
+/// Where a meal check-off came from.
+enum MealLogSource {
+  APP
+  NOTIFICATION
+}
+
 /// Meal slots a recipe can fill. A recipe can fit several (e.g. a salad for lunch or dinner).
 enum MealType {
   BREAKFAST
@@ -283,6 +297,7 @@ model Tenant {
   mealPlans             MealPlan[]
   mealPlanMeals         MealPlanMeal[]
   mealFeedback          MealFeedback[]
+  mealLogs              MealLog[]
   mealPlanMealSwaps     MealPlanMealSwap[]
   shoppingListChecks    ShoppingListCheck[]
   protocols             Protocol[]
@@ -493,6 +508,7 @@ model Patient {
   user               User?                 @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Restrict)
   mealPlans          MealPlan[]
   mealFeedback       MealFeedback[]
+  mealLogs           MealLog[]
   conversations      Conversation[]
   subscriptions      PatientSubscription[]
   consents           PatientConsent[]
@@ -774,6 +790,7 @@ model Recipe {
   ingredients         RecipeIngredient[]
   mealPlanMeals       MealPlanMeal[]
   feedback            MealFeedback[]
+  mealLogs            MealLog[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, sourceDefaultRecipeId])
@@ -901,6 +918,42 @@ model MealFeedback {
   @@unique([tenantId, patientId, recipeId, weekStart])
   @@index([tenantId, recipeId])
   @@map("meal_feedback")
+}
+
+/// The patient's check-off of one meal slot of their plan (docs/roadmap/mvp-2.md, Phase 1).
+/// Keyed by the day and slot rather than the plan meal, so the answer survives a regenerated
+/// day or week. It keeps what the slot held when it was logged (recipe, servings, swaps), so
+/// "eaten" stays true to what was eaten; kcal is worked out from that on read, never stored
+/// (FatSecret only lets us store ids). Health data: never log the note or put it in audit metadata.
+model MealLog {
+  id        String        @id @default(uuid()) @db.Uuid
+  tenantId  String        @map("tenant_id") @db.Uuid
+  patientId String        @map("patient_id") @db.Uuid
+  /// The day on the patient's calendar (America/Mexico_City).
+  date      DateTime      @db.Date
+  /// MealPlanMeal.slot: order within the day.
+  slot      Int
+  mealType  MealType      @map("meal_type")
+  status    MealLogStatus
+  /// What the patient ate instead, in their words. Only with OTHER.
+  note      String?
+  /// The slot's recipe when logged. Null for a slot with no recipe (OTHER only).
+  recipeId  String?       @map("recipe_id") @db.Uuid
+  servings  Float?
+  /// The meal's SMAE swaps when logged: [{ recipeIngredientId, foodId }].
+  swaps     Json          @default("[]")
+  source    MealLogSource @default(APP)
+  loggedAt  DateTime      @default(now()) @map("logged_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [tenantId, patientId], references: [tenantId, id], onDelete: Cascade)
+  // Like plan meals: a recipe someone logged can't be deleted, only archived.
+  recipe  Recipe? @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, patientId, date, slot])
+  @@index([tenantId, recipeId])
+  @@map("meal_logs")
 }
 
 /// An item the patient checked off their shopping list for a week. The list itself isn't
