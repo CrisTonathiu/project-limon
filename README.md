@@ -6,11 +6,11 @@ Multi-tenant SaaS where every nutritionist runs their own practice, with their o
 
 ## Stack
 pnpm + Turborepo monorepo · TypeScript everywhere
-- `apps/api` — Node.js, Fastify, REST `/api/v1`, SQS worker
+- `apps/api` — Node.js, Fastify, REST `/api/v1`, Pub/Sub worker
 - `apps/dashboard` — Next.js (App Router)
 - `apps/patient` — Expo / React Native, white-label builds
 - `packages/*` — types, validation (Zod), config, database (Prisma + RLS), tenant, auth, api-client, ui tokens
-- `infrastructure` — AWS CDK: VPC, Aurora PostgreSQL, ECS Fargate, ALB+WAF, Cognito, S3, SQS, CloudWatch
+- `infrastructure/terraform` — GCP (us-east1): Cloud Run, Cloud SQL PostgreSQL, Identity Platform, Pub/Sub + Cloud Scheduler, Cloud Storage, Cloud Monitoring. See [docs/architecture/gcp.md](docs/architecture/gcp.md)
 
 MVP plan: [docs/roadmap/mvp-roadmap.md](docs/roadmap/mvp-roadmap.md).
 
@@ -62,11 +62,11 @@ pnpm test:integration     # tenant isolation against real Postgres (needs docker
 CI (`.github/workflows/ci.yml`) runs all of this, including the tenant-isolation suites.
 
 ## Git workflow
-`main` (production) ← `develop` (integration) ← `feature/*`. PRs require green CI: lint, typecheck, tests, build.
+Branch from `main` as `feat/*` or `chore/*`; never commit or push to `main` directly. PRs require green CI: lint, typecheck, tests, build, Terraform validate. A merge to `main` deploys to `preproduction` (`.github/workflows/deploy.yml`).
 
 ## Product rules encoded in the foundation
 - **Market: Mexico.** Health data is sensitive personal data under LFPDPPP — signup captures express consent per patient with the document version accepted. Clinical-record retention (NOM-004) constrains deletion. See [open-decisions.md](docs/architecture/open-decisions.md).
-- **Identity is tenant-scoped.** The same email can be a patient of several nutritionists; Cognito usernames are namespaced with the tenant UUID.
+- **Identity is tenant-scoped.** The same email can be a patient of several nutritionists; each nutritionist has their own Identity Platform tenant, so the same email makes separate logins.
 - **Patients sign themselves up** in their nutritionist's app and pay for access. Content stays locked until an active subscription exists — enforced by the API, not the app.
 - **Each tenant app is published from that nutritionist's own developer account**, enrolled with a platform-provisioned mailbox.
 
@@ -76,5 +76,5 @@ CI (`.github/workflows/ci.yml`) runs all of this, including the tenant-isolation
 3. Every new tenant-owned table gets an RLS policy (a test enforces this).
 4. Clients get `{ error: { code, message, requestId } }` only. No internals.
 5. No patient health data in logs, audit metadata, or queue payloads.
-6. S3 keys only through `tenantObjectKey()`; private bucket, signed URLs.
+6. Cloud Storage keys only through `tenantObjectKey()`; private bucket, signed URLs.
 7. Entitlement is derived server-side from verified provider events — a client may never claim it.

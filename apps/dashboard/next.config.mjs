@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone', // container image for ECS Fargate
+  output: 'standalone', // self-contained server for a container image (Cloud Run)
   poweredByHeader: false,
   async headers() {
     return [

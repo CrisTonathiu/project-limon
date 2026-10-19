@@ -47,8 +47,8 @@ export interface PatientAuthProvider {
 }
 
 /**
- * Dev token subject: the tenant-namespaced email, as the Cognito username used to be, so
- * local accounts created before Identity Platform keep working.
+ * Dev token subject: the tenant-namespaced email (dev auth has no identity tenants), in the
+ * same format as before Identity Platform, so existing local accounts keep working.
  */
 export function devSubjectFor(email: string): string {
   if (!buildConfig.tenantId) throw new Error('Build config is missing tenantId');

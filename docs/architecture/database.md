@@ -1,6 +1,6 @@
 # Database
 
-Aurora PostgreSQL (16), shared cluster, Prisma ORM. Local: `docker compose` Postgres 16.
+PostgreSQL 16 on Cloud SQL, one shared instance, Prisma ORM. Local: `docker compose` Postgres 16.
 
 ## Roles
 | Role | Used by | RLS |

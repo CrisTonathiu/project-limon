@@ -27,7 +27,7 @@ function resolveApiBaseUrl(url: string): string {
 
 export const buildConfig = {
   tenantSlug: extra.tenantSlug,
-  /** Namespaces dev token subjects, as it did Cognito usernames. */
+  /** Namespaces dev token subjects (tenantUsername in @limon/tenant). */
   tenantId: extra.tenantId,
   appKey: Platform.OS === 'ios' ? extra.appKeys.ios : extra.appKeys.android,
   apiBaseUrl: resolveApiBaseUrl(extra.apiBaseUrl),

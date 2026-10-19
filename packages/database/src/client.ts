@@ -10,9 +10,9 @@ const { PrismaClient: PrismaClientImpl } = PrismaPkg;
 
 /**
  * Database router. The ONLY place that maps a tenant placement to a connection.
- * Today: SHARED → the main Aurora cluster. DEDICATED is modelled but not implemented;
+ * Today: SHARED → the main Cloud SQL instance. DEDICATED is modelled but not implemented;
  * when it is, this becomes a pool of clients keyed by databaseIdentifier with
- * credentials from Secrets Manager.
+ * credentials from Secret Manager.
  */
 export class DatabaseRouter {
   private readonly main: PrismaClient;

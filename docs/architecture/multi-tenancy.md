@@ -2,7 +2,7 @@
 
 ## Tenant identity
 - `tenants.id` — UUID, immutable, the **only** security identifier.
-- `tenants.slug` — human-friendly, mutable, unique; used for URLs and build folders. Never used for authorization, S3 keys, or joins.
+- `tenants.slug` — human-friendly, mutable, unique; used for URLs and build folders. Never used for authorization, storage keys, or joins.
 
 ## Isolation — three layers
 
@@ -28,6 +28,6 @@ Some lookups happen before a tenant is known (token `sub` → user; app key → 
 Cross-tenant platform operations (admin reporting, billing sweeps) must use a separate `BYPASSRLS` role on a separate connection, never the API's runtime role. Deferred.
 
 ## Workers, storage, logs
-- SQS `JobEnvelope` carries `tenantId`, `actorUserId`, `requestId`; payload holds IDs only. Workers re-check tenant status before acting.
-- S3 keys: `tenants/{tenantId}/{area}/…` built only by `tenantObjectKey()`; downloads verify the prefix matches the caller's tenant.
+- The job `JobEnvelope` (Pub/Sub) carries `tenantId`, `actorUserId`, `requestId`; payload holds IDs only. Workers re-check tenant status before acting.
+- Cloud Storage keys: `tenants/{tenantId}/{area}/…` built only by `tenantObjectKey()`; downloads verify the prefix matches the caller's tenant.
 - Logs include `requestId`, `tenantId`, `userId` — never patient health data.

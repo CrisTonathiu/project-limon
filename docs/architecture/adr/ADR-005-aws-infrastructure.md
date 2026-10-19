@@ -1,6 +1,6 @@
 # ADR-005: AWS infrastructure
 
-**Status:** Accepted · 2026-09-17
+**Status:** Superseded by [ADR-010](ADR-010-gcp-infrastructure.md) · 2026-10-08 (accepted 2026-09-17). Kept as a record; nothing below is deployed.
 
 ## Context
 Primary cloud is AWS. Need private data tier, managed auth, queues, AI, and repeatable per-environment infrastructure.
@@ -16,4 +16,4 @@ AWS CDK (TypeScript) with stacks: network, database, storage, auth, queues, comp
 ## Consequences
 + Infra typed and reviewed like app code; environments are configuration.
 − CDK lock-in to CloudFormation limits (stack size, deploy speed).
-− Skeleton gaps (ECR, TLS, CloudFront, DB bootstrap) must be closed before first deployment — listed in aws.md.
+− Skeleton gaps (ECR, TLS, CloudFront, DB bootstrap) must be closed before first deployment.

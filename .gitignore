@@ -6,7 +6,6 @@ packages/database/generated
 .expo
 coverage
 storybook-static
-cdk.out
 *.log
 .env
 .env.*

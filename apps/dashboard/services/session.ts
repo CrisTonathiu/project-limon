@@ -4,9 +4,9 @@
  * Session abstraction for the dashboard.
  *
  * Foundation phase: stores the access token in sessionStorage (dev auth).
- * Production plan (docs/architecture/authentication.md): Cognito Hosted UI with
- * authorization-code + PKCE, tokens held in httpOnly Secure cookies set by a Next
- * route handler — never in web storage. Only this file changes.
+ * Production plan (docs/roadmap/mvp-2.md, D5): Identity Platform sign-in at the project
+ * level, with the session held in an httpOnly Secure cookie set by a Next route handler —
+ * never in web storage. Only this file changes.
  */
 const KEY = 'limon.accessToken';
 

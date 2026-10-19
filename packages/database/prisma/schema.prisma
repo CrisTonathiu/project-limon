@@ -327,7 +327,7 @@ model Tenant {
 model TenantBranding {
   tenantId       String   @id @map("tenant_id") @db.Uuid
   appName        String   @map("app_name")
-  logoKey        String?  @map("logo_key") // S3 key, not a URL
+  logoKey        String?  @map("logo_key") // Cloud Storage object key, not a URL
   primaryColor   String   @default("#2E7D32") @map("primary_color")
   secondaryColor String?  @map("secondary_color")
   supportEmail   String?  @map("support_email")
@@ -419,7 +419,7 @@ model TenantStoreAccount {
   /// Apple Team ID / Google Play developer ID once enrolment completes.
   externalAccountId String?            @map("external_account_id")
   status            StoreAccountStatus @default(MAILBOX_CREATED)
-  /// Credentials live in Secrets Manager; only the reference is stored here.
+  /// Credentials live in Secret Manager; only the reference is stored here.
   apiCredentialRef  String?            @map("api_credential_ref")
   enrolledAt        DateTime?          @map("enrolled_at")
   createdAt         DateTime           @default(now()) @map("created_at")
@@ -733,7 +733,7 @@ model DefaultRecipe {
   mealTypes    MealType[] @map("meal_types")
   servings     Int
   totalMinutes Int?       @map("total_minutes")
-  /// S3 object key of the photo.
+  /// Cloud Storage object key of the photo.
   imageKey     String?    @map("image_key")
   tags         String[]   @default([])
   steps        String[]   @default([])
@@ -778,7 +778,7 @@ model Recipe {
   mealTypes             MealType[] @map("meal_types")
   servings              Int
   totalMinutes          Int?       @map("total_minutes")
-  /// S3 object key of the photo.
+  /// Cloud Storage object key of the photo.
   imageKey              String?    @map("image_key")
   tags                  String[]   @default([])
   steps                 String[]   @default([])

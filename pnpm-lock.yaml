@@ -243,25 +243,6 @@ importers:
         specifier: ^2.1.5
         version: 2.1.9(@types/node@22.20.3)(lightningcss@1.33.0)(terser@5.51.2)
 
-  infrastructure:
-    dependencies:
-      aws-cdk-lib:
-        specifier: ^2.170.0
-        version: 2.269.0(constructs@10.8.1)
-      constructs:
-        specifier: ^10.4.2
-        version: 10.8.1
-    devDependencies:
-      aws-cdk:
-        specifier: ^2.170.0
-        version: 2.1142.0
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.13
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-
   packages/api-client:
     dependencies:
       '@limon/types':
@@ -396,19 +377,6 @@ packages:
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
-
-  '@aws-cdk/asset-awscli-v1@2.2.292':
-    resolution: {integrity: sha512-d4aMFsAFj19FtxVyw8IzlUKv5Zu4sIvgnEjI2IU6IWBJgVbJ4aFnadANqYa+6MwB1CQbGOg0jh8WE77M+Nb/9A==}
-
-  '@aws-cdk/asset-node-proxy-agent-v6@2.1.3':
-    resolution: {integrity: sha512-98We1QWfin9vtuuQtNFhIIAEWb8CreyYTAP0Vn8HqSBoNiFJM9nZgifJeQawT9Wq0NX1HCNFlxCyTccIrK1PSA==}
-
-  '@aws-cdk/cloud-assembly-schema@54.24.0':
-    resolution: {integrity: sha512-9sH1pBpWuqZR/9rYAveNi62B/jDrc9BNOL83alD/wtIUSbRkg1aj6JX2r1cSugQwLBjCizQscQZgAb5wWnTTMg==}
-    engines: {node: '>= 18.0.0'}
-    bundledDependencies:
-      - jsonschema
-      - semver
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -2962,30 +2930,6 @@ packages:
   avvio@9.3.0:
     resolution: {integrity: sha512-g2tQ7LE7oOSqDfwEm3M+ZCMTJc7KiZCdJ4UwyZJb5ckTKyYu50OYmvv0mCFXPuYXoM4zkSt8zM9XQ9KCvxA74A==}
 
-  aws-cdk-lib@2.269.0:
-    resolution: {integrity: sha512-Ob2EmB3faXGUMjXYhxsMvktZtaojr/aaeLqFjq9WbO+vOX1mx49OQPVB6NNNLfNKWF993Bb6nr4rsPblpUAJww==}
-    engines: {node: '>= 20.0.0'}
-    peerDependencies:
-      constructs: ^10.5.0
-    bundledDependencies:
-      - '@aws/cloudformation-validate'
-      - '@balena/dockerignore'
-      - '@aws-cdk/cloud-assembly-api'
-      - case
-      - fs-extra
-      - ignore
-      - jsonschema
-      - minimatch
-      - punycode
-      - semver
-      - yaml
-      - mime-types
-
-  aws-cdk@2.1142.0:
-    resolution: {integrity: sha512-gNOeii+avTJmOwfR8tVgraZ5A2EBC/529EXg7e+yBp8Zl608dAv5CtFRoJt8QoKiruiCwYr4HF6ClNAse/NkSg==}
-    engines: {node: '>= 18.0.0'}
-    hasBin: true
-
   babel-plugin-polyfill-corejs2@0.4.17:
     resolution: {integrity: sha512-aTyf30K/rqAsNwN76zYrdtx8obu0E4KoUME29B1xj+B3WxgvWkp943vYQ+z8Mv3lw9xHXMHpvSPOBxzAkIa94w==}
     peerDependencies:
@@ -3210,9 +3154,6 @@ packages:
   connect@3.7.0:
     resolution: {integrity: sha512-ZqRXc+tZukToSNmh5C2iWMSoV3X1YUcPbqEM4DkEG5tNQXrQUZCNVGGv3IuicnkMtPfGf3Xtp8WCXs295iQ1pQ==}
     engines: {node: '>= 0.10.0'}
-
-  constructs@10.8.1:
-    resolution: {integrity: sha512-98yGXYyhePqPYh3cYu8nzBERmAhC0DONe3UD03okK0nehZ7hYP4wgZuf02a04+uOWxnTJ5Rpp5m0GRNpwyLGGA==}
 
   content-type@2.1.0:
     resolution: {integrity: sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag==}
@@ -5621,12 +5562,6 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
-  '@aws-cdk/asset-awscli-v1@2.2.292': {}
-
-  '@aws-cdk/asset-node-proxy-agent-v6@2.1.3': {}
-
-  '@aws-cdk/cloud-assembly-schema@54.24.0': {}
-
   '@babel/code-frame@7.29.7':
     dependencies:
       '@babel/helper-validator-identifier': 7.29.7
@@ -7685,9 +7620,7 @@ snapshots:
       metro-runtime: 0.84.5
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
@@ -8407,15 +8340,6 @@ snapshots:
       '@fastify/error': 4.2.0
       fastq: 1.20.3
 
-  aws-cdk-lib@2.269.0(constructs@10.8.1):
-    dependencies:
-      '@aws-cdk/asset-awscli-v1': 2.2.292
-      '@aws-cdk/asset-node-proxy-agent-v6': 2.1.3
-      '@aws-cdk/cloud-assembly-schema': 54.24.0
-      constructs: 10.8.1
-
-  aws-cdk@2.1142.0: {}
-
   babel-plugin-polyfill-corejs2@0.4.17(@babel/core@7.29.7):
     dependencies:
       '@babel/compat-data': 7.29.7
@@ -8698,8 +8622,6 @@ snapshots:
       utils-merge: 1.0.1
     transitivePeerDependencies:
       - supports-color
-
-  constructs@10.8.1: {}
 
   content-type@2.1.0: {}
 

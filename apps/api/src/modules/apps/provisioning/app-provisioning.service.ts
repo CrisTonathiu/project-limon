@@ -5,7 +5,7 @@
  * Responsibilities (future):
  *  - Create tenant app configuration (TenantApp rows — done at signup today)
  *  - Generate build configuration  → apps/patient/tenants/<slug>/app.json
- *  - Generate branding assets      → icon/splash from tenants/{id}/branding/ in S3
+ *  - Generate branding assets      → icon/splash from tenants/{id}/branding/ in Cloud Storage
  *  - Trigger mobile build          → EAS Build / GitHub Actions (mobile-build workflow)
  *  - Track build status            → TenantApp.status BUILDING
  *  - Track App Store submission    → SUBMITTED (App Store Connect API)

@@ -148,7 +148,7 @@ API and packages:
 - [x] Provisioning: nutritionist sign-up / `admin` creates the Identity Platform tenant (email + password enabled, Spanish email templates, password policy ≥ 10 characters with upper, lower and digits, as on Cognito) and stores its id. *(Emails come out in Spanish from the app setting `auth.languageCode = 'es'`. Existing practices: `admin identity-tenant <slug>`. Nutritionists sign in at the project level, outside any identity tenant.)*
 - [x] Tenant middleware (`apps/api/src/middleware/tenant-context.ts`): add the token-tenant vs. database-tenant check, with a test in `tenant-isolation.api.test.ts`.
 - [x] **Account deletion** (`DELETE /patients/me`): the API deletes the Identity Platform user itself, through the tenant-scoped Admin SDK, in the same request. This replaces the app-side Cognito `DeleteUser` (Firebase's client-side delete requires a fresh sign-in, and a server-side delete leaves no orphaned login). Update `account-deletion.api.test.ts`.
-- [ ] `DeleteTenantData` job *(still a skeleton; its plan now names `identityAdmin.deleteTenant`)*: delete the tenant's Identity Platform tenant (which deletes its users) instead of Cognito `AdminDeleteUser`.
+- [ ] `DeleteTenantData` job *(still a skeleton; its plan now names `identityAdmin.deleteTenant`. Blocked on the retention policy (NOM-004, [tenant-lifecycle.md](../architecture/tenant-lifecycle.md)), not on GCP: it's built with tenant cancellation, after the MVP.)*: delete the tenant's Identity Platform tenant (which deletes its users) instead of Cognito `AdminDeleteUser`.
 - [x] `packages/config`: replace `COGNITO_*` with `GCP_PROJECT_ID` (and the Identity Platform API key if the verifier needs it).
 
 Patient app:
@@ -239,12 +239,12 @@ To finish it by hand:
 
 ### Phase 9 · Remove AWS from the repo and docs (Oct 21)
 
-- [ ] Delete the CDK app: `infrastructure/app.ts`, `cdk.json`, `cdk.context.json`, `config/`, `stacks/`, and the CDK dependencies in `infrastructure/package.json`.
-- [ ] Remove the leftover AWS packages (`@aws-sdk/*`, `aws-jwt-verify`, `amazon-cognito-identity-js`) and Bedrock/SES mentions.
-- [ ] **ADR-010: GCP infrastructure**, superseding ADR-005 (this document's "Why" section is the starting point). Update ADR-004 (worker model).
-- [ ] Replace `docs/architecture/aws.md` with `gcp.md` (architecture, costs, deploy and teardown steps, Hostinger DNS). Update `overview.md`, `tenant-lifecycle.md`, `README.md` and `.env.example`.
+- [x] Delete the CDK app: `infrastructure/app.ts`, `cdk.json`, `cdk.context.json`, `config/`, `stacks/`, and the CDK dependencies in `infrastructure/package.json`. *(`infrastructure` is no longer a pnpm workspace package; only `infrastructure/terraform` remains.)*
+- [x] Remove the leftover AWS packages (`@aws-sdk/*`, `aws-jwt-verify`, `amazon-cognito-identity-js`) and Bedrock/SES mentions. *(The packages were already gone with phases 4–6; code comments now name the GCP services.)*
+- [x] **ADR-010: GCP infrastructure**, superseding ADR-005 (this document's "Why" section is the starting point). Update ADR-004 (worker model). *(Also amended: ADR-002 (Cloud SQL) and ADR-006 (identity tenants).)*
+- [x] Replace `docs/architecture/aws.md` with `gcp.md` (architecture, costs, deploy and teardown steps, Hostinger DNS). Update `overview.md`, `tenant-lifecycle.md`, `README.md` and `.env.example`. *(Plus the phase 4 doc updates that were still pending: `authentication.md`, `authorization.md`, `multi-tenancy.md`, `mobile-white-label.md`.)*
 
-**Done when:** `grep -ri "cognito\|aws-sdk\|cdk" --exclude-dir=node_modules .` finds only historical mentions in ADR-005 and this document.
+**Done when:** `grep -ri "cognito\|aws-sdk\|cdk" --exclude-dir=node_modules .` finds only historical mentions in ADR-005 and this document. *(Oct 19: also in the migrations already applied, the other roadmaps' history, and the ADR-006 and ADR-010 context.)*
 
 ## Before production
 

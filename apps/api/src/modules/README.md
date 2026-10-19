@@ -27,8 +27,8 @@ Rules:
 | users, nutritionists, protocols, progress, conversations, subscriptions, payments, ai, files, notifications | placeholder |
 
 Notes for placeholders:
-- **ai**: Bedrock is called only from here. Must build patient context via TenantContext + patient authorization
-  first; the mobile app never calls Bedrock. Prompts/responses must not be logged with PHI.
+- **ai**: the LLM (Claude on Vertex AI, after the MVP) is called only from here. Must build patient context via TenantContext + patient authorization
+  first; the mobile app never calls the LLM. Prompts/responses must not be logged with PHI.
 - **payments / subscriptions**: two separate relationships — `PlatformSubscription` (Stripe Billing, nutritionist → platform)
   and `PatientSubscription` (Stripe Connect, patient → nutritionist). Webhooks verify Stripe signatures and enqueue
   `ProcessSubscriptionEvent`; tenant status changes go through `tenant-lifecycle.service.ts`.
