@@ -2,6 +2,8 @@
 
 **Window:** Mon 2026-09-28 → Fri 2026-11-27 (9 weeks: 8 build + 1 launch buffer) · **Team:** 1 developer · **Market:** Mexico, Spanish (es-MX) only
 
+> **Update 2026-10-18:** from Oct 19 the plan follows [MVP.2](mvp-2.md) (meal check-off, onboarding, notifications, a first nutritionist dashboard), tested in `preproduction` only with no fixed launch date. Payments (week 7) and the store launch (weeks 8–9) come back after MVP.2.
+
 ## Goal
 
 Ship **one** Limon patient app (iOS + Android) that a nutritionist can sell to their patients:
@@ -362,7 +364,7 @@ Deployment and teardown steps will live in `docs/architecture/gcp.md` ([migratio
 |---|---|---|
 | v1.1 | Dec 2026 | Anything past the cut line, pilot feedback, ARCO request flow in-app, analytics |
 | Production environment | Before onboarding nutritionists beyond the pilot | Separate GCP project `limon-production` (same Terraform modules): global load balancer + Cloud Armor, Cloud SQL with high availability, min 2 `api` instances, a `limon-staging` project, data and Identity Platform users exported from `preproduction` (password hashes included), the new NAT IP whitelisted at FatSecret, then `preproduction` destroyed |
-| Nutritionist dashboard | Jan – Feb 2027 | Recipe editor, patient list and progress, meal plan review/override, invite codes, Stripe Connect self-onboarding, feature/add-on self-upgrade |
+| Nutritionist dashboard | Jan – Feb 2027 (v0 moves to [MVP.2](mvp-2.md#phase-6--nutritionist-dashboard-v0)) | Recipe editor, patient list and progress, meal plan review/override, invite codes, Stripe Connect self-onboarding, feature/add-on self-upgrade |
 | Platform admin dashboard | Not scheduled | Cross-tenant alerts, payment records for support and payment-pipeline metrics, without patient health data. See [Platform admin dashboard](admin-dashboard.md) |
 | Build automation | Feb – Mar 2027 | Automated per-tenant build and submit pipeline (the MVP pilots are built by hand), OTA updates per tenant, guided store-account onboarding, CFDI invoicing (e.g. Facturapi) |
 | AI add-on (`ai_assistant`) | Q2 2027 | Preference-aware plan generation trained on `meal_feedback`; patient assistant (recipe Q&A, swaps); nutritionist plan drafting; usage-metered billing. See [AI add-on](ai-addon.md), including data to start collecting before the pilot |
