@@ -170,6 +170,7 @@ export function createMealPlansService(c: Container) {
     meal: SavedMeal,
     { recipe, ingredients, portion, macros }: NonNullable<ReturnType<Awaited<ReturnType<typeof mealViews>>>>,
     favourite: boolean,
+    log: MealLogDto | null,
   ): PlannedMealDetailDto => ({
     id: meal.id,
     date: isoDate(meal.date),
@@ -178,6 +179,7 @@ export function createMealPlansService(c: Container) {
     servings: meal.servings!,
     macros,
     favourite,
+    log,
     ingredients: ingredients.map((i) => {
       const original = i.swappedFrom ?? i.food;
       return {
@@ -204,6 +206,13 @@ export function createMealPlansService(c: Container) {
 
   const isFavourite = async (tenantId: string, patientId: string, recipeId: string) =>
     (await scoped(tenantId, (tx) => mealPlansRepository.favouriteRecipeIds(tx, tenantId, patientId))).includes(recipeId);
+
+  /** A meal's check-off, found by its day and slot. */
+  const logOf = async (tenantId: string, patientId: string, meal: SavedMeal) => {
+    const logs = await scoped(tenantId, (tx) => mealPlansRepository.logsBetween(tx, tenantId, patientId, meal.date, meal.date));
+    const found = logs.find((l) => l.slot === meal.slot);
+    return found ? toLogDto(found) : null;
+  };
 
   const generateWeek = async (input: GenerateWeekInput, log: Logger): Promise<GenerateWeekResult> => {
     const { tenantId, patientId, weekStart } = input;
@@ -477,7 +486,7 @@ export function createMealPlansService(c: Container) {
     /** GET /meal-plans/current/meals/:mealId: one meal of this week, its ingredients for the patient's portion, after swaps. */
     meal: async (ctx: TenantContext, mealId: string, log: Logger): Promise<PlannedMealDetailDto> => {
       const { patientId, meal, view } = await findMeal(ctx, mealId, log);
-      return toDetail(meal, view, await isFavourite(ctx.tenantId, patientId, view.recipe.id));
+      return toDetail(meal, view, await isFavourite(ctx.tenantId, patientId, view.recipe.id), await logOf(ctx.tenantId, patientId, meal));
     },
 
     /**
@@ -543,7 +552,7 @@ export function createMealPlansService(c: Container) {
       }
 
       const updated = await findMeal(ctx, mealId, log);
-      return toDetail(updated.meal, updated.view, await isFavourite(ctx.tenantId, patientId, updated.view.recipe.id));
+      return toDetail(updated.meal, updated.view, await isFavourite(ctx.tenantId, patientId, updated.view.recipe.id), await logOf(ctx.tenantId, patientId, updated.meal));
     },
 
     /** GET /meal-plans/progress */

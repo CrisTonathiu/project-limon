@@ -37,14 +37,27 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Every block on: what Inicio looks like once the goal tracker and meal check-off ship. */
+/** Goal tracker and meal plan on, water off: the mockup's three tiles. */
 export const Anillo: Story = {};
 
+/** Goal tracker, meal plan and water all on: four tiles go in a 2×2 grid. */
+export const FourTiles: Story = {
+  args: { water: { drunkMl: 1500, goalMl: 2400 } },
+};
+
+/** No goal tracker: the outer ring shows today's calories, so there's no calories tile. */
+export const CaloriesRing: Story = {
+  args: {
+    ring: { kind: 'calories', eaten: 1240, target: 1800 },
+    water: { drunkMl: 1500, goalMl: 2400 },
+  },
+};
+
 /**
- * What the MVP can fill today: the weight goal ring and weight card (goal tracker) and the water
- * tile (water tracker). Without meal check-off there is no plan ring, streak, meals or calories.
+ * A clinic without the meal plan: the weight goal ring and weight card (goal tracker) and the
+ * water tile (water tracker), with no plan ring, streak, meals or calories.
  */
-export const MvpToday: Story = {
+export const NoMealPlan: Story = {
   args: {
     planAdherence: null,
     streakDays: null,

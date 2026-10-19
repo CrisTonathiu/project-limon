@@ -64,7 +64,7 @@ Replace the current Home screen (a title plus a list of buttons) with bottom tab
 
 | #       | Screen                                                                                                                                  | Mockup                    | Data                                                                                                                       | Status                                        |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| 1       | Inicio (Anillo)                                                                                                                         | 01-inicio.html            | energy target, today's plan, weight goal (goal tracker), streak and meals eaten (needs meal check-off, not in the MVP yet) | designed                                      |
+| 1       | Inicio (Anillo)                                                                                                                         | 01-inicio.html            | energy target, today's plan, weight goal (goal tracker), streak, meals and calories eaten (`GET /meal-plans/progress`, meal check-off) | designed                                      |
 | 2       | Comidas, the week                                                                                                                       | 02-comidas.html           | GET /meal-plans/current                                                                                                    | designed                                      |
 | 3       | Detalle de comida with swaps                                                                                                            | 03-detalle-de-comida.html | meal detail and swap endpoints                                                                                             | designed                                      |
 | 4       | Recetas                                                                                                                                 | 04-recetas.html           | GET /recipes?mealType=                                                                                                     | designed                                      |
@@ -75,7 +75,8 @@ Replace the current Home screen (a title plus a list of buttons) with bottom tab
 
 Notes for each screen:
 
-- **Inicio:** a hero card with two rings, the weight goal (outer, primary) and plan adherence this week (inner, accent). Below it, three tiles: streak, meals today, and calories today against the target. Then a weight sparkline card and the brand-colored next-meal card. There is no appointment tile, because not every clinic offers appointments. Until the goal tracker ships, the outer ring shows today's calories. Hide each block whose feature flag is off.
+- **Inicio:** a hero card with two rings, the weight goal (outer, primary) and plan adherence this week (inner, accent). Below it, three tiles: streak, meals today, and calories today against the target (four tiles, with water, go in a 2×2 grid). Then a weight sparkline card and the brand-colored next-meal card. There is no appointment tile, because not every clinic offers appointments. Until the goal tracker ships, the outer ring shows today's calories. Hide each block whose feature flag is off.
+- **Meal check-off (MVP.2, no mockup):** on Comidas, the meal card's left tile is the check-off button for today's and yesterday's meals: an empty ring until answered, then ✓ (primary), ≈ (accent track) or – (track), with the answer after the meal in the caption ("Desayuno · Comiste"). The tile pops like the heart when the answer changes. It opens a bottom sheet, "¿Comiste tu desayuno?", with Comí / Comí otra cosa / No comí; the first and last save at once, "otra cosa" shows an optional note (140 characters) and Guardar, and an answer can be cleared. Detalle de comida shows the same as a row under the header. Stories: `Screens/Comidas` (CheckOffSheet, CheckOffSheetOther, PastDay, LaterDay).
 - **Comidas:** a strip of the 7 days, with today selected. A day summary card shows a ring against the target and P/C/G chips. Below it are the meal cards (meal and time, dish, kcal, heart) and the outline button "Cambiar el menú de este día" (hidden on past days).
 - **Detalle de comida:** a tinted header band with a back button. Macro chips, then the list of ingredients, each with a "Cambiar" pill. The swap sheet lists equivalents from the same SMAE group, with the selected one tinted. Keep the FatSecret attribution under the macros.
 - **Recetas:** a search field, meal-type chips and a 2-column card grid. Recipes have no photos yet, so each card has a tinted block with an icon.
@@ -93,7 +94,6 @@ Notes for each screen:
 
 ## Open questions
 
-- Meal check-off is not in the MVP, but the home streak and "3/5 comidas" tiles need it.
 - Which color should a clinic with no brand color get: #3173BD or #2E7D32?
 
 ## Reading the mockups

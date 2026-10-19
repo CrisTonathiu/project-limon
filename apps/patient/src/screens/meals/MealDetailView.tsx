@@ -1,4 +1,4 @@
-import type { RecipeMacros } from '@limon/types';
+import type { MealLogStatus, RecipeMacros } from '@limon/types';
 import { useRef } from 'react';
 import { Pressable } from 'react-native';
 import {
@@ -18,6 +18,7 @@ import {
 import { t } from '../../i18n/es-MX';
 import { formatGrams } from '../../i18n/format';
 import { Section, StepList } from '../recipes/RecipeParts';
+import { LogTile, MealLogSheet, type MealLogSheetProps, type MealLogTarget } from './MealLogParts';
 
 export type MealIngredientRow = {
   id: string;
@@ -55,6 +56,13 @@ export type MealDetailData = {
   steps: string[];
   /** Food swaps on for the tenant, and the meal is today or later. */
   canSwap: boolean;
+  /** The check-off row: shown for today's and yesterday's meals, and for any answered one. */
+  checkOff: {
+    mealLabel: string;
+    status: MealLogStatus | null;
+    loggable: boolean;
+    failed: boolean;
+  } | null;
 };
 
 export type MealDetailViewProps = {
@@ -71,7 +79,10 @@ export type MealDetailViewProps = {
   onConfirmSwap?: () => void;
   onRetrySwap?: () => void;
   onCloseSwap?: () => void;
-};
+  onLogMeal?: () => void;
+  /** The meal being checked off in the sheet, or null when it's closed. */
+  logSheet?: MealLogTarget | null;
+} & Partial<Pick<MealLogSheetProps, 'onSave' | 'onClear'>> & { onCloseLog?: () => void };
 
 /** Detalle de comida (docs/ui/mockups/03-detalle-de-comida.html), with the swap sheet. */
 export function MealDetailView(props: MealDetailViewProps) {
@@ -105,10 +116,18 @@ export function MealDetailView(props: MealDetailViewProps) {
               onRetry={state.onRetry}
             />
           ) : null}
-          {meal ? <Body meal={meal} onOpenSwap={props.onOpenSwap} /> : null}
+          {meal ? (
+            <Body meal={meal} onOpenSwap={props.onOpenSwap} onLogMeal={props.onLogMeal} />
+          ) : null}
         </DetailBody>
       </ScreenScroll>
       <SwapSheet {...props} />
+      <MealLogSheet
+        meal={props.logSheet ?? null}
+        onSave={(status, note) => props.onSave?.(status, note)}
+        onClear={() => props.onClear?.()}
+        onClose={() => props.onCloseLog?.()}
+      />
     </>
   );
 }
@@ -116,13 +135,16 @@ export function MealDetailView(props: MealDetailViewProps) {
 function Body({
   meal,
   onOpenSwap,
+  onLogMeal,
 }: {
   meal: MealDetailData;
   onOpenSwap?: (i: MealIngredientRow) => void;
+  onLogMeal?: () => void;
 }) {
   const { macros } = meal;
   return (
     <>
+      {meal.checkOff ? <CheckOffRow {...meal.checkOff} onPress={onLogMeal} /> : null}
       <Entering delay={80}>
         {macros ? (
           <Box flexDirection="row" flexWrap="wrap" gap="s">
@@ -191,6 +213,54 @@ function Body({
         </Box>
       ) : null}
     </>
+  );
+}
+
+function CheckOffRow({
+  mealLabel,
+  status,
+  loggable,
+  failed,
+  onPress,
+}: NonNullable<MealDetailData['checkOff']> & { onPress?: () => void }) {
+  const answer = status ? t.mealLog.status[status] : null;
+  return (
+    <Card delay={80} borderRadius="l" paddingVertical="s" gap="s">
+      <Box flexDirection="row" alignItems="center" gap="m" minHeight={52}>
+        <LogTile
+          status={status}
+          loggable={loggable}
+          accessibilityLabel={
+            answer ? t.mealLog.change(mealLabel, answer) : t.mealLog.open(mealLabel)
+          }
+          onPress={onPress}
+        />
+        <Box flex={1}>
+          <Text variant="bodyStrong">{answer ?? t.mealLog.question(mealLabel)}</Text>
+        </Box>
+        {loggable ? (
+          <Pressable onPress={onPress} accessibilityRole="button" hitSlop={{ top: 4, bottom: 4 }}>
+            <Box
+              minHeight={36}
+              minWidth={44}
+              paddingHorizontal="m"
+              borderRadius="pill"
+              backgroundColor="primaryTint"
+              justifyContent="center"
+            >
+              <Text variant="chip" color="primary">
+                {status ? t.mealLog.changeAction : t.mealLog.action}
+              </Text>
+            </Box>
+          </Pressable>
+        ) : null}
+      </Box>
+      {failed ? (
+        <Text variant="label" color="danger">
+          {t.mealLog.saveFailed}
+        </Text>
+      ) : null}
+    </Card>
   );
 }
 

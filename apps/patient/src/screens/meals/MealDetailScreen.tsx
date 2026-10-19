@@ -1,7 +1,8 @@
-import { FeatureKey, type PlannedMealDetailDto } from '@limon/types';
+import { FeatureKey, type MealLogDto, type PlannedMealDetailDto } from '@limon/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
 import { mealIngredientParts } from '../../features/meal-plans/meal-ingredient';
+import { canLog, draftLog } from '../../features/meal-plans/meal-log';
 import { canRegenerate, formatPortion } from '../../features/meal-plans/meal-plan-format';
 import { formatMinutes } from '../../features/recipes/recipe-format';
 import { t } from '../../i18n/es-MX';
@@ -15,6 +16,7 @@ import {
   type MealIngredientRow,
   type SwapSheetState,
 } from './MealDetailView';
+import type { MealLogTarget } from './MealLogParts';
 
 type Load =
   { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; meal: PlannedMealDetailDto };
@@ -22,7 +24,8 @@ type Load =
 /**
  * One meal of this week's plan, for the patient's portion: macros, ingredients and steps.
  * From today on, an ingredient with SMAE data can be swapped for an equivalent food (when
- * the tenant has the food_swaps module); the swap applies to this meal only.
+ * the tenant has the food_swaps module); the swap applies to this meal only. Today's and
+ * yesterday's meals can be checked off here too.
  */
 export function MealDetailScreen({
   route,
@@ -32,6 +35,8 @@ export function MealDetailScreen({
   const session = useSession();
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [swap, setSwap] = useState<SwapSheetState | null>(null);
+  const [logSheet, setLogSheet] = useState<MealLogTarget | null>(null);
+  const [logFailed, setLogFailed] = useState(false);
 
   const fetchMeal = useCallback(() => {
     setLoad({ status: 'loading' });
@@ -96,6 +101,31 @@ export function MealDetailScreen({
       });
   };
 
+  /** Optimistic, like Comidas: the answer shows at once and goes back if the call fails. */
+  const saveLog = (next: MealLogDto | null) => {
+    if (load.status !== 'loaded') return;
+    const previous = load.meal.log;
+    const apply = (log: MealLogDto | null) =>
+      setLoad((prev) =>
+        prev.status === 'loaded' ? { ...prev, meal: { ...prev.meal, log } } : prev,
+      );
+    apply(next);
+    setLogSheet(null);
+    setLogFailed(false);
+    (next
+      ? api.mealPlans.logMeal(mealId, { status: next.status, note: next.note })
+      : api.mealPlans.unlogMeal(mealId)
+    )
+      .then((res) => {
+        if ('log' in res) apply(res.log);
+      })
+      .catch((err) => {
+        console.error('[meals] saving the check-off failed', err);
+        apply(previous);
+        setLogFailed(true);
+      });
+  };
+
   const state = (): MealDetailViewProps['state'] => {
     if (load.status === 'loading') return load;
     if (load.status === 'failed') return { status: 'failed', onRetry: fetchMeal };
@@ -122,6 +152,15 @@ export function MealDetailScreen({
       canSwap:
         session.hasFeature(FeatureKey.FOOD_SWAPS) &&
         canRegenerate(meal.date, toDateOnly(new Date())),
+      checkOff:
+        canLog(meal.date, toDateOnly(new Date())) || meal.log
+          ? {
+              mealLabel: t.recipes.mealTypes[meal.mealType],
+              status: meal.log?.status ?? null,
+              loggable: canLog(meal.date, toDateOnly(new Date())),
+              failed: logFailed,
+            }
+          : null,
     };
   };
 
@@ -138,6 +177,18 @@ export function MealDetailScreen({
       onConfirmSwap={confirmSwap}
       onRetrySwap={() => swap && openSwap(swap.ingredient)}
       onCloseSwap={() => setSwap((prev) => (prev?.saving ? prev : null))}
+      logSheet={logSheet}
+      onLogMeal={() =>
+        load.status === 'loaded' &&
+        setLogSheet({
+          label: t.recipes.mealTypes[load.meal.mealType],
+          hasRecipe: true,
+          log: load.meal.log,
+        })
+      }
+      onSave={(status, note) => saveLog(draftLog(status, note, new Date()))}
+      onClear={() => saveLog(null)}
+      onCloseLog={() => setLogSheet(null)}
     />
   );
 }

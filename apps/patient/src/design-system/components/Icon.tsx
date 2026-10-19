@@ -37,6 +37,10 @@ const glyphs = {
   ),
   plus: <Path d="M12 5v14M5 12h14" />,
   minus: <Path d="M5 12h14" />,
+  /** A meal checked off as eaten. */
+  check: <Path d="M5 12.5l4.5 4.5L19 7.5" />,
+  /** A meal checked off as "something else" (≈). */
+  other: <Path d="M5 9.5c2.3-2 4.7-2 7 0s4.7 2 7 0M5 15c2.3-2 4.7-2 7 0s4.7 2 7 0" />,
   close: <Path d="M6 6l12 12M18 6L6 18" />,
   water: <Path d="M12 3c3 4 6 7.5 6 11a6 6 0 0 1-12 0c0-3.5 3-7 6-11z" />,
   bowl: (

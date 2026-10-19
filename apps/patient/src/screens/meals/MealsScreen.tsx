@@ -1,5 +1,6 @@
-import { FeatureKey, type MealPlanResponse } from '@limon/types';
+import { FeatureKey, type MealLogDto, type MealLogStatus, type MealPlanResponse } from '@limon/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { canLog, draftLog, withLog } from '../../features/meal-plans/meal-log';
 import { canRegenerate, dayChip, initialDayIndex, withFavourite } from '../../features/meal-plans/meal-plan-format';
 import { t } from '../../i18n/es-MX';
 import { formatDate, formatDayRange, formatKcal, toDateOnly } from '../../i18n/format';
@@ -7,6 +8,7 @@ import type { TabScreenProps } from '../../navigation/types';
 import { api } from '../../services/api';
 import { useSession } from '../../state/session-context';
 import { ComidasView, type ComidasViewProps } from './ComidasView';
+import type { MealLogTarget } from './MealLogParts';
 
 type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; week: MealPlanResponse };
 
@@ -14,7 +16,8 @@ type Load = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; w
  * This week's meal plan: a strip of the 7 days, then the selected day's meals with its
  * totals against the daily target. Today and later days can get new recipes, and any
  * meal's recipe can be marked ♥ (the generator prefers favourites in later plans). A meal
- * opens its detail, where ingredients can be swapped.
+ * opens its detail, where ingredients can be swapped. Today's and yesterday's meals are
+ * checked off from their tile (eaten, something else or skipped).
  */
 export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
   const session = useSession();
@@ -23,6 +26,8 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateFailed, setRegenerateFailed] = useState(false);
   const [favouriteFailed, setFavouriteFailed] = useState(false);
+  const [logging, setLogging] = useState<(MealLogTarget & { mealId: string }) | null>(null);
+  const [logFailed, setLogFailed] = useState(false);
   const today = toDateOnly(new Date());
 
   const fetchPlan = useCallback(() => {
@@ -85,6 +90,35 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
     });
   };
 
+  /** Optimistic: the tile shows the answer at once, and goes back if the API call fails. */
+  const saveLog = (mealId: string, previous: MealLogDto | null, next: MealLogDto | null) => {
+    const apply = (log: MealLogDto | null) =>
+      setLoad((prev) =>
+        prev.status === 'loaded' && prev.week.status === 'READY'
+          ? { ...prev, week: { ...prev.week, plan: withLog(prev.week.plan, mealId, log) } }
+          : prev,
+      );
+    apply(next);
+    setLogging(null);
+    setLogFailed(false);
+    (next ? api.mealPlans.logMeal(mealId, { status: next.status, note: next.note }) : api.mealPlans.unlogMeal(mealId))
+      .then((res) => {
+        if ('log' in res) apply(res.log);
+      })
+      .catch((err) => {
+        console.error('[meals] saving the check-off failed', err);
+        apply(previous);
+        setLogFailed(true);
+      });
+  };
+
+  /** Opens the check-off sheet for a meal of the loaded plan. */
+  const openLog = (mealId: string, label: string) => {
+    if (load.status !== 'loaded' || load.week.status !== 'READY') return;
+    const meal = load.week.plan.days.flatMap((d) => d.meals).find((m) => m.id === mealId);
+    if (meal) setLogging({ mealId, label, hasRecipe: !!meal.recipe, log: meal.log });
+  };
+
   const viewState = (): ComidasViewProps['state'] => {
     if (load.status !== 'loaded') return load.status === 'loading' ? load : { status: 'failed', onRetry: fetchPlan };
     const { week } = load;
@@ -110,11 +144,14 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
         recipe: m.recipe ? { id: m.recipe.id, title: m.recipe.title } : null,
         kcal: m.macros ? formatKcal(m.macros.calories) : null,
         favourite: m.favourite,
+        status: m.log?.status ?? null,
+        loggable: canLog(day.date, today),
       })),
       canRegenerate: canRegenerate(day.date, today),
       regenerating,
       regenerateFailed,
       favouriteFailed,
+      logFailed,
     };
   };
 
@@ -133,6 +170,11 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
       }}
       onToggleFavourite={(meal) => meal.recipe && toggleFavourite(meal.recipe.id, !meal.favourite)}
       onRegenerate={() => state.status === 'ready' && regenerate(state.days[state.selected]!.date)}
+      logSheet={logging}
+      onLogMeal={(meal) => openLog(meal.id, meal.label)}
+      onSave={(status: MealLogStatus, note) => logging && saveLog(logging.mealId, logging.log, draftLog(status, note, new Date()))}
+      onClear={() => logging && saveLog(logging.mealId, logging.log, null)}
+      onClose={() => setLogging(null)}
       onOpenShoppingList={
         session.hasFeature(FeatureKey.SHOPPING_LIST) ? () => navigation.navigate('ShoppingList') : undefined
       }

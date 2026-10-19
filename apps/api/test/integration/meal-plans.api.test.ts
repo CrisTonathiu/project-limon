@@ -333,6 +333,7 @@ describe('meal detail and SMAE swaps', () => {
     expect((await app.inject({ method: 'PUT', url: `/api/v1/meal-plans/meals/${mealId}/log`, headers, payload: { status: 'EATEN' } })).statusCode).toBe(200);
     const logSwaps = async () => (await owner.controlPlane().mealLog.findFirstOrThrow({ where: { tenantId, patient: { email: { startsWith: `${tag}-swap-log` } } } })).swaps;
     expect(await logSwaps()).toEqual([]);
+    expect(((await meal(headers, mealId)).json() as PlannedMealDetailDto).log?.status).toBe('EATEN');
 
     expect((await swap(headers, mealId, drink!.id, cerveza().id)).statusCode).toBe(200);
     expect(await logSwaps()).toEqual([{ recipeIngredientId: drink!.id, foodId: cerveza().id }]);
