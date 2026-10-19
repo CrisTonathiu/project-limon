@@ -4,7 +4,7 @@
 #     for `scheduler` and `pubsub-push`: jobs.tf. The worker needs no subscriber role: Pub/Sub
 #     pushes to it.
 #   - Storage object admin on the tenant bucket (api, worker): storage.tf
-#   - Workload Identity Federation for `deployer`: phase 8
+#   - Workload Identity Federation for `deployer` (GitHub Actions): cicd.tf
 # Secret access is granted per secret in modules/secrets.
 
 resource "google_service_account" "api" {

@@ -1,0 +1,80 @@
+# Deploys `main` to preproduction once CI passes on it (or by hand from the Actions tab).
+#
+#   build api + migrate images ─▶ Artifact Registry ─▶ migrate job ─▶ api ─▶ worker
+#
+# Authenticates as limon-deployer through Workload Identity Federation
+# (infrastructure/terraform/environments/preproduction/cicd.tf). GCP only accepts tokens from
+# workflows running on `main` of this repository, so this never runs for a pull request.
+name: Deploy (preproduction)
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time, and never cancel one halfway through a migration.
+concurrency:
+  group: deploy-preproduction
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: us-east1
+  REGISTRY: us-east1-docker.pkg.dev/limon-preproduction/limon
+
+jobs:
+  deploy:
+    name: Build · Migrate · Deploy
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: preproduction
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # workflow_run: the commit CI tested, not whatever main points to now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Image tag
+        run: echo "TAG=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/197755829059/locations/global/workloadIdentityPools/github/providers/github-actions
+          service_account: limon-deployer@limon-preproduction.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push images
+        run: |
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build --platform linux/amd64 -f apps/api/Dockerfile -t "$REGISTRY/api:$TAG" .
+          docker build --platform linux/amd64 -f packages/database/Dockerfile -t "$REGISTRY/migrate:$TAG" .
+          docker push "$REGISTRY/api:$TAG"
+          docker push "$REGISTRY/migrate:$TAG"
+
+      # The running revision keeps serving during the migration, so a migration must not
+      # break the code that's already deployed.
+      - name: Migrate
+        run: |
+          gcloud run jobs update migrate --region "$REGION" --image "$REGISTRY/migrate:$TAG"
+          gcloud run jobs execute migrate --region "$REGION" --wait
+
+      - name: Deploy api
+        run: gcloud run deploy api --region "$REGION" --image "$REGISTRY/api:$TAG"
+
+      - name: Deploy worker
+        run: >-
+          gcloud run deploy worker --region "$REGION" --image "$REGISTRY/api:$TAG"
+          --command=node --args=dist/jobs/worker.js
+
+      - name: Health check
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors https://api.projectlimon.com/health

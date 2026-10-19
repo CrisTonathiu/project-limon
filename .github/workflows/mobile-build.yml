@@ -6,9 +6,15 @@
 #   APP_TENANT=<slug> eas build --platform <ios|android> --profile production
 # then reports status back to the API (TenantApp.status BUILDING → SUBMITTED → PUBLISHED).
 #
+# Sign-in config per build (GCP phase 4):
+#   - identityTenantId: from tenants/<slug>/tenant.json (`admin identity-tenant <slug>` prints it)
+#   - EXPO_PUBLIC_FIREBASE_API_KEY: repository variable FIREBASE_API_KEY, the project's public
+#     web key (`terraform output -json identity_platform`). Not a secret, but kept out of the repo.
+#   - EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN and the api URL: the EAS profile (eas.json)
+#
 # Prerequisites before enabling (see docs/architecture/mobile-white-label.md):
-#   - Decide Apple/Google developer account model (platform-owned vs tenant-owned)
-#   - EXPO_TOKEN + per-tenant signing credentials in EAS / Secrets Manager
+#   - Each nutritionist's Apple/Google accounts (ADR-009), with push credentials
+#   - EXPO_TOKEN + per-tenant signing credentials in EAS
 #   - Callback endpoint authenticated with a machine credential
 # ─────────────────────────────────────────────────────────────────────────────
 name: Mobile Build (placeholder)
@@ -38,10 +44,22 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Check the tenant's identity tenant
+        working-directory: apps/patient
+        env:
+          APP_TENANT: ${{ inputs.tenant }}
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+        run: |
+          id=$(jq -r '.identityTenantId // empty' "tenants/$APP_TENANT/tenant.json")
+          [ -n "$id" ] || { echo "::error::tenants/$APP_TENANT/tenant.json has no identityTenantId; run admin identity-tenant $APP_TENANT"; exit 1; }
+          [ -n "$EXPO_PUBLIC_FIREBASE_API_KEY" ] || { echo "::error::Set the FIREBASE_API_KEY repository variable"; exit 1; }
       - name: Resolve tenant build config
         working-directory: apps/patient
         env:
           APP_TENANT: ${{ inputs.tenant }}
+          APP_ENV: preproduction
+          EXPO_PUBLIC_AUTH_PROVIDER: identity-platform
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
         run: npx expo config --type public
 
   build:
@@ -49,4 +67,4 @@ jobs:
     if: false # enable once signing/accounts are decided
     runs-on: ubuntu-latest
     steps:
-      - run: echo "eas build --non-interactive --platform ${{ inputs.platform }} --profile production"
+      - run: echo "eas build --non-interactive --platform ${{ inputs.platform }} --profile preproduction"

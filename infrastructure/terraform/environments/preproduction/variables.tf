@@ -13,3 +13,15 @@ variable "api_domain" {
   type        = string
   default     = "api.projectlimon.com"
 }
+
+variable "github_repository" {
+  description = "owner/name of the repository whose main-branch workflows may deploy (cicd.tf)."
+  type        = string
+  default     = "CrisTonathiu/project-limon"
+}
+
+# No default: the repository is public. Set it in terraform.tfvars (gitignored) or TF_VAR_alert_email.
+variable "alert_email" {
+  description = "Where monitoring alerts are sent (monitoring.tf)."
+  type        = string
+}
