@@ -1,5 +1,8 @@
 import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { TabBar, type IconName } from '../design-system';
+import { useMealReminderTaps } from '../features/notifications/meal-reminders';
 import { t } from '../i18n/es-MX';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { MealsScreen } from '../screens/meals/MealsScreen';
@@ -24,6 +27,12 @@ export function AppTabs() {
   const session = useSession();
   const canOpen = (screen: keyof TabParamList | keyof AppStackParamList) =>
     isScreenEnabled(screen, session.hasFeature);
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  // A meal reminder opens that meal, or Comidas when it has no recipe to show.
+  useMealReminderTaps(({ mealId, recipeTitle }) => {
+    if (recipeTitle && canOpen('MealDetail')) navigation.navigate('MealDetail', { mealId, title: recipeTitle });
+    else if (canOpen('Meals')) navigation.navigate('Tabs', { screen: 'Meals' });
+  });
   return (
     // Every tab draws its own header (ScreenHeader), as in the mockups.
     <Tab.Navigator tabBar={(props) => <AppTabBar {...props} />} screenOptions={{ headerShown: false }}>

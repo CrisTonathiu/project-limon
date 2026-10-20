@@ -38,6 +38,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-secure-store',
     'expo-status-bar',
+    'expo-notifications',
     ['expo-splash-screen', { image: asset(tenant.assets.splash), imageWidth: 200, resizeMode: 'contain', backgroundColor: tenant.splashBackgroundColor }],
   ],
   extra: {
