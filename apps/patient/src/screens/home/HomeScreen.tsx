@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import { Box } from '../../design-system';
 import { nextMeal } from '../../features/home/next-meal';
+import { syncMealReminders } from '../../features/notifications/meal-reminders';
 import { goalRing, weeklyWeights } from '../../features/home/weekly-weights';
 import { t } from '../../i18n/es-MX';
 import { toDateOnly } from '../../i18n/format';
@@ -53,6 +54,8 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           .current()
           .then((week) => {
             setPlan(week.status === 'READY' ? week.plan : null);
+            // Every visit, so the phone's reminders follow the plan and answers from elsewhere.
+            if (week.status === 'READY') void syncMealReminders(week.plan);
             // After the plan, not alongside it: both generate the week when it doesn't exist yet.
             return week.status === 'READY' ? api.mealPlans.progress() : null;
           })

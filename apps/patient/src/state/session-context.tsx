@@ -4,6 +4,7 @@ import type { RegisterPatientInput } from '@limon/validation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { authErrorMessage } from '../features/auth/auth-errors';
 import { patientAuthProvider } from '../features/auth/auth-provider';
+import { clearMealReminders } from '../features/notifications/meal-reminders';
 import { api } from '../services/api';
 
 type SessionState =
@@ -54,6 +55,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setState({ status: 'signedIn', me, hasProfile });
     } catch (err) {
       await patientAuthProvider.signOut();
+      await clearMealReminders();
       setState({ status: 'signedOut', error: err instanceof ApiError && err.status === 401 ? undefined : authErrorMessage(err) });
     }
   }, []);
@@ -111,6 +113,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     sendPasswordReset: (email) => patientAuthProvider.sendPasswordReset(email),
     signOut: async () => {
       await patientAuthProvider.signOut();
+      await clearMealReminders();
       pendingSignUp.current = null;
       setState({ status: 'signedOut' });
     },
@@ -118,6 +121,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // The API erases the data and deletes the login in one request (or neither).
       await api.patients.deleteMyAccount();
       await patientAuthProvider.signOut();
+      await clearMealReminders();
       setState({ status: 'signedOut' });
     },
     refresh: verify,

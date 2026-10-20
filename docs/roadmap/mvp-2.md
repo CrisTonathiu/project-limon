@@ -217,6 +217,17 @@ Each notification is a separate task. For each one, decide where it's scheduled,
 | Analytics | Delivery isn't reported; only taps (when the app opens) | Sent, delivered (receipts), tapped |
 | Dashboard can change it | Only when the app next syncs its settings | Immediately |
 
+### First notification (decided 2026-10-19)
+
+Only the **meal check** ships first, to test on a physical Android phone:
+
+- **Local**, scheduled on the phone. No server push, so no APNs key or Firebase Android app yet.
+- **Once per meal**, 30 minutes after the meal's usual hour: "¿Comiste tu desayuno?" No reminder at the meal time itself.
+- **Default times** until meal times are stored (Phase 2): breakfast 8:00, lunch 14:00, dinner 20:00, snacks halfway between the meals around them (`mealHours` in `features/home/next-meal.ts`).
+- Skipped when the meal is already answered, and cancelled on check-off. Rescheduled from the plan on every Inicio visit and when Comidas loads. Cleared on sign-out and account deletion.
+- Tapping it opens the meal detail, or Comidas when the meal has no recipe.
+- The permission is asked the first time the plan loads, with no primer yet (Phase 2).
+
 ### Candidate notifications
 
 | Notification | Trigger | Proposed | Open questions |

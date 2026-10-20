@@ -2,6 +2,7 @@ import { FeatureKey, type MealLogDto, type MealLogStatus, type MealPlanResponse 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { canLog, draftLog, withLog } from '../../features/meal-plans/meal-log';
 import { canRegenerate, dayChip, initialDayIndex, withFavourite } from '../../features/meal-plans/meal-plan-format';
+import { cancelMealReminder, syncMealReminders } from '../../features/notifications/meal-reminders';
 import { t } from '../../i18n/es-MX';
 import { formatDate, formatDayRange, formatKcal, toDateOnly } from '../../i18n/format';
 import type { TabScreenProps } from '../../navigation/types';
@@ -36,7 +37,10 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
       .current()
       .then((week) => {
         setLoad({ status: 'loaded', week });
-        if (week.status === 'READY') setDayIndex(initialDayIndex(week.plan.days.map((d) => d.date), toDateOnly(new Date())));
+        if (week.status === 'READY') {
+          setDayIndex(initialDayIndex(week.plan.days.map((d) => d.date), toDateOnly(new Date())));
+          void syncMealReminders(week.plan);
+        }
       })
       .catch((err) => {
         console.error('[meals] loading the plan failed', err);
@@ -104,6 +108,8 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
     (next ? api.mealPlans.logMeal(mealId, { status: next.status, note: next.note }) : api.mealPlans.unlogMeal(mealId))
       .then((res) => {
         if ('log' in res) apply(res.log);
+        // A cleared answer gets its reminder back the next time the plan loads.
+        if (next) void cancelMealReminder(mealId);
       })
       .catch((err) => {
         console.error('[meals] saving the check-off failed', err);

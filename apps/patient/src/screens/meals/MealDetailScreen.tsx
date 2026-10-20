@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { mealIngredientParts } from '../../features/meal-plans/meal-ingredient';
 import { canLog, draftLog } from '../../features/meal-plans/meal-log';
 import { canRegenerate, formatPortion } from '../../features/meal-plans/meal-plan-format';
+import { cancelMealReminder } from '../../features/notifications/meal-reminders';
 import { formatMinutes } from '../../features/recipes/recipe-format';
 import { t } from '../../i18n/es-MX';
 import { formatDate, formatGrams, formatKcal, toDateOnly } from '../../i18n/format';
@@ -118,6 +119,8 @@ export function MealDetailScreen({
     )
       .then((res) => {
         if ('log' in res) apply(res.log);
+        // A cleared answer gets its reminder back the next time the plan loads.
+        if (next) void cancelMealReminder(mealId);
       })
       .catch((err) => {
         console.error('[meals] saving the check-off failed', err);

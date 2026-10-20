@@ -377,6 +377,10 @@ export const es = {
     /** The meal detail's check-off row. */
     action: 'Registrar',
     changeAction: 'Cambiar',
+    /** The reminder 30 minutes after the meal; its title is `question`. */
+    reminderBody: 'Toca para registrar tu respuesta.',
+    /** Android's name for the reminders, in the system's notification settings. */
+    reminderChannel: 'Recordatorios de comidas',
   },
 
   shoppingList: {
