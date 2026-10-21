@@ -42,7 +42,7 @@ It's the skeleton from the initial setup (`447b5a0`) and has had no feature work
 |---|---|
 | Stack | Next.js 15 App Router, React 19, shares `@limon/api-client`, `@limon/types`, `@limon/ui`, `@limon/validation`. Plain `globals.css`, no design system, English copy |
 | Sign-in | **Dev only**: `POST /dev/token` with a typed subject, token in `sessionStorage`. No Identity Platform sign-in. Nutritionists are meant to sign in at the project level, outside any identity tenant ([GCP phase 4](gcp-migration.md#phase-4--authentication-cognito--identity-platform-oct-1314-the-largest-piece)). The production plan (httpOnly cookies set by a route handler) isn't built |
-| Register | Form → dev token → `POST /auth/register/nutritionist` (creates tenant + nutritionist + apps). The real flow is our team running `admin`, so this page may go |
+| Register | Form → dev token → `POST /auth/register/nutritionist` (creates tenant + nutritionist + apps). Decided 2026-10-21: nutritionists won't register themselves; the team creates their accounts, with a forced password change on first sign-in ([admin dashboard, Phase 6](admin-dashboard.md#phase-6--nutritionist-accounts-created-by-the-team-later), later). The page stays until then |
 | Pages | Overview (tenant name, status, role) and Patients (a list from `GET /patients`) work. Meal plans, Recipes, Protocols, Payments, Subscriptions, My app and Settings are placeholders |
 | API for nutritionists | The `NUTRITIONIST` role has `patients:read/write`, `recipes:write`, `meal-plans:write`, `branding:manage`, but only `GET/POST /patients`, `GET /patients/:id` and `PATCH /tenants/current/branding` use them. **No route lets a nutritionist read a patient's plan, logs or progress** |
 | Deployment | Not deployed. Terraform has the `api` Cloud Run service only. There's a `Dockerfile` |
@@ -55,7 +55,7 @@ It's the skeleton from the initial setup (`447b5a0`) and has had no feature work
 | D2 | Local vs server notifications, per notification | See [Phase 3](#phase-3--notification-research-local-vs-server) | Week 1 spike, decided before Phase 4 |
 | D3 | Push provider | **Expo Push Service** (one API for both platforms, receipts, free) or **FCM directly** (Firebase is already in the project through Identity Platform) | With D2 |
 | D4 | Actions on the notification ("Sí, comí") | Ship them, or open the app on tap only | Research spike in Phase 3 |
-| D5 | Dashboard sign-in | Firebase JS SDK on the client + an httpOnly session cookie set by a route handler, or tokens in memory only | Week 1 |
+| D5 | Dashboard sign-in | **Decided 2026-10-21:** httpOnly Firebase session cookie + a same-origin API proxy, see [authentication.md](../architecture/authentication.md#dashboard-session-d5-decided-2026-10-21) | Done |
 | D6 | What analytics to track | See [Phase 7](#phase-7--analytics) | Before Phase 4, so events are recorded from the first notification |
 | D7 | Dashboard design | Use the patient app's tokens (`@limon/ui`) on the web, or a separate light admin style | Week 1 |
 
@@ -274,8 +274,8 @@ Only the **meal check** ships first, to test on a physical Android phone:
 
 ### Foundations
 
-- [ ] Sign-in with Identity Platform at the project level (D5). Remove `sessionStorage` tokens. Keep `/dev/token` for local development only.
-- [ ] Cloud Run service `dashboard` in Terraform, on a subdomain (e.g. `app.projectlimon.com`).
+- [x] Sign-in with Identity Platform at the project level (D5). Remove `sessionStorage` tokens. Keep `/dev/token` for local development only. *(Firebase session cookie, httpOnly, minted by `app/api/session`; the browser calls the API through the `app/api/v1` proxy; the API accepts session cookies. Sign-up, email confirmation and password reset included. Checked locally with dev auth; the Identity Platform path needs the `dashboard` service below to try on `preproduction`.)*
+- [ ] Cloud Run service `dashboard` in Terraform, on a subdomain (e.g. `app.projectlimon.com`). Its service account needs `firebaseauth.users.createSession` (session cookies). Env: `AUTH_PROVIDER`, `APP_ENV`, `GCP_PROJECT_ID`, `API_BASE_URL`, `DASHBOARD_ORIGIN`, `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`; add the subdomain to Identity Platform's `authorized_domains`.
 - [ ] Spanish (es-MX) copy and a design direction (D7).
 - [ ] Remove or hide the placeholder pages that MVP.2 doesn't fill (Payments, Subscriptions, Protocols, Meal plans, Recipes).
 

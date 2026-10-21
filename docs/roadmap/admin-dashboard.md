@@ -76,6 +76,25 @@ Alert types come from the payments roadmap: tenant suspended (collection paused)
 
 Each one is the same code as the `stripe` admin command, and each one is audited: re-sync a patient, replay a failed event, run reconciliation for one tenant, resend a payment link, and retry a failed price-change application.
 
+### Phase 6 · Nutritionist accounts created by the team (later)
+
+*Decided 2026-10-21:* **nutritionists don't register themselves.** A Project Limon admin creates the practice and the nutritionist's login and gives them credentials. On their first sign-in, the dashboard's only screen is "choose your password". That happens once.
+
+- [ ] **6.1 Create the practice and login.** One audited action (an `admin` command first, a form here later) creates the identity tenant, Tenant, TenantBranding, User, Nutritionist and TenantApps, as `POST /auth/register/nutritionist` does today. It also creates a project-level Identity Platform login with a temporary password (Admin SDK `createUser`) and marks the user `passwordChangeRequired`.
+- [ ] **6.2 Forced password change.** The flag lives on `users` in the database, the source of truth for authorization, not in a token claim. While it's set, the API refuses every nutritionist route except `GET /auth/me` and the password change, with a new error code (`PASSWORD_CHANGE_REQUIRED`). The dashboard sends the nutritionist to a "choose your password" screen and nowhere else. After the change, the flag is cleared (audited), the session ends and the nutritionist signs in with the new password.
+- [ ] **6.3 Remove self-registration.** Delete the dashboard's `/register` page and `POST /auth/register/nutritionist`, or keep it for `AUTH_PROVIDER=dev` only.
+
+Decisions to make before building:
+
+| # | Decision | Options |
+|---|---|---|
+| A5 | How the credentials reach the nutritionist | Temporary password handed over by the team (outside email), or an emailed "set your password" link (Admin SDK `generatePasswordResetLink`), which avoids anyone at Project Limon knowing a password |
+| A6 | Temporary password lifetime | Expires after N days (then the admin issues a new one), or no expiry |
+| A7 | Where the change happens | In the browser (Firebase `updatePassword`, then the API clears the flag once it can confirm the change, e.g. from the login's `tokensValidAfterTime`), or through the API (Admin SDK `updateUser`, the password passes through our server) |
+| A8 | Email confirmation | Mark the email verified at creation (the team checked it), or require the confirmation link on first sign-in as today |
+
+**Done when:** a nutritionist created by an admin signs in with the given credentials, can do nothing but choose a password, and after that signs in normally; there's no public way to create a practice.
+
 ## Out of scope
 
 - Any view of patients' health data.
