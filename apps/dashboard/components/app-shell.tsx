@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useMe } from '@/hooks/use-me';
-import { session } from '@/services/session';
+import { endSession } from '@/features/auth/client-auth';
 
 const NAV = [
   ['/dashboard', 'Overview'],
@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {NAV.map(([href, label]) => (
           <Link key={href} href={href}>{label}</Link>
         ))}
-        <a href="#" onClick={() => { session.clear(); router.replace('/login'); }}>Sign out</a>
+        <a href="#" onClick={async (e) => { e.preventDefault(); await endSession(); router.replace('/login'); }}>Sign out</a>
       </nav>
       <main>{children}</main>
     </div>

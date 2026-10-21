@@ -24,7 +24,7 @@ Implemented with identity tenants: Maria's app signs in to Maria's identity tena
 Locally (dev auth) there are no identity tenants, so dev subjects are namespaced with `tenantUsername(tenantId, email)` from `@limon/tenant`.
 
 ## Flows
-**Nutritionist signup (implemented):** project-level sign-up → verified token → `POST /api/v1/auth/register/nutritionist`. The API creates the practice's identity tenant first, then one transaction creates Tenant, TenantBranding, User, Nutritionist (owner), TenantApp×2 (iOS/Android, `DRAFT`) and audit entries. If the transaction fails, the identity tenant is deleted again. The endpoint refuses if the uid is already registered. In practice our team creates practices with `admin`; `admin identity-tenant <slug>` creates the identity tenant for a practice that has none.
+**Nutritionist signup (implemented, temporary):** nutritionists won't register themselves; the team will create their accounts with a forced password change on first sign-in ([admin dashboard, Phase 6](../roadmap/admin-dashboard.md#phase-6--nutritionist-accounts-created-by-the-team-later)). Until then: project-level sign-up → verified token → `POST /api/v1/auth/register/nutritionist`. The API creates the practice's identity tenant first, then one transaction creates Tenant, TenantBranding, User, Nutritionist (owner), TenantApp×2 (iOS/Android, `DRAFT`) and audit entries. If the transaction fails, the identity tenant is deleted again. The endpoint refuses if the uid is already registered. In practice our team creates practices with `admin`; `admin identity-tenant <slug>` creates the identity tenant for a practice that has none.
 
 **Patient self-signup (implemented):** the patient downloads their nutritionist's app from the store → signs up in the practice's identity tenant → confirms the email link → `POST /api/v1/auth/register/patient` with `X-App-Key`. Registration is the only call that accepts an unverified email.
 
@@ -52,4 +52,21 @@ The checkboxes are unticked by default and all three are required. `patient_cons
 
 ## Token storage
 - Patient app: the Firebase session, in `expo-secure-store` (Keychain/Keystore). The API client asks for a fresh ID token on every request.
-- Dashboard: foundation uses `sessionStorage` (dev only). Production: Identity Platform sign-in with httpOnly Secure SameSite session cookies set by a Next.js route handler ([MVP.2](../roadmap/mvp-2.md), D5).
+- Dashboard: a **Firebase session cookie**, httpOnly, so page scripts never hold a credential ([MVP.2](../roadmap/mvp-2.md), D5). See below.
+
+## Dashboard session (D5, decided 2026-10-21)
+```
+browser ── Firebase JS SDK, project level, in-memory ──▶ ID token
+        ── POST /api/session { idToken } ──▶ dashboard server: verifyIdToken + createSessionCookie
+        ◀── Set-Cookie: __Host-limon_session (httpOnly, Secure, SameSite=Strict, 12 h)
+browser ── /api/v1/… + cookie ──▶ dashboard proxy ── Authorization: Bearer <session cookie> ──▶ API
+```
+- **Sign-in** (`apps/dashboard/features/auth/client-auth.ts`): Firebase signs in at the project level with in-memory persistence and signs out again once the cookie is set. An unconfirmed email gets a new link instead of a session.
+- **Session route** (`app/api/session/route.ts`): accepts only a project-level ID token (a practice's identity tenant is refused) from a sign-in in the last 5 minutes, and mints a 12-hour session cookie with the Admin SDK. With dev auth it fetches a dev token from the API instead, so both modes use the same cookie and proxy. `DELETE` clears the cookie.
+- **Proxy** (`app/api/v1/[...path]/route.ts`): forwards the method, body and content headers to `API_BASE_URL` with the cookie as the bearer credential; nothing else from the browser (no client `Authorization`, cookies or tenant headers). The API's CORS doesn't change: the call is server to server.
+- **API**: `IdentityPlatformTokenVerifier` accepts session cookies next to ID tokens, told apart by issuer (`session.firebase.google.com/<project>`) and checked against their own public keys (X.509 certificates, cached by max-age). The principal is read the same way, so the tenant check applies unchanged: a project-level login is only valid for a nutritionist.
+- **CSRF**: SameSite=Strict, plus every state-changing request (session and proxy) must carry `Origin` equal to `DASHBOARD_ORIGIN`.
+- **Unconfirmed emails**: registration needs a session before the email is confirmed, so the session route doesn't check it; the API refuses unverified logins on every route but registration. After registering, the nutritionist confirms the email and signs in again (a session's claims are fixed when minted).
+- **Sign-out** clears the cookie on that browser. It isn't revoked server-side: the API verifies offline, so a copied cookie stays valid until it expires (12 h). That's acceptable because page scripts can't read it.
+- The `middleware.ts` redirect to `/login` only checks that the cookie exists; the API decides on every call, and a 401 clears the cookie.
+- The `dashboard` service account needs permission to mint session cookies (`firebaseauth.users.createSession`, e.g. in `roles/firebaseauth.admin`). Locally with Identity Platform: `gcloud auth application-default login`.
