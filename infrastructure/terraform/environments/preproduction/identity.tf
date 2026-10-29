@@ -31,6 +31,7 @@ resource "google_identity_platform_config" "main" {
     "localhost",
     "${var.project_id}.firebaseapp.com",
     "${var.project_id}.web.app",
+    var.dashboard_domain,
   ]
 
   depends_on = [google_project_service.apis]

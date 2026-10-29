@@ -18,6 +18,16 @@ output "api_domain_dns_records" {
   value = google_cloud_run_domain_mapping.api.status[0].resource_records
 }
 
+output "dashboard_url" {
+  description = "The dashboard's own run.app URL; the public one is var.dashboard_domain."
+  value       = google_cloud_run_v2_service.dashboard.uri
+}
+
+# What to add at Hostinger (normally CNAME app → ghs.googlehosted.com).
+output "dashboard_domain_dns_records" {
+  value = google_cloud_run_domain_mapping.dashboard.status[0].resource_records
+}
+
 output "worker_url" {
   description = "Private (IAM only). Pub/Sub and Cloud Scheduler call it."
   value       = google_cloud_run_v2_service.worker.uri
@@ -38,6 +48,7 @@ output "service_accounts" {
   value = {
     api         = google_service_account.api.email
     worker      = google_service_account.worker.email
+    dashboard   = google_service_account.dashboard.email
     scheduler   = google_service_account.scheduler.email
     pubsub_push = google_service_account.pubsub_push.email
     deployer    = google_service_account.deployer.email

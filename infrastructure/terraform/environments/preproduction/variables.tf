@@ -14,6 +14,12 @@ variable "api_domain" {
   default     = "api.projectlimon.com"
 }
 
+variable "dashboard_domain" {
+  description = "Custom domain for the nutritionist dashboard (dashboard.tf)."
+  type        = string
+  default     = "app.projectlimon.com"
+}
+
 variable "github_repository" {
   description = "owner/name of the repository whose main-branch workflows may deploy (cicd.tf)."
   type        = string
