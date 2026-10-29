@@ -8,20 +8,21 @@ import { devSignIn, sendPasswordReset, signIn, SignInError } from './client-auth
 const MESSAGES: Record<SignInError['code'], string> = {
   INVALID_CREDENTIALS: 'Wrong email or password.',
   EMAIL_NOT_VERIFIED: 'Confirm your email first. We sent you a new link.',
-  EMAIL_IN_USE: 'That email already has an account.',
-  WEAK_PASSWORD: 'Use at least 10 characters, with upper and lower case letters and a number.',
   TOO_MANY_ATTEMPTS: 'Too many attempts. Try again in a few minutes.',
   SESSION_FAILED: "We couldn't start your session. Try again.",
 };
 
-/** Identity Platform sign-in (email + password), or a seeded dev subject when `firebase` is null. */
-export function LoginForm({ firebase }: { firebase: FirebaseWebConfig | null }) {
+/**
+ * Identity Platform sign-in (email + password), or a seeded dev subject when `firebase` is null.
+ * There's no sign-up: the platform team creates practices and hands over a temporary password.
+ */
+export function LoginForm({ firebase, passwordChanged }: { firebase: FirebaseWebConfig | null; passwordChanged: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [subject, setSubject] = useState('dev|nutritionist|maria-nutrition');
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(passwordChanged ? 'Password saved. Sign in with your new password.' : null);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {

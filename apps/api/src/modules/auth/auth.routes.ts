@@ -1,5 +1,5 @@
 import { Permission } from '@limon/auth';
-import { RegisterNutritionistSchema, RegisterPatientSchema } from '@limon/validation';
+import { ChangePasswordSchema, RegisterPatientSchema } from '@limon/validation';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Container } from '../../infrastructure/container.js';
@@ -9,15 +9,7 @@ import { createAuthService } from './auth.service.js';
 export async function authRoutes(app: FastifyInstance, c: Container) {
   const service = createAuthService(c);
 
-  app.post(
-    '/auth/register/nutritionist',
-    { preHandler: requireAuthentication(c), config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
-    async (req, reply) => {
-      const input = RegisterNutritionistSchema.parse(req.body);
-      const result = await service.registerNutritionist(req.principal!, input, req.id);
-      return reply.status(201).send(result);
-    },
-  );
+  // No nutritionist registration: the platform team creates practices (`admin create-tenant`).
 
   // Patient self-signup: tenant is taken from X-App-Key, never from the body.
   app.post(
@@ -31,7 +23,19 @@ export async function authRoutes(app: FastifyInstance, c: Container) {
     },
   );
 
-  app.get('/auth/me', { preHandler: requireTenant(c, Permission.TENANT_READ) }, async (req) => service.me(ctxOf(req)));
+  const pendingPasswordChange = { allowPendingPasswordChange: true };
+  app.get('/auth/me', { preHandler: requireTenant(c, Permission.TENANT_READ, pendingPasswordChange) }, async (req) => service.me(ctxOf(req)));
+
+  // Replaces the temporary password from `admin create-tenant`, once.
+  app.post(
+    '/auth/password',
+    { preHandler: requireTenant(c, Permission.TENANT_READ, pendingPasswordChange), config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    async (req, reply) => {
+      const input = ChangePasswordSchema.parse(req.body);
+      await service.changePassword(ctxOf(req), req.principal!.subject, input.password);
+      return reply.status(204).send();
+    },
+  );
 
   // Local development token issuer. Not registered unless AUTH_PROVIDER=dev (which config forbids outside development).
   if (c.devVerifier) {

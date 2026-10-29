@@ -2,7 +2,6 @@
 
 import { getApps, initializeApp } from 'firebase/app';
 import {
-  createUserWithEmailAndPassword,
   inMemoryPersistence,
   initializeAuth,
   sendEmailVerification,
@@ -31,7 +30,7 @@ function firebaseAuth(config: FirebaseWebConfig): Auth {
 }
 
 export class SignInError extends Error {
-  constructor(readonly code: 'INVALID_CREDENTIALS' | 'EMAIL_NOT_VERIFIED' | 'EMAIL_IN_USE' | 'WEAK_PASSWORD' | 'TOO_MANY_ATTEMPTS' | 'SESSION_FAILED') {
+  constructor(readonly code: 'INVALID_CREDENTIALS' | 'EMAIL_NOT_VERIFIED' | 'TOO_MANY_ATTEMPTS' | 'SESSION_FAILED') {
     super(code);
     this.name = 'SignInError';
   }
@@ -39,8 +38,6 @@ export class SignInError extends Error {
 
 function mapFirebaseError(err: unknown): SignInError {
   const code = typeof err === 'object' && err !== null && 'code' in err ? String((err as { code: unknown }).code) : '';
-  if (code === 'auth/email-already-in-use') return new SignInError('EMAIL_IN_USE');
-  if (code === 'auth/weak-password' || code === 'auth/password-does-not-meet-requirements') return new SignInError('WEAK_PASSWORD');
   if (code === 'auth/too-many-requests') return new SignInError('TOO_MANY_ATTEMPTS');
   return new SignInError('INVALID_CREDENTIALS');
 }
@@ -70,31 +67,6 @@ export async function signIn(config: FirebaseWebConfig, email: string, password:
     throw new SignInError('EMAIL_NOT_VERIFIED');
   }
   await sessionFrom(a, user);
-}
-
-/**
- * Creates the login and starts a session for registration, the one call the API accepts
- * from an unconfirmed email. Call finishSignUp afterwards, whatever registration answered.
- */
-export async function signUp(config: FirebaseWebConfig, email: string, password: string): Promise<void> {
-  const { user } = await createUserWithEmailAndPassword(firebaseAuth(config), email, password).catch((err: unknown) => {
-    throw mapFirebaseError(err);
-  });
-  await startSession({ idToken: await user.getIdToken() });
-}
-
-/**
- * Sends the confirmation link and ends the sign-up session. The nutritionist signs in again
- * once the email is confirmed: a session's claims are fixed when it's minted.
- */
-export async function finishSignUp(config: FirebaseWebConfig): Promise<void> {
-  const a = firebaseAuth(config);
-  try {
-    if (a.currentUser) await sendEmailVerification(a.currentUser);
-  } finally {
-    await signOut(a);
-    await endSession();
-  }
 }
 
 /** Emails a link to choose a new password. Says nothing about whether the account exists. */

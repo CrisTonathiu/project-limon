@@ -27,7 +27,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (error && 'status' in error && error.status === 401) router.replace('/login');
   }, [error, router]);
 
-  if (loading) return <main className="muted">Loading…</main>;
+  // A temporary password from the team: choosing a new one is the only thing to do (the API refuses the rest).
+  const mustChangePassword = me?.user.passwordChangeRequired === true;
+  useEffect(() => {
+    if (mustChangePassword) router.replace('/change-password');
+  }, [mustChangePassword, router]);
+
+  if (loading || mustChangePassword) return <main className="muted">Loading…</main>;
   if (error) {
     const code = 'code' in error ? error.code : 'INTERNAL_ERROR';
     return (

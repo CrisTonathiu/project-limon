@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ageInYears, BodyLogSchema, MealLogSchema, CreatePatientSchema, GoalRulesSchema, IsoDateParamSchema, PatientProfileSchema, RegisterNutritionistSchema, SetGoalSchema, WaterIntakeSchema, WaterQuerySchema, WaterTargetSchema } from './index.js';
+import { ageInYears, BodyLogSchema, MealLogSchema, CreatePatientSchema, GoalRulesSchema, IsoDateParamSchema, PatientProfileSchema, CreatePracticeSchema, PasswordSchema, SetGoalSchema, WaterIntakeSchema, WaterQuerySchema, WaterTargetSchema } from './index.js';
 
 describe('validation schemas', () => {
   it('rejects client-supplied tenantId (never trusted from clients)', () => {
@@ -8,10 +8,17 @@ describe('validation schemas', () => {
   });
 
   it('rejects invalid slugs', () => {
-    const r = RegisterNutritionistSchema.safeParse({
+    const r = CreatePracticeSchema.safeParse({
       email: 'm@x.com', firstName: 'M', lastName: 'N', businessName: 'Maria', slug: 'Maria Nutrition',
     });
     expect(r.success).toBe(false);
+  });
+
+  it('holds passwords to the Identity Platform policy', () => {
+    expect(PasswordSchema.safeParse('Limon2026ok').success).toBe(true);
+    for (const weak of ['Short1a', 'alllowercase1', 'ALLUPPERCASE1', 'NoNumbersHere']) {
+      expect(PasswordSchema.safeParse(weak).success).toBe(false);
+    }
   });
 });
 

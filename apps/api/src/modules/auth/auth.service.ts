@@ -1,9 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import type { VerifiedPrincipal } from '@limon/auth';
-import { copyDefaultRecipes, resolveIdentity, resolveTenantApp, withTenant, writeAudit } from '@limon/database';
+import { resolveIdentity, resolveTenantApp, withTenant, writeAudit } from '@limon/database';
 import { effectiveFeatures, type TenantContext } from '@limon/tenant';
-import type { MeResponse, RegisterNutritionistResponse, RegisterPatientResponse } from '@limon/types';
-import type { RegisterNutritionistInput, RegisterPatientInput } from '@limon/validation';
+import type { MeResponse, RegisterPatientResponse } from '@limon/types';
+import type { RegisterPatientInput } from '@limon/validation';
 import { createEntitlementService } from '../subscriptions/entitlement.service.js';
 import { tenantsRepository } from '../tenants/tenants.repository.js';
 import type { Container } from '../../infrastructure/container.js';
@@ -12,42 +11,6 @@ import { authRepository } from './auth.repository.js';
 
 export function createAuthService(c: Container) {
   return {
-    /**
-     * Nutritionist signup. Precondition: the user already has a project-level login (not
-     * inside any identity tenant). Creates Tenant + Branding + User + Nutritionist + TenantApps
-     * atomically — a nutritionist can never exist without a tenant — and gives the tenant its
-     * own copy of the default recipe library in the same transaction.
-     *
-     * The practice's Identity Platform tenant (where its patients' logins live, ADR-006) is
-     * created first, since it can't join the transaction; it's removed again if the
-     * transaction fails, so a failed sign-up leaves nothing behind.
-     */
-    async registerNutritionist(principal: VerifiedPrincipal, input: RegisterNutritionistInput, requestId: string): Promise<RegisterNutritionistResponse> {
-      if (await resolveIdentity(c.db, principal.subject)) throw Errors.conflict('This account is already registered.');
-      if (principal.email && principal.email.toLowerCase() !== input.email.toLowerCase()) throw Errors.forbidden();
-      if (principal.identityTenantId !== null) throw Errors.tenantMismatch();
-
-      const tenantId = randomUUID();
-      const placement = await c.registry.getPlacement(tenantId);
-      const identityTenantId = c.identityAdmin ? await c.identityAdmin.createTenant(input.slug) : null;
-      try {
-        return await withTenant(c.db, placement, async (tx) => {
-          const r = await authRepository.createTenantGraph(tx, {
-            ...input, email: input.email.toLowerCase(), tenantId, authUserId: principal.subject, identityTenantId,
-          });
-          const ctx = { tenantId, userId: r.user.id, requestId };
-          await writeAudit(tx, ctx, { action: 'TenantCreated', resourceType: 'Tenant', resourceId: tenantId });
-          await writeAudit(tx, ctx, { action: 'NutritionistRegistered', resourceType: 'Nutritionist', resourceId: r.nutritionist.id });
-          const recipesCopied = await copyDefaultRecipes(tx, tenantId);
-          await writeAudit(tx, ctx, { action: 'DefaultRecipesCopied', resourceType: 'Tenant', resourceId: tenantId, metadata: { recipesCopied } });
-          return { userId: r.user.id, tenantId, nutritionistId: r.nutritionist.id, tenantAppIds: r.apps.map((a) => a.id) };
-        });
-      } catch (err) {
-        if (identityTenantId) await c.identityAdmin!.deleteTenant(identityTenantId).catch(() => undefined);
-        throw err;
-      }
-    },
-
     /**
      * Patient self-signup from a tenant's app. The tenant comes from the app key,
      * never from the request body, so a patient can only ever be created in the
@@ -123,7 +86,7 @@ export function createAuthService(c: Container) {
     async me(ctx: TenantContext): Promise<MeResponse> {
       const placement = await c.registry.getPlacement(ctx.tenantId);
       const base = await withTenant(c.db, placement, async (tx) => {
-        const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { id: true, email: true, role: true } });
+        const user = await tx.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { id: true, email: true, role: true, passwordChangeRequired: true } });
         const tenant = await authRepository.findTenantSummary(tx, ctx.tenantId);
         const features = effectiveFeatures(await tenantsRepository.enabledFeatureKeys(tx, ctx.tenantId));
         return { user, tenant, features };
@@ -131,6 +94,26 @@ export function createAuthService(c: Container) {
       if (ctx.role !== 'PATIENT') return base;
       const entitlement = await createEntitlementService(c).current(ctx.tenantId, { userId: ctx.userId });
       return { ...base, entitlement };
+    },
+
+    /**
+     * Replaces the temporary password from `admin create-tenant`. Through the Admin SDK, not
+     * the browser, so the API knows the change happened before it clears the flag. The
+     * password is never logged or stored. If the flag can't be cleared afterwards, the new
+     * password still works and the nutritionist simply chooses one again.
+     */
+    async changePassword(ctx: TenantContext, authUserId: string, password: string): Promise<void> {
+      if (!c.identityAdmin) throw Errors.conflict('Passwords are managed by Identity Platform, which is off (dev auth).');
+      const placement = await c.registry.getPlacement(ctx.tenantId);
+      const pending = await withTenant(c.db, placement, (tx) =>
+        tx.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { passwordChangeRequired: true } }),
+      );
+      if (!pending.passwordChangeRequired) throw Errors.conflict('There is no temporary password to replace.');
+      await c.identityAdmin.setPassword(authUserId, password);
+      await withTenant(c.db, placement, async (tx) => {
+        await tx.user.update({ where: { id: ctx.userId }, data: { passwordChangeRequired: false } });
+        await writeAudit(tx, ctx, { action: 'PasswordChanged', resourceType: 'User', resourceId: ctx.userId, metadata: { temporaryReplaced: true } });
+      });
     },
   };
 }

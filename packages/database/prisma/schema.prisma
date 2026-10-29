@@ -454,15 +454,18 @@ model TenantLifecycleEvent {
 /// Application user. Identity Platform proves identity; this row decides tenant + role.
 /// PLATFORM_ADMIN users have tenant_id = NULL.
 model User {
-  id            String     @id @default(uuid()) @db.Uuid
-  authUserId    String     @unique @map("auth_user_id") // Identity Platform uid (token `sub`)
-  tenantId      String?    @map("tenant_id") @db.Uuid
-  email         String
-  role          UserRole
-  status        UserStatus @default(ACTIVE)
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
-  deletedAt     DateTime?  @map("deleted_at")
+  id                     String     @id @default(uuid()) @db.Uuid
+  authUserId             String     @unique @map("auth_user_id") // Identity Platform uid (token `sub`)
+  tenantId               String?    @map("tenant_id") @db.Uuid
+  email                  String
+  role                   UserRole
+  status                 UserStatus @default(ACTIVE)
+  /// Set on a login the team created with a temporary password (`admin create-tenant`). While
+  /// set, the API refuses everything but /auth/me and the password change.
+  passwordChangeRequired Boolean    @default(false) @map("password_change_required")
+  createdAt              DateTime   @default(now()) @map("created_at")
+  updatedAt              DateTime   @updatedAt @map("updated_at")
+  deletedAt              DateTime?  @map("deleted_at")
 
   tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   nutritionist Nutritionist?

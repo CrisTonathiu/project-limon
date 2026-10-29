@@ -1,36 +1,6 @@
 import type { TenantTx } from '@limon/database';
 
 export const authRepository = {
-  createTenantGraph(
-    tx: TenantTx,
-    data: {
-      tenantId: string; authUserId: string; identityTenantId: string | null;
-      email: string; firstName: string; lastName: string; businessName: string; slug: string;
-    },
-  ) {
-    return (async () => {
-      const tenant = await tx.tenant.create({
-        data: { id: data.tenantId, name: data.businessName, slug: data.slug, status: 'TRIAL', identityTenantId: data.identityTenantId },
-      });
-      await tx.tenantBranding.create({ data: { tenantId: tenant.id, appName: data.businessName } });
-      const user = await tx.user.create({
-        data: { tenantId: tenant.id, authUserId: data.authUserId, email: data.email, role: 'NUTRITIONIST' },
-      });
-      const nutritionist = await tx.nutritionist.create({
-        data: { tenantId: tenant.id, userId: user.id, firstName: data.firstName, lastName: data.lastName, isOwner: true },
-      });
-      // One TenantApp per store. appKey is public & opaque; bundle IDs are assigned at provisioning time.
-      const apps = await Promise.all(
-        (['IOS', 'ANDROID'] as const).map((platform) =>
-          tx.tenantApp.create({
-            data: { tenantId: tenant.id, platform, appName: data.businessName, appKey: `${data.slug}-${platform.toLowerCase()}-${tenant.id.slice(0, 8)}` },
-          }),
-        ),
-      );
-      return { tenant, user, nutritionist, apps };
-    })();
-  },
-
   /**
    * Marks an invite code as used and returns the pre-registered patient it activates,
    * or null if the code is unknown, inactive, expired or already used. The conditional
