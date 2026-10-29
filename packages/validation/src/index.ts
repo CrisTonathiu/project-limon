@@ -34,7 +34,8 @@ export const InviteCodeSchema = z
   .toUpperCase()
   .regex(/^[A-Z0-9]{4,16}(?:-[A-Z0-9]{4,16})?$/, 'invite code like ABCD-EFGH');
 
-export const RegisterNutritionistSchema = z
+/** A new practice and its owner, created by the platform team (`admin create-tenant`). */
+export const CreatePracticeSchema = z
   .object({
     email: z.string().email().max(254),
     firstName: personName,
@@ -43,7 +44,23 @@ export const RegisterNutritionistSchema = z
     slug,
   })
   .strict();
-export type RegisterNutritionistInput = z.infer<typeof RegisterNutritionistSchema>;
+export type CreatePracticeInput = z.infer<typeof CreatePracticeSchema>;
+
+/**
+ * Identity Platform's password policy (packages/auth identity-admin.ts): at least 10
+ * characters, with upper and lower case letters and a number. Checked here because a
+ * password set through the Admin SDK skips the policy.
+ */
+export const PasswordSchema = z
+  .string()
+  .min(10)
+  .max(128)
+  .regex(/[A-Z]/, 'needs an upper case letter')
+  .regex(/[a-z]/, 'needs a lower case letter')
+  .regex(/[0-9]/, 'needs a number');
+
+export const ChangePasswordSchema = z.object({ password: PasswordSchema }).strict();
+export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
 
 export const CreateTenantSchema = z
   .object({ name: z.string().trim().min(2).max(120), slug })

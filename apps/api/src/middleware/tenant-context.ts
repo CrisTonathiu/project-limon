@@ -15,14 +15,18 @@ export type ResolveDeps = {
  * Pure function of (verified principal, app key header, required permission) → TenantContext.
  *
  *   authenticate → resolve user → resolve tenant → login's identity tenant ↔ tenant
- *   → [verify app ↔ tenant] → validate tenant status → authorize permission
+ *   → [temporary password replaced] → [verify app ↔ tenant] → validate tenant status → authorize permission
  *   → context for tenant-scoped queries
  *
  * Nothing here reads tenantId/userId/role from the request body, query or claims.
  */
 export async function resolveTenantContext(
   deps: ResolveDeps,
-  input: { principal: VerifiedPrincipal; appKey: string | undefined; permission: Permission; requestId: string },
+  input: {
+    principal: VerifiedPrincipal; appKey: string | undefined; permission: Permission; requestId: string;
+    /** Only /auth/me and /auth/password: the routes a login with a temporary password may use. */
+    allowPendingPasswordChange?: boolean;
+  },
 ): Promise<TenantContext> {
   // 1b. Only registration accepts a login whose email isn't verified yet
   if (!input.principal.emailVerified) throw Errors.emailNotVerified();
@@ -39,6 +43,9 @@ export async function resolveTenantContext(
   //     top of the uid lookup: a token from practice A never acts on practice B.
   const expectedIdentityTenant = identity.role === 'PATIENT' ? identity.identityTenantId : null;
   if (input.principal.identityTenantId !== expectedIdentityTenant) throw Errors.tenantMismatch();
+
+  // 3c. A login the team created (`admin create-tenant`) chooses its own password first
+  if (identity.passwordChangeRequired && !input.allowPendingPasswordChange) throw Errors.passwordChangeRequired();
 
   // 4. App identity: patients must come through a registered tenant app, and it must be THEIR tenant's app
   if (identity.role === 'PATIENT' && !input.appKey) throw Errors.appNotRecognized();

@@ -1,8 +1,10 @@
 /**
- * Platform-team admin commands, until the nutritionist dashboard exists.
+ * Platform-team admin commands, until the platform admin dashboard exists.
  * Runs as the owner role (DATABASE_MIGRATION_URL), which is not subject to RLS, so every
  * command names its tenant explicitly and writes an audit entry.
  *
+ *   GCP_PROJECT_ID=<project> pnpm --filter @limon/database admin create-tenant --name "Clínica Ana" --slug clinica-ana --email ana@correo.mx --first-name Ana --last-name López
+ *     (a new practice and its owner's login with a temporary password; --dev instead of GCP_PROJECT_ID for local dev auth)
  *   pnpm --filter @limon/database admin features <tenant-slug>
  *   pnpm --filter @limon/database admin features <tenant-slug> --enable invite_only --disable meal_plan
  *   pnpm --filter @limon/database admin invite <tenant-slug> --first-name Ana --last-name López [--email ana@correo.mx] [--days 30]
@@ -16,14 +18,16 @@
  *   GCP_PROJECT_ID=<project> pnpm --filter @limon/database admin identity-tenant <tenant-slug>   (create the practice's Identity Platform tenant, if it has none)
  *   pnpm --filter @limon/database admin subscription <tenant-slug> --email <login email> [--days 30 | --revoke]   (free access for a test account; no flag shows status)
  */
+import { randomInt, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { FirebaseIdentityAdmin } from '@limon/auth';
 import { effectiveFeatures, generateInviteCode } from '@limon/tenant';
 import { FEATURE_DEPENDENCIES, FeatureKey } from '@limon/types';
-import { GoalRulesSchema, PLATFORM_GUARDRAILS } from '@limon/validation';
+import { CreatePracticeSchema, GoalRulesSchema, PasswordSchema, PLATFORM_GUARDRAILS } from '@limon/validation';
 import { PrismaClient } from '../generated/client/index.js';
+import { createPractice } from '../src/practices.js';
 import { copyDefaultRecipes } from '../src/recipes.js';
 import { parseCsv } from './csv.js';
 import { parseCatalogRows, SMAE_EDITION, type CatalogFood } from './food-catalog.js';
@@ -324,9 +328,85 @@ async function subscription(args: string[]) {
   if (!subs.length) console.log('  no subscriptions');
 }
 
+/** 16 characters without look-alikes (0/O, 1/l/I), always meeting PasswordSchema. */
+function temporaryPassword(): string {
+  const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789'];
+  const all = sets.join('');
+  for (;;) {
+    const password = Array.from({ length: 16 }, () => all[randomInt(all.length)]).join('');
+    if (PasswordSchema.safeParse(password).success) return password;
+  }
+}
+
 /**
- * Practices registered before Identity Platform (or seeded) have no identity tenant, so their
- * patients can't sign in yet. New sign-ups get one at registration (auth.service.ts).
+ * A new practice and its owner's login. Only the platform team creates practices; there is no
+ * public sign-up. With Identity Platform (GCP_PROJECT_ID set; locally your gcloud
+ * application-default login): the practice's identity tenant, then a project-level login with
+ * a temporary password and a verified email, then everything else in one transaction. The
+ * owner must choose their own password at first sign-in. If anything fails, the logins
+ * created so far are deleted again. With --dev (local dev auth): no logins, the owner signs in
+ * as `dev|nutritionist|<slug>`.
+ */
+async function createTenant(args: string[]) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      name: { type: 'string' }, slug: { type: 'string' }, email: { type: 'string' },
+      'first-name': { type: 'string' }, 'last-name': { type: 'string' }, dev: { type: 'boolean', default: false },
+    },
+  });
+  const parsed = CreatePracticeSchema.safeParse({
+    email: values.email, firstName: values['first-name'], lastName: values['last-name'], businessName: values.name, slug: values.slug,
+  });
+  if (!parsed.success) {
+    fail(`Usage: admin create-tenant --name <practice> --slug <slug> --email <owner> --first-name <..> --last-name <..> [--dev]\n  ${
+      parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('\n  ')}`);
+  }
+  const input = { ...parsed.data, email: parsed.data.email.toLowerCase() };
+  if (await prisma.tenant.findUnique({ where: { slug: input.slug } })) fail(`The slug ${input.slug} is taken.`);
+
+  const projectId = process.env.GCP_PROJECT_ID;
+  if (values.dev && projectId) fail('--dev is for local dev auth only: unset GCP_PROJECT_ID.');
+  if (!values.dev && !projectId) fail('Set GCP_PROJECT_ID (e.g. limon-preproduction), or pass --dev for a local dev-auth practice.');
+  const identity = projectId ? new FirebaseIdentityAdmin(projectId) : null;
+
+  const password = identity ? temporaryPassword() : null;
+  let identityTenantId: string | null = null;
+  let loginUid: string | null = null;
+  let created;
+  try {
+    if (identity) {
+      identityTenantId = await identity.createTenant(input.slug);
+      loginUid = await identity.createLogin(input.email, password!);
+    }
+    created = await prisma.$transaction(
+      (tx) => createPractice(tx, {
+        ...input, tenantId: randomUUID(), authUserId: loginUid ?? `dev|nutritionist|${input.slug}`, identityTenantId,
+        passwordChangeRequired: identity !== null, requestId: `admin-cli-${Date.now()}`,
+      }),
+      { timeout: 60_000 }, // copying the default recipe library takes a while
+    );
+  } catch (err) {
+    if (loginUid) await identity!.deleteLogin(loginUid).catch(() => undefined);
+    if (identityTenantId) await identity!.deleteTenant(identityTenantId).catch(() => undefined);
+    fail(`Nothing was created: ${(err as Error).message}`);
+  }
+
+  console.log(`✔ ${created.tenant.name} (${created.tenant.slug}), ${created.recipesCopied} recipes copied`);
+  console.log(`  tenant:          ${created.tenant.id}`);
+  console.log(`  identity tenant: ${identityTenantId ?? '— (dev auth)'}  (the app's tenant.json identityTenantId)`);
+  console.log(`  app keys:        ${created.apps.map((a) => a.appKey).join(', ')}`);
+  if (password) {
+    console.log(`  owner login:     ${input.email}`);
+    console.log(`  temporary password (shown once; they choose their own at first sign-in): ${password}`);
+  } else {
+    console.log(`  owner login:     dev|nutritionist|${input.slug}`);
+  }
+}
+
+/**
+ * Practices created before Identity Platform (or seeded) have no identity tenant, so their
+ * patients can't sign in yet. `create-tenant` gives new practices one.
  * Needs Identity Platform admin rights: locally your gcloud application-default login.
  */
 async function identityTenant(args: string[]) {
@@ -355,10 +435,10 @@ async function identityTenant(args: string[]) {
 
 const [command, ...rest] = process.argv.slice(2);
 const commands: Record<string, (args: string[]) => Promise<void>> = {
-  features, invite, recipes, foods, 'default-recipes': defaultRecipes, 'goal-rules': goalRules, 'identity-tenant': identityTenant, subscription,
+  'create-tenant': createTenant, features, invite, recipes, foods, 'default-recipes': defaultRecipes, 'goal-rules': goalRules, 'identity-tenant': identityTenant, subscription,
 };
 const run = command ? commands[command] : undefined;
-if (!run) fail(`Usage: admin <${Object.keys(commands).join('|')}> <tenant-slug | csv> [options]`);
+if (!run) fail(`Usage: admin <${Object.keys(commands).join('|')}> [tenant-slug | csv] [options]`);
 run(rest)
   .catch((err) => fail(err instanceof Error ? err.message : String(err)))
   .finally(() => prisma.$disconnect());

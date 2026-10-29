@@ -114,7 +114,7 @@ What Terraform can't do, in order:
    - **CNAME** `app` → `ghs.googlehosted.com` (`terraform output dashboard_domain_dns_records`), the same way for the dashboard.
 4. **FatSecret:** whitelist `terraform output nat_ip` in the FatSecret developer portal.
 5. **First deploy:** run the deploy workflow, or the commands above.
-6. **Practices:** `admin identity-tenant <slug>` for any practice created before Identity Platform, then put the printed id in `apps/patient/tenants/<slug>/tenant.json` as `identityTenantId`.
+6. **Practices:** new ones with `GCP_PROJECT_ID=limon-preproduction pnpm --filter @limon/database admin create-tenant --name … --slug … --email … --first-name … --last-name …`, which prints the owner's temporary password once. For a practice created before Identity Platform, `admin identity-tenant <slug>`. Either way, put the printed identity tenant id in `apps/patient/tenants/<slug>/tenant.json` as `identityTenantId`.
 7. **App builds:** `APP_TENANT=<slug> eas build --profile preproduction`. The profile has the api URL and the auth domain. Set `EXPO_PUBLIC_FIREBASE_API_KEY` from `terraform output -json identity_platform` as an EAS environment variable (and the `FIREBASE_API_KEY` repository variable for `mobile-build.yml`).
 
 ### Tearing it down

@@ -1,8 +1,8 @@
 import type {
   ApiErrorBody, BodyLogDto, BodyLogListResponse, ErrorCode, FoodCatalogResponse, FoodDetail, FoodSearchResponse, FoodSwapOptionsResponse, MealLogResponse, MealPlanResponse, MealProgressResponse, MealType, MeResponse, MyGoalResponse, PatientDto, PatientEntitlement, PatientProfileResponse, ProgressPeriod, ProgressResponse, SetGoalResponse,
-  PlannedMealDetailDto, RecipeDetailDto, RecipeListResponse, RegisterNutritionistResponse, RegisterPatientResponse, ShoppingListResponse, TenantAppConfig, WaterResponse, WaterTodayDto,
+  PlannedMealDetailDto, RecipeDetailDto, RecipeListResponse, RegisterPatientResponse, ShoppingListResponse, TenantAppConfig, WaterResponse, WaterTodayDto,
 } from '@limon/types';
-import type { BodyLogInput, CreatePatientInput, MealLogInput, PatientProfileInput, SetGoalInput, RegisterNutritionistInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
+import type { BodyLogInput, ChangePasswordInput, CreatePatientInput, MealLogInput, PatientProfileInput, SetGoalInput, RegisterPatientInput, UpdateTenantBrandingInput } from '@limon/validation';
 
 /**
  * Typed client shared by the dashboard (web) and patient apps (React Native).
@@ -56,11 +56,11 @@ export function createApiClient(opts: ApiClientOptions) {
 
   return {
     auth: {
-      registerNutritionist: (input: RegisterNutritionistInput) =>
-        request<RegisterNutritionistResponse>('POST', '/auth/register/nutritionist', input),
       registerPatient: (input: RegisterPatientInput) =>
         request<RegisterPatientResponse>('POST', '/auth/register/patient', input),
       me: () => request<MeResponse>('GET', '/auth/me'),
+      /** Replaces the temporary password the team issued; only while `passwordChangeRequired`. */
+      changePassword: (input: ChangePasswordInput) => request<void>('POST', '/auth/password', input),
     },
     apps: {
       /** Public: runtime branding for the app key configured on this client. */

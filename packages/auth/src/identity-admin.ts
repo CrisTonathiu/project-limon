@@ -4,7 +4,8 @@ import { getAuth } from 'firebase-admin/auth';
 /**
  * Server-side management of Identity Platform: one identity tenant per practice, holding
  * its patients' logins (ADR-006). Runs with the service account's own credentials (ADC);
- * on Cloud Run that's `api` / `worker`, which hold roles/identitytoolkit.admin.
+ * on Cloud Run that's `api` / `worker`, which hold roles/identitytoolkit.admin. Nutritionists'
+ * logins live at the project level, outside any identity tenant.
  */
 export interface IdentityAdmin {
   /** Creates the practice's identity tenant (email + password) and returns its id. */
@@ -13,6 +14,15 @@ export interface IdentityAdmin {
   deleteUser(identityTenantId: string, uid: string): Promise<void>;
   /** Deletes the identity tenant and every login in it. Already gone counts as done. */
   deleteTenant(identityTenantId: string): Promise<void>;
+  /**
+   * Creates a nutritionist's project-level login and returns its uid. The email is marked
+   * verified: the platform team checked it when creating the practice.
+   */
+  createLogin(email: string, password: string): Promise<string>;
+  /** Deletes a project-level login. Already gone counts as done. */
+  deleteLogin(uid: string): Promise<void>;
+  /** Replaces a project-level login's password and ends its other sign-ins. */
+  setPassword(uid: string, password: string): Promise<void>;
 }
 
 /** At least 10 characters, with upper, lower and digits. */
@@ -66,5 +76,23 @@ export class FirebaseIdentityAdmin implements IdentityAdmin {
     } catch (err) {
       if (!notFound(err)) throw err;
     }
+  }
+
+  async createLogin(email: string, password: string): Promise<string> {
+    const user = await this.auth.createUser({ email, password, emailVerified: true });
+    return user.uid;
+  }
+
+  async deleteLogin(uid: string): Promise<void> {
+    try {
+      await this.auth.deleteUser(uid);
+    } catch (err) {
+      if (!notFound(err)) throw err;
+    }
+  }
+
+  async setPassword(uid: string, password: string): Promise<void> {
+    await this.auth.updateUser(uid, { password });
+    await this.auth.revokeRefreshTokens(uid);
   }
 }

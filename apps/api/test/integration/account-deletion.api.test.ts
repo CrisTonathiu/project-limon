@@ -141,6 +141,9 @@ describe('account deletion with Identity Platform', () => {
       if (failNext) throw new Error('Identity Platform unavailable');
       deleted.push([identityTenantId, uid]);
     },
+    createLogin: async () => 'unused',
+    deleteLogin: async () => undefined,
+    setPassword: async () => undefined,
   };
   const c2 = createContainer(env, { db: c.db, identityAdmin });
   let app2: Awaited<ReturnType<typeof buildApp>>;

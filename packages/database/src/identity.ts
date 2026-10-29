@@ -10,6 +10,8 @@ export type ResolvedIdentity = {
   email: string;
   /** The tenant's Identity Platform tenant; null until provisioned, and with dev auth. */
   identityTenantId: string | null;
+  /** A temporary password the user hasn't replaced yet (`admin create-tenant`). */
+  passwordChangeRequired: boolean;
 };
 
 export type ResolvedTenantApp = {
@@ -32,14 +34,14 @@ export async function resolveIdentity(router: DatabaseRouter, authUserId: string
   const rows = await router.controlPlane().$queryRaw<
     {
       user_id: string; tenant_id: string | null; role: UserRole; user_status: ResolvedIdentity['userStatus'];
-      tenant_status: TenantStatus | null; email: string; identity_tenant_id: string | null;
+      tenant_status: TenantStatus | null; email: string; identity_tenant_id: string | null; password_change_required: boolean;
     }[]
   >`SELECT * FROM app_resolve_identity(${authUserId})`;
   const r = rows[0];
   if (!r) return null;
   return {
     userId: r.user_id, tenantId: r.tenant_id, role: r.role, userStatus: r.user_status, tenantStatus: r.tenant_status,
-    email: r.email, identityTenantId: r.identity_tenant_id,
+    email: r.email, identityTenantId: r.identity_tenant_id, passwordChangeRequired: r.password_change_required,
   };
 }
 

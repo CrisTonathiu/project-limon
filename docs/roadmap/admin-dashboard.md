@@ -76,22 +76,25 @@ Alert types come from the payments roadmap: tenant suspended (collection paused)
 
 Each one is the same code as the `stripe` admin command, and each one is audited: re-sync a patient, replay a failed event, run reconciliation for one tenant, resend a payment link, and retry a failed price-change application.
 
-### Phase 6 · Nutritionist accounts created by the team (later)
+### Phase 6 · Nutritionist accounts created by the team
 
 *Decided 2026-10-21:* **nutritionists don't register themselves.** A Project Limon admin creates the practice and the nutritionist's login and gives them credentials. On their first sign-in, the dashboard's only screen is "choose your password". That happens once.
 
-- [ ] **6.1 Create the practice and login.** One audited action (an `admin` command first, a form here later) creates the identity tenant, Tenant, TenantBranding, User, Nutritionist and TenantApps, as `POST /auth/register/nutritionist` does today. It also creates a project-level Identity Platform login with a temporary password (Admin SDK `createUser`) and marks the user `passwordChangeRequired`.
-- [ ] **6.2 Forced password change.** The flag lives on `users` in the database, the source of truth for authorization, not in a token claim. While it's set, the API refuses every nutritionist route except `GET /auth/me` and the password change, with a new error code (`PASSWORD_CHANGE_REQUIRED`). The dashboard sends the nutritionist to a "choose your password" screen and nowhere else. After the change, the flag is cleared (audited), the session ends and the nutritionist signs in with the new password.
-- [ ] **6.3 Remove self-registration.** Delete the dashboard's `/register` page and `POST /auth/register/nutritionist`, or keep it for `AUTH_PROVIDER=dev` only.
+*Built 2026-10-29 as an `admin` command, with no admin dashboard yet.* The form in this dashboard comes later and calls the same code (`createPractice` in `@limon/database`).
 
-Decisions to make before building:
+- [x] **6.1 Create the practice and login.** `admin create-tenant --name --slug --email --first-name --last-name` creates the identity tenant, then a project-level login with a random temporary password and a verified email, then Tenant, TenantBranding, User (`password_change_required`), Nutritionist (owner), TenantApps, the default recipes and the audit entries in one transaction. If any step fails, the logins created so far are deleted again. `--dev` creates a dev-auth practice locally.
+- [x] **6.2 Forced password change.** The flag lives on `users` and comes back from `app_resolve_identity`. While it's set, the API refuses every route except `GET /auth/me` and `POST /auth/password` with `PASSWORD_CHANGE_REQUIRED`. The dashboard sends the nutritionist to `/change-password` and nowhere else. After the change, the flag is cleared (audited as `PasswordChanged`), the session ends and the nutritionist signs in with the new password.
+- [x] **6.3 Remove self-registration.** The dashboard's `/register` page and `POST /auth/register/nutritionist` are gone.
+- [ ] **6.4 In this dashboard:** a "new practice" form calling `createPractice`, and "issue a new temporary password" for a nutritionist who lost theirs (today: delete the login in the console and recreate it, or a password-reset email from the sign-in page).
 
-| # | Decision | Options |
+Decisions (2026-10-29):
+
+| # | Decision | Chosen |
 |---|---|---|
-| A5 | How the credentials reach the nutritionist | Temporary password handed over by the team (outside email), or an emailed "set your password" link (Admin SDK `generatePasswordResetLink`), which avoids anyone at Project Limon knowing a password |
-| A6 | Temporary password lifetime | Expires after N days (then the admin issues a new one), or no expiry |
-| A7 | Where the change happens | In the browser (Firebase `updatePassword`, then the API clears the flag once it can confirm the change, e.g. from the login's `tokensValidAfterTime`), or through the API (Admin SDK `updateUser`, the password passes through our server) |
-| A8 | Email confirmation | Mark the email verified at creation (the team checked it), or require the confirmation link on first sign-in as today |
+| A5 | How the credentials reach the nutritionist | **Temporary password**, printed once by the command and handed over by the team (not by email). An emailed "set your password" link can replace it once transactional email exists. |
+| A6 | Temporary password lifetime | **No expiry.** It only works for choosing a new password, so a leaked one gives access to no data. Revisit with 6.4. |
+| A7 | Where the change happens | **Through the API** (Admin SDK `updateUser`, then `revokeRefreshTokens`). The API knows the change happened before it clears the flag. The password passes through our server over TLS and is never logged or stored. The Admin SDK skips the Identity Platform password policy, so `PasswordSchema` in `@limon/validation` applies the same rules. |
+| A8 | Email confirmation | **Verified at creation.** The team checked the email, and there's no email sending yet. |
 
 **Done when:** a nutritionist created by an admin signs in with the given credentials, can do nothing but choose a password, and after that signs in normally; there's no public way to create a practice.
 

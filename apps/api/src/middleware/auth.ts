@@ -26,15 +26,22 @@ async function authenticate(c: Container, req: FastifyRequest): Promise<Verified
   }
 }
 
-/** Authentication only — for flows that run before a tenant exists (e.g. registration). */
+/** Authentication only — for flows that run before the user exists (patient registration). */
 export function requireAuthentication(c: Container): preHandlerAsyncHookHandler {
   return async (req: FastifyRequest, _reply: FastifyReply) => {
     req.principal = await authenticate(c, req);
   };
 }
 
-/** Full pipeline. Handlers behind this can rely on req.tenantContext. */
-export function requireTenant(c: Container, permission: Permission): preHandlerAsyncHookHandler {
+/**
+ * Full pipeline. Handlers behind this can rely on req.tenantContext. `allowPendingPasswordChange`
+ * is for /auth/me and /auth/password only: every other route refuses a temporary password.
+ */
+export function requireTenant(
+  c: Container,
+  permission: Permission,
+  options: { allowPendingPasswordChange?: boolean } = {},
+): preHandlerAsyncHookHandler {
   return async (req: FastifyRequest) => {
     const principal = await authenticate(c, req);
     req.principal = principal;
@@ -46,7 +53,7 @@ export function requireTenant(c: Container, permission: Permission): preHandlerA
         resolveTenantApp: (k) => resolveTenantApp(c.db, k),
         hasActiveEntitlement: (tenantId, userId) => entitlements.isActiveForUser(tenantId, userId),
       },
-      { principal, appKey, permission, requestId: req.id },
+      { principal, appKey, permission, requestId: req.id, allowPendingPasswordChange: options.allowPendingPasswordChange },
     );
     req.tenantContext = ctx;
   };

@@ -13,7 +13,7 @@ function deps(
   return {
     hasActiveEntitlement: async () => entitled,
     resolveIdentity: async () =>
-      identity && { userId: 'u1', tenantId: A, role: 'NUTRITIONIST', userStatus: 'ACTIVE', tenantStatus: 'ACTIVE', email: 'x@y.z', identityTenantId: null, ...identity },
+      identity && { userId: 'u1', tenantId: A, role: 'NUTRITIONIST', userStatus: 'ACTIVE', tenantStatus: 'ACTIVE', email: 'x@y.z', identityTenantId: null, passwordChangeRequired: false, ...identity },
     resolveTenantApp: async (k) => (apps[k] ? ({ tenantStatus: 'ACTIVE', appStatus: 'PUBLISHED', ...apps[k] } as ResolvedTenantApp) : null),
   };
 }
@@ -33,6 +33,16 @@ describe('resolveTenantContext', () => {
   it('rejects a patient using ANOTHER tenant’s app (Maria patient in Carlos app)', async () => {
     const d = deps({ role: 'PATIENT' }, { 'carlos-ios': { tenantId: B } });
     await expect(resolveTenantContext(d, { ...base, appKey: 'carlos-ios', permission: 'self:patient:read' })).rejects.toMatchObject({ code: 'TENANT_MISMATCH' });
+  });
+
+  it('refuses a temporary password everywhere but the routes that replace it', async () => {
+    const d = deps({ passwordChangeRequired: true });
+    await expect(resolveTenantContext(d, { ...base, permission: 'patients:read' })).rejects.toMatchObject({ code: 'PASSWORD_CHANGE_REQUIRED' });
+    await expect(resolveTenantContext(d, { ...base, permission: 'tenant:read', allowPendingPasswordChange: true })).resolves.toMatchObject({ userId: 'u1' });
+    // Allowing a pending change never skips the other checks.
+    await expect(
+      resolveTenantContext(deps({ passwordChangeRequired: true, userStatus: 'DISABLED' }), { ...base, permission: 'tenant:read', allowPendingPasswordChange: true }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('rejects a login whose email is not verified yet', async () => {

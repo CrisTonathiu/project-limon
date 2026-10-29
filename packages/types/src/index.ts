@@ -105,6 +105,8 @@ export const ErrorCode = {
   INVITE_CODE_INVALID: 'INVITE_CODE_INVALID',
   /** The login's email isn't verified yet. Only registration accepts unverified logins. */
   EMAIL_NOT_VERIFIED: 'EMAIL_NOT_VERIFIED',
+  /** The login still has the team's temporary password: only /auth/me and /auth/password answer. */
+  PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
   /** The module is switched off for this tenant (tenant_features). */
   FEATURE_DISABLED: 'FEATURE_DISABLED',
   /** The nutrition data provider (FatSecret) is not configured, unreachable or refused the request. */
@@ -152,7 +154,8 @@ export type PatientEntitlement = {
 };
 
 export type MeResponse = {
-  user: { id: string; email: string; role: UserRole };
+  /** passwordChangeRequired: a temporary password; the dashboard shows only "choose your password". */
+  user: { id: string; email: string; role: UserRole; passwordChangeRequired: boolean };
   tenant: { id: string; name: string; slug: string; status: TenantStatus } | null;
   /** Present for PATIENT users only. */
   entitlement?: PatientEntitlement;
@@ -161,13 +164,6 @@ export type MeResponse = {
 };
 
 export type RegisterPatientResponse = { userId: string; patientId: string; tenantId: string };
-
-export type RegisterNutritionistResponse = {
-  userId: string;
-  tenantId: string;
-  nutritionistId: string;
-  tenantAppIds: string[];
-};
 
 export type PatientDto = {
   id: string;
