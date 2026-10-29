@@ -11,6 +11,8 @@ Patient apps ─HTTPS─▶ api.projectlimon.com (Cloud Run domain mapping, Goog
                                 ├─▶ Pub/Sub topic "jobs" ─push (OIDC)─▶ Cloud Run service "worker" (private, IAM only)
                                 │                          └─ 5 failed deliveries ─▶ jobs-dlq
                                 └─▶ Cloud Storage bucket (tenant files, V4 signed URLs)
+Nutritionists ─HTTPS─▶ app.projectlimon.com ─▶ Cloud Run service "dashboard" (public, min 0 / max 2)
+                         └─ /api/v1 proxy (session cookie) ─▶ api.projectlimon.com
 Cloud Scheduler ─▶ worker: FatSecret cache refresh (every 15 min), weekly plans (Sundays, paused)
 api + worker egress ─▶ Direct VPC egress ─▶ Cloud NAT + reserved static IP ─▶ FatSecret · Stripe · Google APIs
 Identity Platform (one tenant per nutritionist) · Secret Manager · Artifact Registry · Cloud Logging / Monitoring
@@ -29,10 +31,11 @@ GitHub Actions ─Workload Identity Federation─▶ limon-deployer: build, push
 |---|---|
 | `backend.tf` | State in `gs://limon-tfstate-a175b1` (versioned), Google provider |
 | `main.tf` | Project APIs, network module (VPC, subnet, Cloud NAT + static IP, private services access), Artifact Registry `limon`, Secret Manager secrets |
-| `iam.tf` | Service accounts: `limon-api`, `limon-worker`, `limon-scheduler`, `limon-pubsub-push`, `limon-deployer`, and their roles |
+| `iam.tf` | Service accounts: `limon-api`, `limon-worker`, `limon-dashboard`, `limon-scheduler`, `limon-pubsub-push`, `limon-deployer`, and their roles |
 | `database.tf` | Cloud SQL `limon-pre` (`db-f1-micro`, 10 GB SSD, zonal) and the `migrate` Cloud Run job |
 | `identity.tf` | Identity Platform with multi-tenancy on. Identity tenants are created by the API, not here |
 | `api.tf` | The `api` service, its public invoker and the `api.projectlimon.com` domain mapping |
+| `dashboard.tf` | The `dashboard` service (no VPC access), its public invoker and the `app.projectlimon.com` domain mapping |
 | `jobs.tf` | The `worker` service, Pub/Sub `jobs` + `jobs-dlq`, Cloud Scheduler jobs |
 | `storage.tf` | Bucket `limon-pre-tenant-assets` |
 | `cicd.tf` | Workload Identity Federation for GitHub Actions |
@@ -66,10 +69,10 @@ A budget alert at MXN 1,000 (≈ US$50) is set on the billing account.
 
 A merge to `main` runs CI, and once CI passes, `.github/workflows/deploy.yml`:
 
-1. builds the `api` image (`apps/api/Dockerfile`) and the `migrate` image (`packages/database/Dockerfile`), tagged with the short commit hash, and pushes them to Artifact Registry;
+1. builds the `api` image (`apps/api/Dockerfile`), the `migrate` image (`packages/database/Dockerfile`) and the `dashboard` image (`apps/dashboard/Dockerfile`), tagged with the short commit hash, and pushes them to Artifact Registry;
 2. runs the `migrate` job (creates `limon_app` if missing, `prisma migrate deploy`, seed) and waits for it;
-3. deploys `api`, then `worker` (same image, command `node dist/jobs/worker.js`);
-4. checks `https://api.projectlimon.com/health`.
+3. deploys `api`, then `worker` (same image, command `node dist/jobs/worker.js`), then `dashboard`;
+4. checks `https://api.projectlimon.com/health` and `https://app.projectlimon.com/login`.
 
 The `api` revision already running keeps serving during step 2, so a migration must not break it. The workflow can also be started by hand from the Actions tab (on `main` only). It authenticates as `limon-deployer` through Workload Identity Federation, which only accepts workflows on `main` of this repository, so there are no keys in GitHub.
 
@@ -84,6 +87,8 @@ gcloud run jobs update migrate --region us-east1 --image $REPO/migrate:$TAG
 gcloud run jobs execute migrate --region us-east1 --wait
 gcloud run deploy api --region us-east1 --image $REPO/api:$TAG
 gcloud run deploy worker --region us-east1 --image $REPO/api:$TAG --command=node --args=dist/jobs/worker.js
+docker build --platform linux/amd64 -f apps/dashboard/Dockerfile -t $REPO/dashboard:$TAG . && docker push $REPO/dashboard:$TAG
+gcloud run deploy dashboard --region us-east1 --image $REPO/dashboard:$TAG
 ```
 
 ### Infrastructure changes: Terraform
@@ -106,6 +111,7 @@ What Terraform can't do, in order:
    - Verify `projectlimon.com` in Google Search Console **with the account that runs Terraform** (a **TXT** record on `@`). Until then `apply` fails on the domain mapping.
    - **CAA:** `0 issue "pki.goog"` must be allowed, or the certificate is never issued.
    - **CNAME** `api` → `ghs.googlehosted.com` (`terraform output api_domain_dns_records`). The certificate takes ~15 minutes, up to 24 hours: `gcloud beta run domain-mappings describe --domain api.projectlimon.com --region us-east1`.
+   - **CNAME** `app` → `ghs.googlehosted.com` (`terraform output dashboard_domain_dns_records`), the same way for the dashboard.
 4. **FatSecret:** whitelist `terraform output nat_ip` in the FatSecret developer portal.
 5. **First deploy:** run the deploy workflow, or the commands above.
 6. **Practices:** `admin identity-tenant <slug>` for any practice created before Identity Platform, then put the printed id in `apps/patient/tenants/<slug>/tenant.json` as `identityTenantId`.
@@ -140,6 +146,5 @@ Logs are in Cloud Logging, per Cloud Run service.
 ## Remaining gaps
 
 - The `production` project: min 1 instance on `api`, a load balancer with Cloud Armor, a high-availability database ([migration, "Before production"](../roadmap/gcp-migration.md#before-production)).
-- The `dashboard` Cloud Run service ([MVP.2, phase 6](../roadmap/mvp-2.md#phase-6--nutritionist-dashboard-v0)).
 - A CDN for public branding assets.
 - Transactional email (Resend, with Stripe payments).
