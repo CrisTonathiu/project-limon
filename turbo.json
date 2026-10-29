@@ -6,6 +6,7 @@
     "dev": { "cache": false, "persistent": true },
     "lint": { "dependsOn": ["^build"] },
     "typecheck": { "dependsOn": ["^build"] },
+    "@limon/database#typecheck": { "dependsOn": ["build"] },
     "test": { "dependsOn": ["^build"] },
     "test:integration": { "dependsOn": ["^build"], "cache": false }
   }

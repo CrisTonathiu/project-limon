@@ -14,7 +14,7 @@
   "scripts": {
     "generate": "prisma generate",
     "build": "prisma generate && tsc -p tsconfig.json",
-    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "DATABASE_URL=postgresql://x:x@localhost:5432/x prisma validate",
     "test": "vitest run test/unit",
     "test:integration": "dotenv -e ../../.env -- vitest run test/integration",
