@@ -25,6 +25,7 @@ const week: ComidasWeek = {
     {
       id: '1',
       label: 'Desayuno',
+      time: '8:00',
       recipe: { id: 'r1', title: 'Avena con fresas' },
       kcal: '380 kcal',
       favourite: true,
@@ -34,6 +35,7 @@ const week: ComidasWeek = {
     {
       id: '2',
       label: 'Colación',
+      time: '11:00',
       recipe: { id: 'r2', title: 'Yogur con nuez' },
       kcal: '180 kcal',
       favourite: false,
@@ -43,6 +45,7 @@ const week: ComidasWeek = {
     {
       id: '3',
       label: 'Comida',
+      time: '14:00',
       recipe: { id: 'r3', title: 'Ensalada de quinoa con pollo' },
       kcal: '520 kcal',
       favourite: true,
@@ -52,6 +55,7 @@ const week: ComidasWeek = {
     {
       id: '4',
       label: 'Colación',
+      time: '17:00',
       recipe: { id: 'r4', title: 'Jícama con limón' },
       kcal: '120 kcal',
       favourite: false,
@@ -61,6 +65,7 @@ const week: ComidasWeek = {
     {
       id: '5',
       label: 'Cena',
+      time: '20:00',
       recipe: { id: 'r5', title: 'Tacos de pescado' },
       kcal: '580 kcal',
       favourite: false,
@@ -204,6 +209,7 @@ export const NoNutrition: Story = {
         {
           id: 'x',
           label: 'Comida',
+          time: '14:00',
           recipe: null,
           kcal: null,
           favourite: false,

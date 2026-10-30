@@ -49,6 +49,9 @@ export function parseDateOnly(isoDate: string): Date {
   return new Date(y, m - 1, d);
 }
 
+/** A meal time from the API, "08:00" → "8:00" (24 h, as clocks read in Mexico). */
+export const formatMealTime = (time: string) => time.replace(/^0(?=\d:)/, '');
+
 /** The inverse of parseDateOnly: a local Date → "2026-10-05" for the API. */
 export function toDateOnly(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');

@@ -34,8 +34,10 @@ export type WeekDay = {
 
 export type MealRow = {
   id: string;
-  /** "Desayuno" (later "Desayuno · 8:00", once plans have times). */
+  /** "Desayuno" */
   label: string;
+  /** "8:00" */
+  time: string;
   recipe: { id: string; title: string } | null;
   /** "380 kcal", or null when FatSecret didn't give the portion's calories. */
   kcal: string | null;
@@ -284,7 +286,8 @@ function MealCard({
   const press = usePressScale();
   const { recipe } = meal;
   const status = meal.status ? t.mealLog.status[meal.status] : null;
-  const caption = status ? `${meal.label} · ${status}` : meal.label;
+  // "Desayuno · 8:00" until it's answered, then "Desayuno · Comiste".
+  const caption = `${meal.label} · ${status ?? meal.time}`;
   const summary = (
     <Box flexDirection="row" alignItems="center" gap="m" minHeight={64} paddingVertical="s">
       <Box flex={1} minWidth={0}>

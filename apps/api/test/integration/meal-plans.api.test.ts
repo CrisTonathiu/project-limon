@@ -124,6 +124,8 @@ describe('GET /meal-plans/current', () => {
 
     for (const day of body.plan.days) {
       expect(day.meals.map((m) => m.mealType)).toEqual(['BREAKFAST', 'LUNCH', 'SNACK', 'DINNER']);
+      // No times were sent at onboarding, so each meal has the default for its slot.
+      expect(day.meals.map((m) => m.time)).toEqual(['08:00', '14:00', '17:00', '20:00']);
       for (const meal of day.meals) {
         expect(meal.macros?.calories).toBe(Math.round(kcalPerServing.get(meal.recipe!.id)! * meal.servings!));
       }

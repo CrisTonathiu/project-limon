@@ -1,5 +1,5 @@
 import { BiologicalSex, type ActivityLevel, type Allergen, type FoodOptionDto, type PatientProfileDto } from '@limon/types';
-import { PATIENT_PROFILE_LIMITS as L, type PatientProfileInput } from '@limon/validation';
+import { defaultMealTimes, inEatingOrder, PATIENT_PROFILE_LIMITS as L, type PatientProfileInput } from '@limon/validation';
 import { toDateOnly } from '../../i18n/format';
 
 /**
@@ -7,7 +7,7 @@ import { toDateOnly } from '../../i18n/format';
  * submit, so a half-typed "68," isn't lost. Each step is checked before moving on; the
  * API validates the whole thing again with PatientProfileSchema.
  */
-export const ONBOARDING_STEPS = ['aboutYou', 'body', 'activity', 'meals', 'allergies', 'dislikes'] as const;
+export const ONBOARDING_STEPS = ['aboutYou', 'body', 'activity', 'meals', 'mealTimes', 'allergies', 'dislikes'] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
 export type OnboardingDraft = {
@@ -20,6 +20,8 @@ export type OnboardingDraft = {
   weightKg: string;
   activityLevel: ActivityLevel | null;
   mealsPerDay: number | null;
+  /** "HH:MM", one per meal; reset to the defaults whenever the number of meals changes. */
+  mealTimes: string[];
   allergies: Allergen[];
   /** Picked from the food catalog; names kept for the chips, only ids are sent. */
   dislikedFoods: FoodOptionDto[];
@@ -27,7 +29,7 @@ export type OnboardingDraft = {
 
 export const emptyDraft: OnboardingDraft = {
   sex: null, pregnantOrBreastfeeding: false, birthDay: '', birthMonth: '', birthYear: '',
-  heightCm: '', weightKg: '', activityLevel: null, mealsPerDay: null, allergies: [], dislikedFoods: [],
+  heightCm: '', weightKg: '', activityLevel: null, mealsPerDay: null, mealTimes: [], allergies: [], dislikedFoods: [],
 };
 
 /** A saved profile as an editable draft (the profile screen's edit form). */
@@ -44,13 +46,14 @@ export function draftFromProfile(profile: PatientProfileDto): OnboardingDraft {
     weightKg: String(profile.weightKg),
     activityLevel: profile.activityLevel,
     mealsPerDay: profile.mealsPerDay,
+    mealTimes: profile.mealTimes,
     allergies: profile.allergies,
     dislikedFoods: profile.dislikedFoods,
   };
 }
 
-export type DraftField = 'sex' | 'dateOfBirth' | 'heightCm' | 'weightKg' | 'activityLevel' | 'mealsPerDay';
-export type FieldError = 'required' | 'invalidDate' | 'futureDate' | 'outOfRange';
+export type DraftField = 'sex' | 'dateOfBirth' | 'heightCm' | 'weightKg' | 'activityLevel' | 'mealsPerDay' | 'mealTimes';
+export type FieldError = 'required' | 'invalidDate' | 'futureDate' | 'outOfRange' | 'mealOrder';
 export type StepErrors = Partial<Record<DraftField, FieldError>>;
 
 /** "68,5" and "68.5" both mean 68.5 (phones in Mexico offer either separator). */
@@ -100,6 +103,10 @@ export function stepErrors(step: OnboardingStep, draft: OnboardingDraft, today =
     case 'meals':
       if (draft.mealsPerDay === null) errors.mealsPerDay = 'required';
       break;
+    case 'mealTimes':
+      if (draft.mealTimes.length !== draft.mealsPerDay) errors.mealTimes = 'required';
+      else if (!inEatingOrder(draft.mealTimes)) errors.mealTimes = 'mealOrder';
+      break;
     // Allergies and disliked foods are optional.
   }
   return errors;
@@ -111,6 +118,22 @@ export function formErrors(draft: OnboardingDraft, today = new Date()): StepErro
 }
 
 export const hasErrors = (errors: StepErrors) => Object.keys(errors).length > 0;
+
+/** Picking a number of meals; their times go back to the defaults when the number changes. */
+export function withMealsPerDay(draft: OnboardingDraft, mealsPerDay: number): Partial<OnboardingDraft> {
+  return mealsPerDay === draft.mealsPerDay ? {} : { mealsPerDay, mealTimes: defaultMealTimes(mealsPerDay) };
+}
+
+/** How far one tap of − or + moves a meal time. */
+export const MEAL_TIME_STEP_MINUTES = 15;
+
+/** "08:00" moved by `minutes`, staying within the day (00:00 to 23:45). */
+export function shiftMealTime(time: string, minutes: number): string {
+  const [h = 0, m = 0] = time.split(':').map(Number);
+  const total = Math.min(Math.max(h * 60 + m + minutes, 0), 24 * 60 - MEAL_TIME_STEP_MINUTES);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+}
 
 /** Adds a disliked food unless it's already listed or the list is full. */
 export function addDislikedFood(list: FoodOptionDto[], food: FoodOptionDto): FoodOptionDto[] {
@@ -149,6 +172,7 @@ export function toProfileInput(draft: OnboardingDraft, today = new Date()): Pati
     weightKg,
     activityLevel,
     mealsPerDay,
+    mealTimes: draft.mealTimes,
     // The answer is kept while toggling sex, but only sent for FEMALE (the API rejects it otherwise).
     pregnantOrBreastfeeding: sex === BiologicalSex.FEMALE && draft.pregnantOrBreastfeeding,
     allergies: draft.allergies,

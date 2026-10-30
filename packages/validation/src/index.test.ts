@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ageInYears, BodyLogSchema, MealLogSchema, CreatePatientSchema, GoalRulesSchema, IsoDateParamSchema, PatientProfileSchema, CreatePracticeSchema, PasswordSchema, SetGoalSchema, WaterIntakeSchema, WaterQuerySchema, WaterTargetSchema } from './index.js';
+import { ageInYears, BodyLogSchema, defaultMealTimes, inEatingOrder, MealLogSchema, CreatePatientSchema, GoalRulesSchema, IsoDateParamSchema, PatientProfileSchema, CreatePracticeSchema, PasswordSchema, SetGoalSchema, WaterIntakeSchema, WaterQuerySchema, WaterTargetSchema } from './index.js';
 
 describe('validation schemas', () => {
   it('rejects client-supplied tenantId (never trusted from clients)', () => {
@@ -49,12 +49,35 @@ describe('PatientProfileSchema', () => {
     ['disliked food as free text', { dislikedFoodIds: ['Hígado'] }],
     ['the old free-text field', { dislikedFoods: ['Hígado'] }],
     ['client-supplied patientId', { patientId: '11111111-1111-4111-8111-111111111111' }],
+    ['fewer meal times than meals', { mealTimes: ['08:00', '14:00', '20:00'] }],
+    ['meal times out of order', { mealTimes: ['08:00', '14:00', '13:00', '20:00'] }],
+    ['two meals at the same time', { mealTimes: ['08:00', '14:00', '14:00', '20:00'] }],
+    ['a 12-hour time', { mealTimes: ['8:00', '14:00', '17:00', '20:00'] }],
+    ['an hour past 23', { mealTimes: ['08:00', '14:00', '17:00', '24:00'] }],
   ])('rejects %s', (_label, patch) => {
     expect(PatientProfileSchema.safeParse({ ...valid, ...patch }).success).toBe(false);
   });
 
+  it('accepts one meal time per meal, in order, and leaves them out when not sent', () => {
+    const mealTimes = ['07:30', '13:00', '16:45', '21:00'];
+    expect(PatientProfileSchema.parse({ ...valid, mealTimes }).mealTimes).toEqual(mealTimes);
+    expect(PatientProfileSchema.parse(valid).mealTimes).toBeUndefined();
+  });
+
   it('accepts minors (the energy target applies that guardrail)', () => {
     expect(PatientProfileSchema.safeParse({ ...valid, dateOfBirth: '2015-01-01' }).success).toBe(true);
+  });
+});
+
+describe('defaultMealTimes', () => {
+  it('puts the main meals at 8, 14 and 20 and the snacks between them', () => {
+    expect(defaultMealTimes(3)).toEqual(['08:00', '14:00', '20:00']);
+    expect(defaultMealTimes(4)).toEqual(['08:00', '14:00', '17:00', '20:00']);
+    expect(defaultMealTimes(5)).toEqual(['08:00', '11:00', '14:00', '17:00', '20:00']);
+  });
+
+  it('keeps every default in eating order', () => {
+    for (const n of [3, 4, 5]) expect(inEatingOrder(defaultMealTimes(n))).toBe(true);
   });
 });
 

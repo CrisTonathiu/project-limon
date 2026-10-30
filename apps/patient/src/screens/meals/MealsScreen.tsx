@@ -3,8 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { canLog, draftLog, withLog } from '../../features/meal-plans/meal-log';
 import { canRegenerate, dayChip, initialDayIndex, withFavourite } from '../../features/meal-plans/meal-plan-format';
 import { cancelMealReminder, syncMealReminders } from '../../features/notifications/meal-reminders';
+import { usePrimerReoffer } from '../../features/notifications/use-primer-reoffer';
 import { t } from '../../i18n/es-MX';
-import { formatDate, formatDayRange, formatKcal, toDateOnly } from '../../i18n/format';
+import { formatDate, formatDayRange, formatKcal, formatMealTime, toDateOnly } from '../../i18n/format';
 import type { TabScreenProps } from '../../navigation/types';
 import { api } from '../../services/api';
 import { useSession } from '../../state/session-context';
@@ -30,6 +31,7 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
   const [logging, setLogging] = useState<(MealLogTarget & { mealId: string }) | null>(null);
   const [logFailed, setLogFailed] = useState(false);
   const today = toDateOnly(new Date());
+  const reoffer = usePrimerReoffer();
 
   const fetchPlan = useCallback(() => {
     setLoad({ status: 'loading' });
@@ -109,7 +111,10 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
       .then((res) => {
         if ('log' in res) apply(res.log);
         // A cleared answer gets its reminder back the next time the plan loads.
-        if (next) void cancelMealReminder(mealId);
+        if (next) {
+          void cancelMealReminder(mealId);
+          reoffer.afterCheckOff();
+        }
       })
       .catch((err) => {
         console.error('[meals] saving the check-off failed', err);
@@ -147,6 +152,7 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
       meals: day.meals.map((m) => ({
         id: m.id,
         label: t.recipes.mealTypes[m.mealType],
+        time: formatMealTime(m.time),
         recipe: m.recipe ? { id: m.recipe.id, title: m.recipe.title } : null,
         kcal: m.macros ? formatKcal(m.macros.calories) : null,
         favourite: m.favourite,
@@ -163,27 +169,30 @@ export function MealsScreen({ navigation }: TabScreenProps<'Meals'>) {
 
   const state = viewState();
   return (
-    <ComidasView
-      state={state}
-      onSelectDay={(i) => {
-        setDayIndex(i);
-        setRegenerateFailed(false);
-      }}
-      onOpenMeal={(meal) => {
-        if (!meal.recipe) return;
-        openedMeal.current = true;
-        navigation.navigate('MealDetail', { mealId: meal.id, title: meal.recipe.title });
-      }}
-      onToggleFavourite={(meal) => meal.recipe && toggleFavourite(meal.recipe.id, !meal.favourite)}
-      onRegenerate={() => state.status === 'ready' && regenerate(state.days[state.selected]!.date)}
-      logSheet={logging}
-      onLogMeal={(meal) => openLog(meal.id, meal.label)}
-      onSave={(status: MealLogStatus, note) => logging && saveLog(logging.mealId, logging.log, draftLog(status, note, new Date()))}
-      onClear={() => logging && saveLog(logging.mealId, logging.log, null)}
-      onClose={() => setLogging(null)}
-      onOpenShoppingList={
-        session.hasFeature(FeatureKey.SHOPPING_LIST) ? () => navigation.navigate('ShoppingList') : undefined
-      }
-    />
+    <>
+      <ComidasView
+        state={state}
+        onSelectDay={(i) => {
+          setDayIndex(i);
+          setRegenerateFailed(false);
+        }}
+        onOpenMeal={(meal) => {
+          if (!meal.recipe) return;
+          openedMeal.current = true;
+          navigation.navigate('MealDetail', { mealId: meal.id, title: meal.recipe.title });
+        }}
+        onToggleFavourite={(meal) => meal.recipe && toggleFavourite(meal.recipe.id, !meal.favourite)}
+        onRegenerate={() => state.status === 'ready' && regenerate(state.days[state.selected]!.date)}
+        logSheet={logging}
+        onLogMeal={(meal) => openLog(meal.id, meal.label)}
+        onSave={(status: MealLogStatus, note) => logging && saveLog(logging.mealId, logging.log, draftLog(status, note, new Date()))}
+        onClear={() => logging && saveLog(logging.mealId, logging.log, null)}
+        onClose={() => setLogging(null)}
+        onOpenShoppingList={
+          session.hasFeature(FeatureKey.SHOPPING_LIST) ? () => navigation.navigate('ShoppingList') : undefined
+        }
+      />
+      {reoffer.sheet}
+    </>
   );
 }

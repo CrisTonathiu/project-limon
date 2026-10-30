@@ -149,7 +149,7 @@ export const patientsRepository = {
    * Birth date is stored on the patient row, disliked foods on patient_disliked_foods,
    * everything else on patient_profiles. The disliked foods are replaced as a whole.
    */
-  saveProfile: async (tx: TenantTx, tenantId: string, patientId: string, input: PatientProfile) => {
+  saveProfile: async (tx: TenantTx, tenantId: string, patientId: string, input: PatientProfile & { mealTimes: string[] }) => {
     const { dateOfBirth, dislikedFoodIds, ...fields } = input;
     await tx.patient.update({
       where: { tenantId_id: { tenantId, id: patientId } },

@@ -466,6 +466,13 @@ export const es = {
     back: 'Atrás',
     finish: 'Terminar',
     saving: 'Guardando…',
+    welcome: {
+      /** "Te damos la bienvenida a Nutrición María" */
+      title: (clinic: string) => `Te damos la bienvenida a ${clinic}`,
+      titleFallback: 'Te damos la bienvenida',
+      body: 'Te haremos unas preguntas para preparar tu plan de comidas. Toma unos 3 minutos.',
+      start: 'Empezar',
+    },
     aboutYou: {
       title: 'Sobre ti',
       sex: 'Sexo',
@@ -500,6 +507,14 @@ export const es = {
       hint: 'Contando colaciones.',
       option: (n: number) => `${n} comidas`,
     },
+    mealTimes: {
+      title: '¿A qué hora sueles comer?',
+      hint: 'Ajusta cada hora a tu rutina. Las usamos para mostrar tu día y para tus recordatorios.',
+      /** Screen reader: "Desayuno, 8:00" */
+      a11y: (meal: string, time: string) => `${meal}, ${time}`,
+      earlier: (meal: string) => `${meal} más temprano`,
+      later: (meal: string) => `${meal} más tarde`,
+    },
     allergies: {
       title: '¿Tienes alguna alergia?',
       hint: 'Marca todas las que apliquen. Si no tienes ninguna, continúa.',
@@ -533,7 +548,31 @@ export const es = {
       futureDate: 'La fecha no puede ser futura.',
       heightRange: 'Escribe tu estatura en centímetros, entre 100 y 250.',
       weightRange: 'Escribe tu peso en kilos, entre 25 y 350.',
+      mealOrder: 'Cada comida debe ser después de la anterior.',
     },
+    ready: {
+      title: 'Tu plan está listo',
+      body: 'Preparamos tu primera semana de comidas con tus respuestas.',
+      target: 'Tu meta diaria',
+      times: 'Tus horarios',
+      start: 'Empezar',
+    },
+  },
+
+  /** Shown before the system prompt, which iOS shows only once. */
+  notificationPrimer: {
+    title: '¿Te recordamos tus comidas?',
+    /** "Nutrición María te enviará…" */
+    body: (clinic: string) =>
+      `${clinic} te enviará un aviso después de cada comida para que registres si la comiste. Así tu nutriólogo ve cómo te va.`,
+    bodyFallback: 'Te enviaremos un aviso después de cada comida para que registres si la comiste. Así tu nutriólogo ve cómo te va.',
+    note: 'Los avisos no muestran lo que comes. Puedes apagarlos cuando quieras.',
+    /** The sample notification on the primer. */
+    sampleApp: 'Ahora',
+    allow: 'Sí, avísame',
+    later: 'Ahora no',
+    /** After a check-off, when notifications are still off. */
+    reofferTitle: '¿Quieres que te lo recordemos?',
   },
 
   subscription: {

@@ -16,7 +16,7 @@ import {
   type PatientProfileResponse,
   type SetGoalResponse,
 } from '@limon/types';
-import type { BodyLog, CreatePatientInput, PatientProfile, SetGoalInput } from '@limon/validation';
+import { defaultMealTimes, type BodyLog, type CreatePatientInput, type PatientProfile, type SetGoalInput } from '@limon/validation';
 import type { Container } from '../../infrastructure/container.js';
 import { Errors } from '../../lib/errors.js';
 import { localToday } from '../meal-plans/week.js';
@@ -60,6 +60,13 @@ const storedGoal = (g: GoalRow | null): Goal =>
     ? { type: g.decidedGoal, pace: g.decidedPace }
     : { type: WeightGoal.MAINTAIN };
 
+/**
+ * The meal times to keep when a save doesn't send any (an app from before meal times): the
+ * saved ones while the number of meals is the same, otherwise the defaults for the new number.
+ */
+const keptMealTimes = (saved: string[] | undefined, mealsPerDay: number) =>
+  saved?.length === mealsPerDay ? saved : defaultMealTimes(mealsPerDay);
+
 /** What the energy target is computed with: the patient's goal and the clinic's rules. */
 type EnergyBasis = { goal: Goal; rules: EffectiveGoalRules };
 
@@ -73,6 +80,7 @@ const toProfileDto = (p: ProfileRow, dateOfBirth: Date, basis: EnergyBasis): Pat
     weightKg: p.weightKg,
     activityLevel: p.activityLevel,
     mealsPerDay: p.mealsPerDay,
+    mealTimes: p.mealTimes,
     pregnantOrBreastfeeding: p.pregnantOrBreastfeeding,
     allergies: p.allergies as Allergen[],
     dislikedFoods: p.dislikedFoods.map((d) => d.food),
@@ -195,7 +203,10 @@ export function createPatientsService(c: Container) {
           throw Errors.validation('dislikedFoodIds: unknown food');
         }
         const before = await patientsRepository.findProfile(tx, ctx.tenantId, p.id);
-        const profile = await patientsRepository.saveProfile(tx, ctx.tenantId, p.id, input);
+        const profile = await patientsRepository.saveProfile(tx, ctx.tenantId, p.id, {
+          ...input,
+          mealTimes: input.mealTimes ?? keptMealTimes(before?.mealTimes, input.mealsPerDay),
+        });
         // A new or changed weight is today's weigh-in, so the chart starts at onboarding.
         if (before?.weightKg !== input.weightKg) {
           await writeBodyLog(tx, ctx.tenantId, p.id, localToday(new Date()), { weightKg: input.weightKg });
@@ -351,6 +362,7 @@ export function createPatientsService(c: Container) {
           mealsPerDay: dto.mealsPerDay,
           allergies: dto.allergies,
           dislikedFoodIds: dto.dislikedFoods.map((f) => f.id),
+          mealTimes: dto.mealTimes,
           energyTarget: dto.energyTarget,
         };
       });
