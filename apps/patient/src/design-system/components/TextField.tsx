@@ -14,6 +14,13 @@ export type TextFieldProps = {
   maxLength?: number;
   /** `background` stands out inside a white sheet; `surface` on the beige screen background. */
   tone?: 'surface' | 'background';
+  /** When the placeholder is only an example ("Ej. 165"). */
+  accessibilityLabel?: string;
+  onSubmitEditing?: () => void;
+  returnKeyType?: 'done' | 'next';
+  autoCorrect?: boolean;
+  /** Takes a share of a row (day, month and year side by side). */
+  flex?: number;
 };
 
 /** A rounded text field with an optional unit after it. */
@@ -26,6 +33,11 @@ export function TextField({
   suffix,
   maxLength,
   tone = 'surface',
+  accessibilityLabel,
+  onSubmitEditing,
+  returnKeyType,
+  autoCorrect,
+  flex,
 }: TextFieldProps) {
   const { colors } = useAppTheme();
   return (
@@ -37,14 +49,18 @@ export function TextField({
       borderRadius="m"
       paddingHorizontal="l"
       minHeight={52}
+      flex={flex}
     >
       <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={colors.textMuted}
-        accessibilityLabel={placeholder}
+        accessibilityLabel={accessibilityLabel ?? placeholder}
         keyboardType={keyboardType}
+        onSubmitEditing={onSubmitEditing}
+        returnKeyType={returnKeyType}
+        autoCorrect={autoCorrect}
         multiline={multiline}
         maxLength={maxLength ?? (multiline ? 300 : 6)}
         style={{

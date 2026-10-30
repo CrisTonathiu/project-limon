@@ -2,9 +2,10 @@ import type { MealPlanDto, MealType, PlannedMealDto } from '@limon/types';
 import { describe, expect, it } from 'vitest';
 import { MAX_MEAL_CHECKS, mealCheckSchedule } from './meal-check-schedule';
 
-const meal = (id: string, mealType: MealType, logged = false): PlannedMealDto => ({
+const meal = (id: string, mealType: MealType, time: string, logged = false): PlannedMealDto => ({
   id,
   mealType,
+  time,
   recipe: { id: `r-${id}`, title: `Receta ${id}`, totalMinutes: null },
   servings: 1,
   macros: null,
@@ -17,13 +18,13 @@ const day = (date: string, loggedIds: string[] = []) => ({
   totals: null,
   meals: (
     [
-      ['b', 'BREAKFAST'],
-      ['s1', 'SNACK'],
-      ['l', 'LUNCH'],
-      ['s2', 'SNACK'],
-      ['d', 'DINNER'],
+      ['b', 'BREAKFAST', '08:00'],
+      ['s1', 'SNACK', '11:00'],
+      ['l', 'LUNCH', '14:00'],
+      ['s2', 'SNACK', '17:00'],
+      ['d', 'DINNER', '20:00'],
     ] as const
-  ).map(([id, type]) => meal(`${date}-${id}`, type, loggedIds.includes(`${date}-${id}`))),
+  ).map(([id, type, time]) => meal(`${date}-${id}`, type, time, loggedIds.includes(`${date}-${id}`))),
 });
 
 const plan = (...days: ReturnType<typeof day>[]): MealPlanDto => ({ id: 'p', weekStart: '2026-10-05', days });
@@ -31,7 +32,7 @@ const at = (h: number, m = 0) => new Date(2026, 9, 5, h, m);
 const time = (d: Date) => `${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 
 describe('mealCheckSchedule', () => {
-  it('fires 30 minutes after each meal’s usual hour', () => {
+  it('fires 30 minutes after each meal’s time', () => {
     const checks = mealCheckSchedule(plan(day('2026-10-05')), at(6));
     expect(checks.map((c) => time(c.fireAt))).toEqual(['5 8:30', '5 11:30', '5 14:30', '5 17:30', '5 20:30']);
     expect(checks[0]).toMatchObject({ mealId: '2026-10-05-b', mealType: 'BREAKFAST', recipeTitle: 'Receta 2026-10-05-b' });
@@ -48,6 +49,12 @@ describe('mealCheckSchedule', () => {
       '2026-10-06-s2',
       '2026-10-06-d',
     ]);
+  });
+
+  it('follows a meal time the patient changed', () => {
+    const p = plan(day('2026-10-05'));
+    p.days[0]!.meals[0] = { ...p.days[0]!.meals[0]!, time: '07:15' };
+    expect(time(mealCheckSchedule(p, at(6))[0]!.fireAt)).toBe('5 7:45');
   });
 
   it('gives a meal without a recipe a null title', () => {

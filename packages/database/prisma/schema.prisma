@@ -542,6 +542,8 @@ model PatientProfile {
   weightKg                Float         @map("weight_kg")
   activityLevel           ActivityLevel @map("activity_level")
   mealsPerDay             Int           @map("meals_per_day")
+  /// One "HH:MM" per meal in slot order (DB check: as many as meals_per_day). Reminders and Comidas use them.
+  mealTimes               String[]      @map("meal_times")
   /// Pregnant or breastfeeding: no automatic energy target, the nutritionist decides.
   pregnantOrBreastfeeding Boolean       @default(false) @map("pregnant_or_breastfeeding")
   /// @limon/types Allergen keys, stored as text so the list can grow without a migration.

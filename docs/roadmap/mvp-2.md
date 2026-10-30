@@ -183,21 +183,21 @@ This model feeds the streak, adherence, conditional nudges, the dashboard, analy
 
 | Screen | Status | Note |
 |---|---|---|
-| Onboarding (redesigned) | to design | Steps from today's questionnaire, **plus meal times** and the notification primer |
-| Notification primer | new | Shown before the iOS system prompt, which can only be shown once |
-| Notification settings | new | From Perfil: per category (meals, water, weigh-in, summaries), quiet hours, a master switch |
+| Onboarding (redesigned) | built | Welcome, the questionnaire, **meal times**, the notification primer and "plan ready". Spec in the [UI brief](../ui/UI-BRIEF.md), stories in `Screens/Onboarding` |
+| Notification primer | built | Shown before the iOS system prompt, which can only be shown once; offered once more after a check-off |
+| Notification settings | designed | From Perfil: per category (meals, water, weigh-in, summaries), quiet hours, a master switch. Built in Phase 4 |
 | Meal check-off | new | In the meal card and as a sheet ("¿Qué comiste?") |
-| Weekly summary | new | Adherence, water, weight change, opened from the Sunday notification |
+| Weekly summary | designed | Adherence, water, weight change, opened from the Sunday notification. Built in Phase 5 |
 | Weigh-in reminder target | existing | Progreso's "Registrar peso" sheet, opened from the notification |
-| Sign-in, sign-up, confirm email, invite code | to design | |
+| Sign-in, sign-up, confirm email, invite code | designed | Same layout as the onboarding welcome; restyled in week 3 |
 | Editar perfil, subscription, shopping list, water detail, service unavailable | to design | |
 
 ### Onboarding
 
-- [ ] Design the flow: welcome → about you (today's questionnaire) → **meal times** (pre-filled from meals per day, editable) → weigh-in day (when the tenant allows a choice) → notification primer → plan ready.
-- [ ] **Meal times:** store a default time for each slot on the profile. They're used for reminders and shown in Comidas ("Desayuno · 8:00"). Editable from Editar perfil.
-- [ ] **Permission primer:** explain what reminders do, using the clinic's name, with a "Ahora no" option. Only "Sí" triggers the system prompt. If the patient declines, offer again later in context (after the first check-off, from settings), never on every launch. Android 13+ also needs the runtime permission.
-- [ ] Keep the existing gates in `RootNavigator` (onboarding before the paywall, paywall before the app).
+- [x] Design the flow: welcome → about you (today's questionnaire) → **meal times** (pre-filled from meals per day, editable) → notification primer → plan ready. *(Meal times come right after "meals per day". The weigh-in day step waits until a clinic can let patients choose it: no tenant setting exists yet, it comes with the dashboard's notification settings in Phase 6.)*
+- [x] **Meal times:** store a default time for each slot on the profile. They're used for reminders and shown in Comidas ("Desayuno · 8:00"). Editable from Editar perfil. *(`patient_profiles.meal_times`, migration `0021_meal_times`, existing profiles backfilled with the defaults. The plan returns each meal's `time`; reminders and Inicio's next meal use it. An app that doesn't send `mealTimes` keeps the saved ones.)*
+- [x] **Permission primer:** explain what reminders do, using the clinic's name, with a "Ahora no" option. Only "Sí" triggers the system prompt. If the patient declines, offer again later in context (after the first check-off, from settings), never on every launch. Android 13+ also needs the runtime permission. *(Reminders no longer ask on plan load. Offered again once per phone after a check-off; the settings entry comes with Phase 4.)*
+- [x] Keep the existing gates in `RootNavigator` (onboarding before the paywall, paywall before the app).
 
 **Done when:** a new patient goes from invite code to their first plan with meal times saved and a notification choice made.
 

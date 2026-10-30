@@ -81,6 +81,28 @@ describe('patient profile', () => {
     expect(cleared.json().profile.dislikedFoods).toEqual([]);
   });
 
+  it('saves meal times, and keeps them when a save sends none (an older app)', async () => {
+    const mealTimes = ['07:30', '13:30', '17:00', '21:00'];
+    const put = await app.inject({ method: 'PUT', url, headers, payload: { ...payload, mealTimes } });
+    expect(put.json().profile.mealTimes).toEqual(mealTimes);
+
+    const without = await app.inject({ method: 'PUT', url, headers, payload });
+    expect(without.json().profile.mealTimes).toEqual(mealTimes);
+  });
+
+  it('uses the default meal times when the number of meals changes without new times', async () => {
+    const res = await app.inject({ method: 'PUT', url, headers, payload: { ...payload, mealsPerDay: 3 } });
+    expect(res.json().profile.mealTimes).toEqual(['08:00', '14:00', '20:00']);
+    await app.inject({ method: 'PUT', url, headers, payload });
+  });
+
+  it('rejects meal times that do not match the meals or are out of order', async () => {
+    for (const mealTimes of [['08:00', '14:00', '20:00'], ['08:00', '17:00', '14:00', '20:00']]) {
+      const res = await app.inject({ method: 'PUT', url, headers, payload: { ...payload, mealTimes } });
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
   it('rejects a disliked food that is not in the catalog, keeping the saved profile', async () => {
     const before = (await app.inject({ url, headers })).json().profile;
     const unknown = '99999999-9999-4999-8999-999999999999';

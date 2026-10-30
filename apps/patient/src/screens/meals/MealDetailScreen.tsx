@@ -5,6 +5,7 @@ import { mealIngredientParts } from '../../features/meal-plans/meal-ingredient';
 import { canLog, draftLog } from '../../features/meal-plans/meal-log';
 import { canRegenerate, formatPortion } from '../../features/meal-plans/meal-plan-format';
 import { cancelMealReminder } from '../../features/notifications/meal-reminders';
+import { usePrimerReoffer } from '../../features/notifications/use-primer-reoffer';
 import { formatMinutes } from '../../features/recipes/recipe-format';
 import { t } from '../../i18n/es-MX';
 import { formatDate, formatGrams, formatKcal, toDateOnly } from '../../i18n/format';
@@ -37,6 +38,7 @@ export function MealDetailScreen({
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [swap, setSwap] = useState<SwapSheetState | null>(null);
   const [logSheet, setLogSheet] = useState<MealLogTarget | null>(null);
+  const reoffer = usePrimerReoffer();
   const [logFailed, setLogFailed] = useState(false);
 
   const fetchMeal = useCallback(() => {
@@ -120,7 +122,10 @@ export function MealDetailScreen({
       .then((res) => {
         if ('log' in res) apply(res.log);
         // A cleared answer gets its reminder back the next time the plan loads.
-        if (next) void cancelMealReminder(mealId);
+        if (next) {
+          void cancelMealReminder(mealId);
+          reoffer.afterCheckOff();
+        }
       })
       .catch((err) => {
         console.error('[meals] saving the check-off failed', err);
@@ -168,30 +173,33 @@ export function MealDetailScreen({
   };
 
   return (
-    <MealDetailView
-      state={state()}
-      fallbackTitle={title}
-      swap={swap}
-      onBack={() => navigation.goBack()}
-      onOpenSwap={openSwap}
-      onSelectSwap={(foodId) =>
-        setSwap((prev) => (prev ? { ...prev, selected: foodId, saveFailed: false } : prev))
-      }
-      onConfirmSwap={confirmSwap}
-      onRetrySwap={() => swap && openSwap(swap.ingredient)}
-      onCloseSwap={() => setSwap((prev) => (prev?.saving ? prev : null))}
-      logSheet={logSheet}
-      onLogMeal={() =>
-        load.status === 'loaded' &&
-        setLogSheet({
-          label: t.recipes.mealTypes[load.meal.mealType],
-          hasRecipe: true,
-          log: load.meal.log,
-        })
-      }
-      onSave={(status, note) => saveLog(draftLog(status, note, new Date()))}
-      onClear={() => saveLog(null)}
-      onCloseLog={() => setLogSheet(null)}
-    />
+    <>
+      <MealDetailView
+        state={state()}
+        fallbackTitle={title}
+        swap={swap}
+        onBack={() => navigation.goBack()}
+        onOpenSwap={openSwap}
+        onSelectSwap={(foodId) =>
+          setSwap((prev) => (prev ? { ...prev, selected: foodId, saveFailed: false } : prev))
+        }
+        onConfirmSwap={confirmSwap}
+        onRetrySwap={() => swap && openSwap(swap.ingredient)}
+        onCloseSwap={() => setSwap((prev) => (prev?.saving ? prev : null))}
+        logSheet={logSheet}
+        onLogMeal={() =>
+          load.status === 'loaded' &&
+          setLogSheet({
+            label: t.recipes.mealTypes[load.meal.mealType],
+            hasRecipe: true,
+            log: load.meal.log,
+          })
+        }
+        onSave={(status, note) => saveLog(draftLog(status, note, new Date()))}
+        onClear={() => saveLog(null)}
+        onCloseLog={() => setLogSheet(null)}
+      />
+      {reoffer.sheet}
+    </>
   );
 }

@@ -410,6 +410,8 @@ export type PatientProfileDto = {
   weightKg: number;
   activityLevel: ActivityLevel;
   mealsPerDay: number;
+  /** One "HH:MM" per meal, in slot order (as many as mealsPerDay). Used for reminders and shown in Comidas. */
+  mealTimes: string[];
   pregnantOrBreastfeeding: boolean;
   allergies: Allergen[];
   /** Sorted by name. */
@@ -531,6 +533,8 @@ export type RecipeDetailDto = RecipeSummaryDto & {
 export type PlannedMealDto = {
   id: string;
   mealType: MealType;
+  /** When the patient usually has this meal, "HH:MM" (their profile's meal times). */
+  time: string;
   recipe: { id: string; title: string; totalMinutes: number | null } | null;
   /** Recipe servings the patient eats (0.5–2.5). */
   servings: number | null;

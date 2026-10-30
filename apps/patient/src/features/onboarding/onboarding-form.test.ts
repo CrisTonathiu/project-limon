@@ -2,8 +2,8 @@ import type { PatientProfileDto } from '@limon/types';
 import { PatientProfileSchema } from '@limon/validation';
 import { describe, expect, it } from 'vitest';
 import {
-  addDislikedFood, birthDateFrom, draftFromProfile, emptyDraft, formErrors, parseDecimal, searchFoods, stepErrors,
-  toProfileInput, type OnboardingDraft,
+  addDislikedFood, birthDateFrom, draftFromProfile, emptyDraft, formErrors, parseDecimal, searchFoods, shiftMealTime, stepErrors,
+  toProfileInput, withMealsPerDay, type OnboardingDraft,
 } from './onboarding-form';
 
 const today = new Date(2026, 9, 1); // Oct 1, 2026
@@ -13,7 +13,7 @@ const complete: OnboardingDraft = {
   ...emptyDraft,
   sex: 'FEMALE', birthDay: '20', birthMonth: '5', birthYear: '1990',
   heightCm: '162', weightKg: '68,4', activityLevel: 'LIGHT', mealsPerDay: 4,
-  allergies: ['milk'], dislikedFoods: [higado],
+  mealTimes: ['08:00', '14:00', '17:00', '20:00'], allergies: ['milk'], dislikedFoods: [higado],
 };
 
 describe('parseDecimal', () => {
@@ -48,6 +48,7 @@ describe('stepErrors', () => {
     expect(stepErrors('body', emptyDraft, today)).toEqual({ heightCm: 'required', weightKg: 'required' });
     expect(stepErrors('activity', emptyDraft, today)).toEqual({ activityLevel: 'required' });
     expect(stepErrors('meals', emptyDraft, today)).toEqual({ mealsPerDay: 'required' });
+    expect(stepErrors('mealTimes', emptyDraft, today)).toEqual({ mealTimes: 'required' });
     expect(stepErrors('allergies', emptyDraft, today)).toEqual({});
     expect(stepErrors('dislikes', emptyDraft, today)).toEqual({});
   });
@@ -61,10 +62,38 @@ describe('stepErrors', () => {
     expect(dob('1', '10', '2026')).toBeUndefined();
   });
 
+  it('wants each meal after the one before it', () => {
+    const times = (mealTimes: string[]) => stepErrors('mealTimes', { ...complete, mealTimes }, today).mealTimes;
+    expect(times(['08:00', '14:00', '13:45', '20:00'])).toBe('mealOrder');
+    expect(times(['08:00', '14:00', '14:00', '20:00'])).toBe('mealOrder');
+    expect(times(['07:15', '13:30', '17:00', '21:45'])).toBeUndefined();
+  });
+
   it('rejects height in meters and weights out of range', () => {
     expect(stepErrors('body', { ...complete, heightCm: '1.62', weightKg: '400' }, today)).toEqual({
       heightCm: 'outOfRange', weightKg: 'outOfRange',
     });
+  });
+});
+
+describe('withMealsPerDay', () => {
+  it('resets the times to the defaults for a new number of meals', () => {
+    expect(withMealsPerDay(complete, 3)).toEqual({ mealsPerDay: 3, mealTimes: ['08:00', '14:00', '20:00'] });
+  });
+  it('keeps the times the patient set when the number stays the same', () => {
+    expect(withMealsPerDay({ ...complete, mealTimes: ['07:00', '13:00', '16:00', '19:00'] }, 4)).toEqual({});
+  });
+});
+
+describe('shiftMealTime', () => {
+  it('moves a time by minutes, across the hour', () => {
+    expect(shiftMealTime('08:00', 15)).toBe('08:15');
+    expect(shiftMealTime('08:00', -15)).toBe('07:45');
+    expect(shiftMealTime('13:45', 15)).toBe('14:00');
+  });
+  it('stays within the day', () => {
+    expect(shiftMealTime('00:00', -15)).toBe('00:00');
+    expect(shiftMealTime('23:45', 15)).toBe('23:45');
   });
 });
 
@@ -112,7 +141,8 @@ describe('toProfileInput', () => {
     const input = toProfileInput(complete, today);
     expect(input).toEqual({
       sex: 'FEMALE', dateOfBirth: '1990-05-20', heightCm: 162, weightKg: 68.4, activityLevel: 'LIGHT',
-      mealsPerDay: 4, pregnantOrBreastfeeding: false, allergies: ['milk'], dislikedFoodIds: [higado.id],
+      mealsPerDay: 4, mealTimes: ['08:00', '14:00', '17:00', '20:00'], pregnantOrBreastfeeding: false,
+      allergies: ['milk'], dislikedFoodIds: [higado.id],
     });
     expect(PatientProfileSchema.safeParse(input).success).toBe(true);
   });
@@ -127,7 +157,7 @@ describe('toProfileInput', () => {
 describe('formErrors', () => {
   it('collects the errors of every step', () => {
     expect(formErrors({ ...complete, sex: null, weightKg: '', mealsPerDay: null }, today)).toEqual({
-      sex: 'required', weightKg: 'required', mealsPerDay: 'required',
+      sex: 'required', weightKg: 'required', mealsPerDay: 'required', mealTimes: 'required',
     });
     expect(formErrors(complete, today)).toEqual({});
   });
@@ -137,10 +167,10 @@ describe('draftFromProfile', () => {
   it('round-trips a saved profile back to the same PUT body', () => {
     const answers = {
       sex: 'FEMALE', dateOfBirth: '1990-05-20', heightCm: 162, weightKg: 68.4, activityLevel: 'LIGHT',
-      mealsPerDay: 4, pregnantOrBreastfeeding: false,
-    } as const;
+      mealsPerDay: 4, mealTimes: ['07:30', '13:00', '16:30', '20:30'], pregnantOrBreastfeeding: false,
+    };
     const saved: PatientProfileDto = {
-      ...answers, allergies: ['milk'], dislikedFoods: [higado],
+      ...answers, sex: 'FEMALE', activityLevel: 'LIGHT', allergies: ['milk'], dislikedFoods: [higado],
       energyTarget: { status: 'CONSULT_NUTRITIONIST', reason: 'MINOR' }, updatedAt: '2026-10-01T00:00:00.000Z',
     };
     const draft = draftFromProfile(saved);

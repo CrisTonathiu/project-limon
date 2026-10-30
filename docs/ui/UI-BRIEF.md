@@ -71,13 +71,40 @@ Replace the current Home screen (a title plus a list of buttons) with bottom tab
 | 5       | Detalle de receta                                                                                                                       | 05-detalle-de-receta.html | GET /recipes/:id                                                                                                           | designed                                      |
 | 6       | Progreso y metas, with a water card                                                                                                     | 06-progreso.html          | goal tracker and water tracker (MVP week 6)                                                                                | designed                                      |
 | 7       | Perfil                                                                                                                                  | 07-perfil.html            | GET /patients/me/profile, entitlement                                                                                      | designed                                      |
-| 8 to 17 | Editar perfil, sign-in, sign-up, confirm email, invite code, onboarding, subscription, shopping list, water detail, service unavailable | none yet                  |                                                                                                                            | to design: use the same tokens and components |
+| 8       | Onboarding (welcome, questionnaire, meal times, notification primer, plan ready)                                                       | none (spec below)         | PUT /patients/me/profile (with `mealTimes`)                                                                                | designed and built (MVP.2)                    |
+| 9 to 17 | Editar perfil, sign-in, sign-up, confirm email, invite code, subscription, shopping list, water detail, service unavailable           | none yet                  |                                                                                                                            | to design: use the same tokens and components |
 
 Notes for each screen:
 
 - **Inicio:** a hero card with two rings, the weight goal (outer, primary) and plan adherence this week (inner, accent). Below it, three tiles: streak, meals today, and calories today against the target (four tiles, with water, go in a 2×2 grid). Then a weight sparkline card and the brand-colored next-meal card. There is no appointment tile, because not every clinic offers appointments. Until the goal tracker ships, the outer ring shows today's calories. Hide each block whose feature flag is off.
 - **Meal check-off (MVP.2, no mockup):** on Comidas, the meal card's left tile is the check-off button for today's and yesterday's meals: an empty ring until answered, then ✓ (primary), ≈ (accent track) or – (track), with the answer after the meal in the caption ("Desayuno · Comiste"). The tile pops like the heart when the answer changes. It opens a bottom sheet, "¿Comiste tu desayuno?", with Comí / Comí otra cosa / No comí; the first and last save at once, "otra cosa" shows an optional note (140 characters) and Guardar, and an answer can be cleared. Detalle de comida shows the same as a row under the header. Stories: `Screens/Comidas` (CheckOffSheet, CheckOffSheetOther, PastDay, LaterDay).
-- **Comidas:** a strip of the 7 days, with today selected. A day summary card shows a ring against the target and P/C/G chips. Below it are the meal cards (meal and time, dish, kcal, heart) and the outline button "Cambiar el menú de este día" (hidden on past days).
+- **Comidas:** a strip of the 7 days, with today selected. A day summary card shows a ring against the target and P/C/G chips. Below it are the meal cards (meal and time, dish, kcal, heart) and the outline button "Cambiar el menú de este día" (hidden on past days). The caption is "Desayuno · 8:00" from the patient's meal times until the meal is answered, then "Desayuno · Comiste".
+- **Onboarding (MVP.2, no mockup):** one topic per page on the background color, with the main button pinned at the bottom (like goal setting). Each page uses the entrance motion.
+  - **Welcome:** a tinted hero card (bowl icon in a white circle, "Te damos la bienvenida a {clinic}", one line on what's next), then "Empezar" and a quiet "Cerrar sesión" link. It has no step counter.
+  - **Questionnaire (7 steps):** a back button, "Paso n de 7" and a progress bar, the question as a 26 px title, then the answers.
+    - Single choices are `OptionCard`s with radio dots; allergies and "embarazada o en lactancia" use `OptionCard multiple` with checkboxes.
+    - Numbers are `TextField`s with a unit ("cm", "kg").
+    - Disliked foods are a search field, a white list of matches and removable tinted chips.
+    - Errors show under the field in danger red, only after "Siguiente" is pressed.
+  - **Meal times (step 5, after meals per day):** one white row per meal: the meal name, then − 8:00 + (15 minutes a tap, Fredoka number). The rows come pre-filled from the meals per day (8:00, 14:00, 20:00, with snacks halfway between) and reset when that number changes. Each meal must come after the one before it. For screen readers the row is one adjustable element. Editar perfil shows the same rows.
+  - **Notification primer:** only when the system prompt can still be shown.
+    - A tinted card with a bell, holding a sample lock-screen reminder (clinic name, "¿Comiste tu desayuno?", "Toca para registrar tu respuesta.").
+    - Below it: "¿Te recordamos tus comidas?", who sends them and why, and a muted line saying reminders never show what the patient eats.
+    - Buttons: "Sí, avísame" (primary, bell icon, the only thing that shows the system prompt) and "Ahora no" (outline).
+  - **Plan ready:** a tinted card with a check ("Tu plan está listo"), a white card with the daily target and macros (or the nutritionist-hold message), a white card with the meal times, and "Empezar". It leads to the paywall or the app.
+  - Stories: `Screens/Onboarding`.
+- **Primer, offered again (MVP.2):** after a saved check-off, if notifications are still off and can be asked for, the same primer opens once in a bottom sheet ("¿Quieres que te lo recordemos?"). It opens after the check-off sheet has closed and is shown at most once per phone, never on launch.
+- **Notification settings (MVP.2 Phase 4, to build):** from Perfil, a native-header screen.
+  - A master switch card at the top.
+  - Category rows below it: Comidas, Agua, Pesaje semanal, Resumen semanal. Each row has a switch and a muted caption with when it fires ("30 min después de cada comida").
+  - Quiet hours as two time rows using the meal-time stepper.
+  - When the phone's permission is off: a tinted card explaining it, with "Abrir ajustes" instead of the switches.
+- **Weekly summary (MVP.2 Phase 5, to build):** opened from the Sunday notification.
+  - A tinted header band ("Tu semana", the date range).
+  - A hero card with the week's adherence ring (accent).
+  - Three tiles: meals eaten, water days on target, weight change (signed, muted when there's no weigh-in).
+  - One encouraging line, never about the body ("Registraste 18 de 28 comidas"), and "Ver mi progreso" (outline) to Progreso.
+- **Entry screens (to build, Nov 9 to 13):** sign-in, sign-up, confirm email and invite code take the onboarding welcome layout: a tinted hero card with the clinic's name, then `TextField`s on the background, and the main button pinned at the bottom with a quiet secondary link under it ("Crear cuenta", "Ya tengo cuenta", "Reenviar correo").
 - **Detalle de comida:** a tinted header band with a back button. Macro chips, then the list of ingredients, each with a "Cambiar" pill. The swap sheet lists equivalents from the same SMAE group, with the selected one tinted. Keep the FatSecret attribution under the macros.
 - **Recetas:** a search field, meal-type chips and a 2-column card grid. Recipes have no photos yet, so each card has a tinted block with an icon.
 - **Detalle de receta:** a tinted header with back and favorite buttons, and meta chips. A per-serving card shows kcal and three macro bars. Then the ingredients and numbered steps. If the macros are unavailable, say "no disponible" instead of showing partial numbers.
@@ -93,6 +120,8 @@ Notes for each screen:
 4. **Nov 17 to 20:** motion pass, Reduce Motion, empty, loading and error states, and checking every screen in each pilot clinic's color. The UI freezes on Nov 20, and launch is Nov 27.
 
 ## Open questions
+
+- Weigh-in day during onboarding: skipped until a clinic can let patients choose it (the dashboard's notification settings, MVP.2 Phase 6).
 
 - Which color should a clinic with no brand color get: #3173BD or #2E7D32?
 

@@ -126,6 +126,45 @@ export const PATIENT_PROFILE_LIMITS = {
 } as const;
 const L = PATIENT_PROFILE_LIMITS;
 
+/** A meal time on the patient's clock, "08:00" (24 h). */
+export const MEAL_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * The usual times in Mexico for each meal of the day, in the order the meal plan lays out
+ * the slots (MEAL_SPLITS): main meals at 8:00, 14:00 and 20:00, snacks halfway between.
+ */
+const DEFAULT_MEAL_TIMES: Record<number, readonly string[]> = {
+  3: ['08:00', '14:00', '20:00'],
+  4: ['08:00', '14:00', '17:00', '20:00'],
+  5: ['08:00', '11:00', '14:00', '17:00', '20:00'],
+};
+
+/** The meal of each slot, in order (the API's MEAL_SPLITS), so the app can name each time. */
+const { BREAKFAST, LUNCH, DINNER, SNACK } = MealType;
+const MEAL_SLOT_TYPES: Record<number, readonly MealType[]> = {
+  3: [BREAKFAST, LUNCH, DINNER],
+  4: [BREAKFAST, LUNCH, SNACK, DINNER],
+  5: [BREAKFAST, SNACK, LUNCH, SNACK, DINNER],
+};
+
+export function mealSlotTypes(mealsPerDay: number): MealType[] {
+  const types = MEAL_SLOT_TYPES[mealsPerDay];
+  if (!types) throw new RangeError(`No meal slots for ${mealsPerDay} meals per day`);
+  return [...types];
+}
+
+export function defaultMealTimes(mealsPerDay: number): string[] {
+  const times = DEFAULT_MEAL_TIMES[mealsPerDay];
+  if (!times) throw new RangeError(`No default meal times for ${mealsPerDay} meals per day`);
+  return [...times];
+}
+
+/** "08:00" → minutes after midnight. */
+export const minutesOfDay = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+
+/** Each meal after the one before it, so the slots stay in the order they're eaten. */
+export const inEatingOrder = (times: readonly string[]) => times.every((time, i) => i === 0 || minutesOfDay(time) > minutesOfDay(times[i - 1]!));
+
 /**
  * The onboarding questionnaire, also sent whole when the patient edits their profile (PUT).
  * Minors and pregnancy are accepted here: the energy target, not the profile, applies those guardrails.
@@ -145,11 +184,24 @@ export const PatientProfileSchema = z
     allergies: z.array(z.nativeEnum(Allergen)).max(Object.keys(Allergen).length).default([]).transform((a) => [...new Set(a)]),
     /** Ids from the food catalog (GET /foods/catalog); the API checks they exist. */
     dislikedFoodIds: z.array(z.string().uuid()).max(L.dislikedFoods.maxItems).default([]).transform((ids) => [...new Set(ids)]),
+    /**
+     * One time per meal, in slot order. Optional so an older app can still save: the API then
+     * keeps the saved times, or uses the defaults when the number of meals changed.
+     */
+    mealTimes: z.array(z.string().regex(MEAL_TIME_PATTERN, 'time like 08:00')).max(L.mealsPerDay.max).optional(),
   })
   .strict()
   .refine((p) => !(p.sex === BiologicalSex.MALE && p.pregnantOrBreastfeeding), {
     path: ['pregnantOrBreastfeeding'],
     message: 'only applies to sex FEMALE',
+  })
+  .refine((p) => !p.mealTimes || p.mealTimes.length === p.mealsPerDay, {
+    path: ['mealTimes'],
+    message: 'one time per meal',
+  })
+  .refine((p) => !p.mealTimes || inEatingOrder(p.mealTimes), {
+    path: ['mealTimes'],
+    message: 'each meal must come after the one before it',
   });
 export type PatientProfileInput = z.input<typeof PatientProfileSchema>;
 export type PatientProfile = z.output<typeof PatientProfileSchema>;

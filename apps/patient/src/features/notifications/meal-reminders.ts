@@ -1,18 +1,17 @@
 import type { MealPlanDto } from '@limon/types';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
 import { t } from '../../i18n/es-MX';
 import { mealCheckSchedule } from './meal-check-schedule';
+import { ensureNotificationChannels, MEAL_CHECK_CHANNEL_ID as CHANNEL_ID, notificationPermission } from './notification-permission';
 
 /**
  * "¿Comiste tu desayuno?" reminders, scheduled on the phone (local notifications: no server,
- * no push credentials). One per unanswered meal, 30 minutes after its usual hour. They are
+ * no push credentials). One per unanswered meal, 30 minutes after its time. They are
  * rescheduled whenever the plan loads, and a meal's reminder is cancelled once it's answered.
  */
 
 const KIND = 'meal-check';
-const CHANNEL_ID = 'meal-check';
 const identifier = (mealId: string) => `${KIND}:${mealId}`;
 
 /** What a meal reminder carries, for the tap. */
@@ -27,21 +26,11 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
 });
 
-/**
- * Asks for permission the first time only. Android 13+ asks at runtime and needs the channel
- * to exist first. To do (MVP.2 Phase 2): the primer screen before the system prompt.
- */
+/** Never asks: the permission comes from the primer (notification-permission.ts). */
 async function canNotify(): Promise<boolean> {
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: t.mealLog.reminderChannel,
-      importance: Notifications.AndroidImportance.HIGH,
-    });
-  }
-  const current = await Notifications.getPermissionsAsync();
-  if (current.granted) return true;
-  if (!current.canAskAgain) return false;
-  return (await Notifications.requestPermissionsAsync()).granted;
+  if ((await notificationPermission()) !== 'granted') return false;
+  await ensureNotificationChannels();
+  return true;
 }
 
 async function cancelAll(): Promise<void> {

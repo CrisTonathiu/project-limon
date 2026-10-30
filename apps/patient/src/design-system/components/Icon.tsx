@@ -42,6 +42,14 @@ const glyphs = {
   /** A meal checked off as "something else" (≈). */
   other: <Path d="M5 9.5c2.3-2 4.7-2 7 0s4.7 2 7 0M5 15c2.3-2 4.7-2 7 0s4.7 2 7 0" />,
   close: <Path d="M6 6l12 12M18 6L6 18" />,
+  /** Reminders: the notification primer. */
+  bell: <Path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2.2 2.2 0 0 0 4 0" />,
+  clock: (
+    <>
+      <Circle cx={12} cy={12} r={8} />
+      <Path d="M12 8v4l2.5 2" />
+    </>
+  ),
   water: <Path d="M12 3c3 4 6 7.5 6 11a6 6 0 0 1-12 0c0-3.5 3-7 6-11z" />,
   bowl: (
     <>

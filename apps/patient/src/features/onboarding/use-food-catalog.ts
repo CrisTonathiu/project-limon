@@ -2,7 +2,10 @@ import type { FoodOptionDto } from '@limon/types';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../services/api';
 
-type CatalogLoad = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; foods: FoodOptionDto[] };
+export type CatalogLoad = { status: 'loading' } | { status: 'failed' } | { status: 'loaded'; foods: FoodOptionDto[] };
+
+/** What the disliked-foods picker needs: the catalog and a retry. */
+export type FoodCatalog = { load: CatalogLoad; retry: () => void };
 
 /** One request per app run: the catalog only changes when our team loads new foods. */
 let cached: Promise<FoodOptionDto[]> | null = null;
@@ -18,7 +21,7 @@ const fetchCatalog = () => {
 };
 
 /** The food catalog (sorted by name), for picking disliked foods. */
-export function useFoodCatalog() {
+export function useFoodCatalog(): FoodCatalog {
   const [load, setLoad] = useState<CatalogLoad>({ status: 'loading' });
 
   const fetch = useCallback(() => {

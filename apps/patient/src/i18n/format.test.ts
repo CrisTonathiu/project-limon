@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  compareText, formatDate, formatDayHeading, formatDayRange, formatKcal, formatKg, formatLiters, formatNumber, formatPercent, formatSigned, parseDateOnly, plural, toDateOnly,
+  compareText, formatDate, formatDayHeading, formatDayRange, formatKcal, formatKg, formatLiters, formatMealTime, formatNumber, formatPercent, formatSigned, parseDateOnly, plural, toDateOnly,
 } from './format';
 
 describe('es-MX formatting', () => {
@@ -39,5 +39,14 @@ describe('es-MX formatting', () => {
 
   it('sorts Spanish text', () => {
     expect(['nuez', 'ñame', 'árbol', 'zanahoria'].sort(compareText)).toEqual(['árbol', 'nuez', 'ñame', 'zanahoria']);
+  });
+});
+
+describe('formatMealTime', () => {
+  it('drops the leading zero of the hour only', () => {
+    expect(formatMealTime('08:00')).toBe('8:00');
+    expect(formatMealTime('00:15')).toBe('0:15');
+    expect(formatMealTime('14:30')).toBe('14:30');
+    expect(formatMealTime('20:05')).toBe('20:05');
   });
 });

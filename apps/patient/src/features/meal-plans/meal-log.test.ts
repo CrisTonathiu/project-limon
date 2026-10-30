@@ -15,6 +15,7 @@ describe('withLog', () => {
   const meal = (id: string) => ({
     id,
     mealType: 'LUNCH' as const,
+    time: '14:00',
     recipe: null,
     servings: null,
     macros: null,

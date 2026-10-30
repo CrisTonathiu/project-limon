@@ -5,7 +5,7 @@ import type {
   EnergyTargetHoldReason, FoodSwapOptionsResponse, MealLogDto, MealLogResponse, MealLogStatus, MealPlanDayDto, MealPlanResponse, MealProgressResponse,
   MealType, PlannedMealDetailDto, RecipeMacros,
 } from '@limon/types';
-import type { MealLogData } from '@limon/validation';
+import { defaultMealTimes, type MealLogData } from '@limon/validation';
 import type { Container } from '../../infrastructure/container.js';
 import { Errors } from '../../lib/errors.js';
 import { createFoodsService } from '../foods/foods.service.js';
@@ -75,6 +75,13 @@ type SavedMeal = {
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 const round = (n: number, decimals: number) => Math.round(n * 10 ** decimals) / 10 ** decimals;
 const slotKey = (date: Date | string, slot: number) => `${typeof date === 'string' ? date : isoDate(date)}:${slot}`;
+
+/**
+ * The times of a day's meals. A day generated before the patient changed their number of
+ * meals has a different count than their times, so it gets the defaults for its own count.
+ */
+const mealTimesFor = (mealCount: number, profileTimes: string[]) =>
+  mealCount === profileTimes.length || mealCount === 0 ? profileTimes : defaultMealTimes(mealCount);
 
 /** How far back the streak looks. A longer streak shows as this many days. */
 const STREAK_LOOKBACK_DAYS = 365;
@@ -273,12 +280,13 @@ export function createMealPlansService(c: Container) {
   };
 
   /** The patient's energy target, which decides whether they have a plan at all. */
-  const weekTarget = async (tenantId: string, patientId: string) => {
+  const weekProfile = async (tenantId: string, patientId: string) => {
     const profile = await patients.planningProfile(tenantId, patientId);
     // The app only shows the plan after onboarding, so this is a client bug or a race with account deletion.
     if (!profile) throw Errors.conflict('Finish the onboarding questionnaire first.');
-    return profile.energyTarget;
+    return profile;
   };
+  const weekTarget = async (tenantId: string, patientId: string) => (await weekProfile(tenantId, patientId)).energyTarget;
 
   /**
    * The saved week with each meal's macros, recomputed from the FatSecret cache on every
@@ -286,7 +294,7 @@ export function createMealPlansService(c: Container) {
    * a patient who joins mid-week, or a week the weekly job hasn't reached, still gets a plan.
    */
   const readWeek = async (ctx: TenantContext, patientId: string, weekStart: string, log: Logger): Promise<MealPlanResponse> => {
-    const target = await weekTarget(ctx.tenantId, patientId);
+    const { energyTarget: target, mealTimes } = await weekProfile(ctx.tenantId, patientId);
     if (target.status !== 'READY') return { status: 'CONSULT_NUTRITIONIST', reason: target.reason };
 
     const plan = await ensureWeek(ctx, patientId, weekStart, log);
@@ -298,13 +306,15 @@ export function createMealPlansService(c: Container) {
 
     const view = await mealViews(ctx.tenantId, plan.meals, log);
     const days: MealPlanDayDto[] = weekDates(weekStart).map((date) => {
-      const meals = plan.meals
-        .filter((m) => isoDate(m.date) === date)
+      const dayMeals = plan.meals.filter((m) => isoDate(m.date) === date);
+      const times = mealTimesFor(dayMeals.length, mealTimes);
+      const meals = dayMeals
         .map((m) => {
           const v = view(m);
           return {
             id: m.id,
             mealType: m.mealType,
+            time: times[m.slot] ?? times[times.length - 1]!,
             recipe: v ? { id: v.recipe.id, title: v.recipe.title, totalMinutes: v.recipe.totalMinutes } : null,
             servings: v ? m.servings : null,
             macros: v?.macros ?? null,
